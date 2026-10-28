@@ -9,8 +9,6 @@
     --fg: #f7f4ee;
     --muted: rgba(247, 244, 238, 0.55);
     --overlay: rgba(10, 12, 10, 0.55);
-    --btn-bg: rgba(255, 255, 255, 0.16);
-    --btn-border: rgba(255, 255, 255, 0.28);
   }
 
   * { margin: 0; padding: 0; box-sizing: border-box; }
@@ -146,67 +144,7 @@
     animation: fadeIn 1.4s ease both;
   }
 
-  /* 播放按钮 */
-  .play-btn {
-    margin-top: 46px;
-    width: 78px;
-    height: 78px;
-    border-radius: 50%;
-    background: var(--btn-bg);
-    border: 1px solid var(--btn-border);
-    backdrop-filter: blur(6px);
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    cursor: pointer;
-    transition: transform 0.3s ease, background 0.3s ease, border-color 0.3s ease;
-    animation: fadeUp 1.6s ease 0.4s both;
-  }
-  .play-btn:hover {
-    transform: scale(1.08);
-    background: rgba(255, 255, 255, 0.26);
-    border-color: rgba(255, 255, 255, 0.5);
-  }
-  .play-btn svg {
-    width: 26px;
-    height: 26px;
-    margin-left: 4px;
-    filter: drop-shadow(0 2px 6px rgba(0, 0, 0, 0.4));
-  }
-
-  /* 底部滚动提示 */
-  .scroll-hint {
-    position: fixed;
-    bottom: 26px;
-    left: 50%;
-    transform: translateX(-50%);
-    z-index: 6;
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    gap: 8px;
-    font-size: 13px;
-    letter-spacing: 0.06em;
-    color: var(--muted);
-    opacity: 0;
-    animation: fadeIn 1.4s ease 1.2s forwards;
-  }
-  .scroll-hint .chevron {
-    width: 14px;
-    height: 14px;
-    border-right: 1.5px solid var(--muted);
-    border-bottom: 1.5px solid var(--muted);
-    transform: rotate(45deg);
-    animation: bounce 2.2s ease-in-out infinite;
-  }
-  @keyframes bounce {
-    0%, 100% { transform: rotate(45deg) translate(0, 0); }
-    50%      { transform: rotate(45deg) translate(3px, 3px); }
-  }
-
   @keyframes fadeIn { to { opacity: 1; } }
-  @keyframes fadeUp { to { opacity: 1; transform: translateY(0); } }
-  .play-btn { opacity: 0; }
 
   /* ========== 内嵌SVG：黄昏山谷河流油画背景 ========== */
   .art-svg {
@@ -310,18 +248,7 @@
   <!-- 中央英雄区 -->
   <main class="hero">
     <h1 class="title">Cealin</h1>
-    <button class="play-btn" aria-label="播放">
-      <svg viewBox="0 0 24 24" fill="#ffffff" xmlns="http://www.w3.org/2000/svg">
-        <path d="M8 5.14v13.72c0 .9.98 1.46 1.76 1L20.5 13a1.2 1.2 0 0 0 0-2L9.76 4.14A1.14 1.14 0 0 0 8 5.14z"/>
-      </svg>
-    </button>
   </main>
-
-  <!-- 底部滚动提示 -->
-  <div class="scroll-hint">
-    <span>上滑查看更多内容</span>
-    <div class="chevron"></div>
-  </div>
 
 </body>
 </html>
