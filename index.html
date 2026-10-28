@@ -6,11 +6,11 @@
 <title>Cealin</title>
 <style>
   :root {
-    --bg: #0d0d0f;
-    --fg: #f5f2e9;
-    --muted: rgba(245, 242, 233, 0.45);
-    --accent: #c8a96e;
-    --line: rgba(245, 242, 233, 0.12);
+    --fg: #f7f4ee;
+    --muted: rgba(247, 244, 238, 0.55);
+    --overlay: rgba(10, 12, 10, 0.55);
+    --btn-bg: rgba(255, 255, 255, 0.16);
+    --btn-border: rgba(255, 255, 255, 0.28);
   }
 
   * { margin: 0; padding: 0; box-sizing: border-box; }
@@ -18,36 +18,50 @@
   html, body { height: 100%; }
 
   body {
-    background: var(--bg);
     color: var(--fg);
-    font-family: "Cormorant Garamond", "Times New Roman", "Songti SC", "SimSun", serif;
+    font-family: "Helvetica Neue", "PingFang SC", "Microsoft YaHei", Arial, sans-serif;
     -webkit-font-smoothing: antialiased;
     overflow: hidden;
+    background: #14181a;
   }
 
-  /* 背景光影 */
-  .bg-glow {
+  /* ========== 全屏油画背景：内嵌SVG山谷河流 + 多层渐变 + 噪点 ========== */
+  .art-bg {
     position: fixed;
     inset: 0;
     z-index: 0;
-    pointer-events: none;
-    background:
-      radial-gradient(ellipse 60% 45% at 50% 42%, rgba(200, 169, 110, 0.10), transparent 65%),
-      radial-gradient(ellipse 35% 30% at 18% 88%, rgba(200, 169, 110, 0.05), transparent 60%),
-      radial-gradient(ellipse 35% 30% at 85% 12%, rgba(200, 169, 110, 0.04), transparent 60%);
+  }
+  .art-bg svg {
+    width: 100%;
+    height: 100%;
+    display: block;
   }
 
-  .grain {
+  /* 暖金氛围光 */
+  .glow {
     position: fixed;
     inset: 0;
     z-index: 1;
     pointer-events: none;
-    opacity: 0.05;
-    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+    background:
+      radial-gradient(ellipse 55% 42% at 50% 46%, rgba(255, 196, 120, 0.20), transparent 62%),
+      radial-gradient(ellipse 40% 35% at 50% 60%, rgba(230, 170, 90, 0.10), transparent 70%),
+      linear-gradient(180deg, rgba(6, 8, 7, 0.30) 0%, rgba(6, 8, 7, 0) 30%, rgba(6, 8, 7, 0.20) 78%, rgba(4, 5, 4, 0.55) 100%);
   }
 
-  /* 顶部导航 */
-  .nav {
+  /* 油画噪点颗粒 */
+  .grain {
+    position: fixed;
+    inset: 0;
+    z-index: 2;
+    pointer-events: none;
+    opacity: 0.07;
+    mix-blend-mode: overlay;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='180' height='180'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+  }
+
+  /* ========== 顶部导航栏 ========== */
+  .topbar {
     position: fixed;
     top: 0;
     left: 0;
@@ -56,35 +70,58 @@
     display: flex;
     justify-content: space-between;
     align-items: center;
-    padding: 34px 56px;
-    font-size: 11px;
-    letter-spacing: 0.42em;
-    text-transform: uppercase;
-    color: var(--muted);
+    padding: 16px 36px;
+    background: linear-gradient(180deg, rgba(8, 9, 8, 0.72), rgba(8, 9, 8, 0));
+    backdrop-filter: blur(2px);
   }
-  .nav .brand { letter-spacing: 0.34em; }
-  .nav .links { display: flex; gap: 44px; }
-  .nav a {
+
+  .logo {
+    font-size: 22px;
+    font-weight: 800;
+    letter-spacing: 0.06em;
+    color: var(--fg);
+  }
+
+  .nav-right {
+    display: flex;
+    align-items: center;
+    gap: 34px;
+  }
+
+  .menu {
+    display: flex;
+    gap: 30px;
+    list-style: none;
+  }
+  .menu a {
+    font-size: 15px;
+    font-weight: 500;
     color: var(--muted);
     text-decoration: none;
-    transition: color 0.4s ease;
+    transition: color 0.3s ease;
   }
-  .nav a:hover { color: var(--accent); }
+  .menu a:hover { color: var(--fg); }
 
-  /* 左右装饰竖线 */
-  .side-line {
-    position: fixed;
-    top: 50%;
-    transform: translateY(-50%);
-    width: 1px;
-    height: 180px;
-    background: linear-gradient(to bottom, transparent, var(--line), transparent);
-    z-index: 5;
+  .avatar {
+    width: 34px;
+    height: 34px;
+    border-radius: 50%;
+    border: 1.5px solid rgba(255, 255, 255, 0.35);
+    background:
+      radial-gradient(circle at 35% 30%, rgba(255, 255, 255, 0.35), transparent 40%),
+      linear-gradient(135deg, #7d8a7a, #3a4038);
+    cursor: pointer;
+    position: relative;
   }
-  .side-line.left  { left: 56px; }
-  .side-line.right { right: 56px; }
+  .avatar::after {
+    content: "";
+    position: absolute;
+    inset: 4px;
+    border-radius: 50%;
+    border: 1px solid rgba(255, 255, 255, 0.15);
+  }
 
-  /* 中央主体 */
+  /* ========== 中央英雄区 ========== */
   .hero {
     position: relative;
     z-index: 5;
@@ -94,95 +131,197 @@
     justify-content: center;
     align-items: center;
     text-align: center;
-    padding: 0 24px;
+    padding-bottom: 40px;
   }
 
   .title {
-    font-size: clamp(88px, 14vw, 220px);
-    font-weight: 400;
-    letter-spacing: 0.16em;
-    text-indent: 0.16em;
+    font-size: clamp(64px, 12vw, 168px);
+    font-weight: 800;
+    letter-spacing: 0.10em;
+    text-indent: 0.10em;
     line-height: 1;
-    background: linear-gradient(180deg, #fffdf6 0%, #d9d2c0 55%, #9c948a 100%);
-    -webkit-background-clip: text;
-    background-clip: text;
-    -webkit-text-fill-color: transparent;
-    color: transparent;
+    color: var(--fg);
+    text-shadow: 0 4px 60px rgba(0, 0, 0, 0.45);
     user-select: none;
+    animation: fadeIn 1.4s ease both;
   }
 
-  /* 大标题逐字浮现 */
-  .title span {
-    display: inline-block;
-    opacity: 0;
-    transform: translateY(28px);
-    animation: rise 1.1s cubic-bezier(0.22, 0.8, 0.24, 1) forwards;
+  /* 播放按钮 */
+  .play-btn {
+    margin-top: 46px;
+    width: 78px;
+    height: 78px;
+    border-radius: 50%;
+    background: var(--btn-bg);
+    border: 1px solid var(--btn-border);
+    backdrop-filter: blur(6px);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    transition: transform 0.3s ease, background 0.3s ease, border-color 0.3s ease;
+    animation: fadeUp 1.6s ease 0.4s both;
   }
-  @keyframes rise {
-    to { opacity: 1; transform: translateY(0); }
+  .play-btn:hover {
+    transform: scale(1.08);
+    background: rgba(255, 255, 255, 0.26);
+    border-color: rgba(255, 255, 255, 0.5);
   }
-
-  .subtitle {
-    margin-top: 34px;
-    font-size: 13px;
-    letter-spacing: 0.58em;
-    text-indent: 0.58em;
-    text-transform: uppercase;
-    color: var(--muted);
-    opacity: 0;
-    animation: fade 1.6s ease 1.5s forwards;
-  }
-  @keyframes fade { to { opacity: 1; } }
-
-  .line-sep {
-    margin-top: 40px;
-    width: 64px;
-    height: 1px;
-    background: var(--accent);
-    opacity: 0;
-    animation: fade 1.6s ease 2s forwards;
+  .play-btn svg {
+    width: 26px;
+    height: 26px;
+    margin-left: 4px;
+    filter: drop-shadow(0 2px 6px rgba(0, 0, 0, 0.4));
   }
 
+  /* 底部滚动提示 */
   .scroll-hint {
     position: fixed;
-    bottom: 34px;
+    bottom: 26px;
     left: 50%;
     transform: translateX(-50%);
-    z-index: 5;
-    font-size: 10px;
-    letter-spacing: 0.4em;
-    text-transform: uppercase;
+    z-index: 6;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 8px;
+    font-size: 13px;
+    letter-spacing: 0.06em;
     color: var(--muted);
-    opacity: 0.7;
+    opacity: 0;
+    animation: fadeIn 1.4s ease 1.2s forwards;
   }
+  .scroll-hint .chevron {
+    width: 14px;
+    height: 14px;
+    border-right: 1.5px solid var(--muted);
+    border-bottom: 1.5px solid var(--muted);
+    transform: rotate(45deg);
+    animation: bounce 2.2s ease-in-out infinite;
+  }
+  @keyframes bounce {
+    0%, 100% { transform: rotate(45deg) translate(0, 0); }
+    50%      { transform: rotate(45deg) translate(3px, 3px); }
+  }
+
+  @keyframes fadeIn { to { opacity: 1; } }
+  @keyframes fadeUp { to { opacity: 1; transform: translateY(0); } }
+  .play-btn { opacity: 0; }
+
+  /* ========== 内嵌SVG：黄昏山谷河流油画背景 ========== */
+  .art-svg {
+    position: absolute;
+    inset: 0;
+  }
+  .art-svg svg { width: 100%; height: 100%; }
 </style>
 </head>
 <body>
 
-  <div class="bg-glow"></div>
+  <!-- 油画背景 -->
+  <div class="art-bg">
+    <svg viewBox="0 0 1920 1080" preserveAspectRatio="xMidYMid slice" xmlns="http://www.w3.org/2000/svg">
+      <defs>
+        <linearGradient id="sky" x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0%"  stop-color="#22342e"/>
+          <stop offset="38%" stop-color="#3f5544"/>
+          <stop offset="62%" stop-color="#6b7350"/>
+          <stop offset="80%" stop-color="#a0844f"/>
+          <stop offset="100%" stop-color="#e8b36a"/>
+        </linearGradient>
+        <linearGradient id="river" x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0%"  stop-color="#d9a35c"/>
+          <stop offset="100%" stop-color="#2b3b30"/>
+        </linearGradient>
+        <radialGradient id="sun" cx="0.5" cy="0.5" r="0.5">
+          <stop offset="0%"  stop-color="#ffe6b0" stop-opacity="0.95"/>
+          <stop offset="45%" stop-color="#f4b968" stop-opacity="0.55"/>
+          <stop offset="100%" stop-color="#f4b968" stop-opacity="0"/>
+        </radialGradient>
+        <linearGradient id="mist" x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0%"  stop-color="#e8c48c" stop-opacity="0.30"/>
+          <stop offset="100%" stop-color="#e8c48c" stop-opacity="0"/>
+        </linearGradient>
+        <filter id="soft">
+          <feGaussianBlur stdDeviation="6"/>
+        </filter>
+        <filter id="soft2">
+          <feGaussianBlur stdDeviation="18"/>
+        </filter>
+      </defs>
+
+      <!-- 天空 -->
+      <rect width="1920" height="1080" fill="url(#sky)"/>
+
+      <!-- 云层笔触 -->
+      <g filter="url(#soft2)" opacity="0.5">
+        <ellipse cx="520" cy="150" rx="420" ry="70" fill="#7c8a68"/>
+        <ellipse cx="1500" cy="120" rx="460" ry="80" fill="#56644f"/>
+        <ellipse cx="980" cy="240" rx="520" ry="90" fill="#8a7c50"/>
+      </g>
+
+      <!-- 落日 -->
+      <circle cx="960" cy="470" r="120" fill="url(#sun)"/>
+      <circle cx="960" cy="470" r="56" fill="#ffe9bd" opacity="0.9"/>
+
+      <!-- 远山 -->
+      <g filter="url(#soft)">
+        <path d="M0 620 L210 470 L380 560 L520 440 L760 590 L980 470 L1220 600 L1420 480 L1660 590 L1920 500 L1920 760 L0 760 Z" fill="#42543f" opacity="0.85"/>
+        <path d="M0 680 L260 560 L480 660 L760 540 L1040 670 L1320 560 L1640 670 L1920 590 L1920 820 L0 820 Z" fill="#34442f" opacity="0.9"/>
+      </g>
+
+      <!-- 近山（油画层叠） -->
+      <path d="M0 760 L180 660 L420 780 L700 660 L960 800 L1220 690 L1500 800 L1750 700 L1920 790 L1920 1080 L0 1080 Z" fill="#2a3828"/>
+
+      <!-- 河谷 -->
+      <path d="M0 860 L520 820 L760 880 L1040 810 L1420 880 L1920 840 L1920 1080 L0 1080 Z" fill="#263229"/>
+
+      <!-- 河流 -->
+      <path d="M760 880 L900 830 L1040 810 L1180 840 L1280 890 L1400 960 L1580 1080 L1120 1080 L980 950 L860 900 Z" fill="url(#river)" opacity="0.9"/>
+
+      <!-- 河面金色反光 -->
+      <path d="M1040 810 L1100 850 L1180 840 L1260 900 L1360 990 L1580 1080 L1400 1080 L1260 950 L1120 860 Z" fill="#f0b964" opacity="0.45" filter="url(#soft)"/>
+      <path d="M900 830 L980 880 L860 900 L920 950 L900 1030 L760 1080 L700 1080 L820 950 L880 900 Z" fill="#f0b964" opacity="0.30" filter="url(#soft)"/>
+
+      <!-- 河谷薄雾 -->
+      <rect x="0" y="800" width="1920" height="260" fill="url(#mist)"/>
+
+      <!-- 前景暗部 -->
+      <path d="M0 950 L240 900 L420 960 L620 900 L820 960 L1040 920 L1260 980 L1480 930 L1700 980 L1920 940 L1920 1080 L0 1080 Z" fill="#10150f" opacity="0.75"/>
+    </svg>
+  </div>
+
+  <div class="glow"></div>
   <div class="grain"></div>
 
-  <header class="nav">
-    <span class="brand">Cealin</span>
-    <nav class="links">
-      <a href="#work">Works</a>
-      <a href="#about">About</a>
-      <a href="#contact">Contact</a>
-    </nav>
+  <!-- 顶部导航 -->
+  <header class="topbar">
+    <div class="logo">Cealin</div>
+    <div class="nav-right">
+      <ul class="menu">
+        <li><a href="#">首页</a></li>
+        <li><a href="#">项目</a></li>
+        <li><a href="#">平台</a></li>
+      </ul>
+      <div class="avatar" title="设置"></div>
+    </div>
   </header>
 
-  <div class="side-line left"></div>
-  <div class="side-line right"></div>
-
+  <!-- 中央英雄区 -->
   <main class="hero">
-    <h1 class="title" aria-label="Cealin">
-      <span>C</span><span>e</span><span>a</span><span>l</span><span>i</span><span>n</span>
-    </h1>
-    <p class="subtitle">Design &amp; Inspiration</p>
-    <div class="line-sep"></div>
+    <h1 class="title">Cealin</h1>
+    <button class="play-btn" aria-label="播放">
+      <svg viewBox="0 0 24 24" fill="#ffffff" xmlns="http://www.w3.org/2000/svg">
+        <path d="M8 5.14v13.72c0 .9.98 1.46 1.76 1L20.5 13a1.2 1.2 0 0 0 0-2L9.76 4.14A1.14 1.14 0 0 0 8 5.14z"/>
+      </svg>
+    </button>
   </main>
 
-  <div class="scroll-hint">Scroll</div>
+  <!-- 底部滚动提示 -->
+  <div class="scroll-hint">
+    <span>上滑查看更多内容</span>
+    <div class="chevron"></div>
+  </div>
 
 </body>
 </html>
