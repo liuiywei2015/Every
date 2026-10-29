@@ -99,6 +99,14 @@
     transition: color 0.3s ease;
   }
   .menu a:hover { color: var(--fg); }
+  .menu a.active { color: var(--fg); }
+  .menu a.active::after {
+    content: "";
+    display: block;
+    height: 1px;
+    margin-top: 3px;
+    background: rgba(247, 244, 238, 0.45);
+  }
 
   .avatar {
     width: 34px;
@@ -237,11 +245,11 @@
     <div class="logo">Cealin</div>
     <div class="nav-right">
       <ul class="menu">
-        <li><a href="#">首页</a></li>
-        <li><a href="#">项目</a></li>
-        <li><a href="#">平台</a></li>
+        <li><a href="index.html" class="active">首页</a></li>
+        <li><a href="project.html">项目</a></li>
+        <li><a href="platform.html">平台</a></li>
       </ul>
-      <div class="avatar" title="设置"></div>
+      <a class="avatar" href="settings.html" title="设置"></a>
     </div>
   </header>
 
