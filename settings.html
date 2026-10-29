@@ -8,8 +8,24 @@
   :root {
     --fg: #f7f4ee;
     --muted: rgba(247, 244, 238, 0.55);
-    --overlay: rgba(10, 12, 10, 0.55);
+    --panel-bg: rgba(8, 9, 8, 0.58);
+    --panel-border: rgba(255, 255, 255, 0.12);
+    --input-bg: rgba(255, 255, 255, 0.07);
   }
+
+  /* 亮色模式：深色模式开关真实生效时切换 */
+  body.light {
+    --fg: #26281f;
+    --muted: rgba(38, 40, 31, 0.6);
+    --panel-bg: rgba(248, 244, 233, 0.66);
+    --panel-border: rgba(38, 40, 31, 0.16);
+    --input-bg: rgba(38, 40, 31, 0.05);
+  }
+  body.light .art-bg { filter: brightness(1.65) saturate(0.72) contrast(0.92); }
+  body.light .grain { opacity: 0.04; }
+  body.light .menu a.active::after { background: rgba(38, 40, 31, 0.4); }
+  body.light .switch { border-color: rgba(38, 40, 31, 0.25); }
+  body.light .panel-row { border-bottom-color: rgba(38, 40, 31, 0.08); }
 
   * { margin: 0; padding: 0; box-sizing: border-box; }
 
@@ -19,8 +35,9 @@
     color: var(--fg);
     font-family: "Helvetica Neue", "PingFang SC", "Microsoft YaHei", Arial, sans-serif;
     -webkit-font-smoothing: antialiased;
-    overflow: hidden;
+    overflow-y: auto;
     background: #14181a;
+    transition: color 0.4s ease;
   }
 
   /* ========== 全屏油画背景：内嵌SVG山谷河流 + 多层渐变 + 噪点 ========== */
@@ -28,6 +45,7 @@
     position: fixed;
     inset: 0;
     z-index: 0;
+    transition: filter 0.4s ease;
   }
   .art-bg svg {
     width: 100%;
@@ -107,6 +125,7 @@
     height: 1px;
     margin-top: 3px;
     background: rgba(247, 244, 238, 0.45);
+    transition: background 0.4s ease;
   }
 
   .avatar {
@@ -133,13 +152,13 @@
   .hero {
     position: relative;
     z-index: 5;
-    height: 100vh;
+    min-height: 100vh;
     display: flex;
     flex-direction: column;
     justify-content: center;
     align-items: center;
     text-align: center;
-    padding-bottom: 20px;
+    padding: 110px 24px 50px;
   }
 
   .title {
@@ -157,8 +176,8 @@
   .panel {
     margin-top: 40px;
     width: min(560px, 88vw);
-    background: rgba(8, 9, 8, 0.58);
-    border: 1px solid rgba(255, 255, 255, 0.12);
+    background: var(--panel-bg);
+    border: 1px solid var(--panel-border);
     border-radius: 18px;
     backdrop-filter: blur(10px);
     padding: 12px 0;
@@ -176,6 +195,7 @@
     font-size: 15px;
     color: var(--fg);
     border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+    transition: border-color 0.4s ease;
   }
   .panel-row:last-child { border-bottom: none; }
   .panel-row .lbl { color: var(--muted); }
@@ -184,10 +204,10 @@
     width: 42px;
     height: 24px;
     border-radius: 999px;
-    background: rgba(255, 255, 255, 0.16);
+    background: var(--input-bg);
     position: relative;
     cursor: pointer;
-    transition: background 0.3s ease;
+    transition: background 0.3s ease, border-color 0.3s ease;
     border: 1px solid rgba(255, 255, 255, 0.2);
   }
   .switch::after {
@@ -199,17 +219,26 @@
     height: 18px;
     border-radius: 50%;
     background: #f7f4ee;
-    transition: left 0.3s ease;
+    transition: left 0.3s ease, background 0.3s ease;
   }
   .switch.on { background: rgba(200, 169, 110, 0.75); }
   .switch.on::after { left: 20px; }
 
+  .hint {
+    margin-top: 18px;
+    font-size: 12px;
+    letter-spacing: 0.1em;
+    color: var(--muted);
+    opacity: 0;
+    animation: fadeIn 1.2s ease 0.4s forwards;
+  }
+
   .version {
     text-align: center;
-    margin-top: 28px;
+    margin-top: 26px;
     font-size: 12px;
     letter-spacing: 0.2em;
-    color: rgba(247, 244, 238, 0.35);
+    color: var(--muted);
     opacity: 0;
     animation: fadeIn 1.2s ease 0.5s forwards;
   }
@@ -322,15 +351,15 @@
     <div class="panel">
       <div class="panel-row">
         <span>深色模式</span>
-        <span class="switch on" onclick="this.classList.toggle('on')"></span>
+        <span class="switch on" id="swDark" onclick="toggleDark()"></span>
       </div>
       <div class="panel-row">
         <span>通知提醒</span>
-        <span class="switch on" onclick="this.classList.toggle('on')"></span>
+        <span class="switch on" id="swNotify" onclick="toggleNotify()"></span>
       </div>
       <div class="panel-row">
         <span>自动播放</span>
-        <span class="switch" onclick="this.classList.toggle('on')"></span>
+        <span class="switch" id="swAuto" onclick="toggleAuto()"></span>
       </div>
       <div class="panel-row">
         <span>关于</span>
@@ -338,8 +367,58 @@
       </div>
     </div>
 
+    <p class="hint">设置会自动保存到本地，下次打开仍然生效</p>
     <p class="version">CEALIN · PERSONAL</p>
   </main>
+
+  <script>
+    (function () {
+      var KEY = 'cealin_settings';
+      var def = { dark: true, notify: true, autoplay: false };
+      var s;
+
+      function load() {
+        try {
+          var v = JSON.parse(localStorage.getItem(KEY));
+          if (v && typeof v === 'object') { s = Object.assign({}, def, v); return; }
+        } catch (e) {}
+        s = Object.assign({}, def);
+      }
+
+      function save() { localStorage.setItem(KEY, JSON.stringify(s)); }
+
+      function setSwitch(id, on) {
+        var el = document.getElementById(id);
+        if (el) el.classList.toggle('on', !!on);
+      }
+
+      function apply() {
+        document.body.classList.toggle('light', !s.dark);
+        setSwitch('swDark', s.dark);
+        setSwitch('swNotify', s.notify);
+        setSwitch('swAuto', s.autoplay);
+      }
+
+      window.toggleDark = function () {
+        s.dark = !s.dark;
+        save();
+        apply();
+      };
+      window.toggleNotify = function () {
+        s.notify = !s.notify;
+        save();
+        apply();
+      };
+      window.toggleAuto = function () {
+        s.autoplay = !s.autoplay;
+        save();
+        apply();
+      };
+
+      load();
+      apply();
+    })();
+  </script>
 
 </body>
 </html>

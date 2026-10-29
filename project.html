@@ -8,7 +8,6 @@
   :root {
     --fg: #f7f4ee;
     --muted: rgba(247, 244, 238, 0.55);
-    --overlay: rgba(10, 12, 10, 0.55);
   }
 
   * { margin: 0; padding: 0; box-sizing: border-box; }
@@ -19,7 +18,7 @@
     color: var(--fg);
     font-family: "Helvetica Neue", "PingFang SC", "Microsoft YaHei", Arial, sans-serif;
     -webkit-font-smoothing: antialiased;
-    overflow: hidden;
+    overflow-y: auto;
     background: #14181a;
   }
 
@@ -129,17 +128,16 @@
     border: 1px solid rgba(255, 255, 255, 0.15);
   }
 
-  /* ========== 中央英雄区 ========== */
+  /* ========== 页面主体 ========== */
   .hero {
     position: relative;
     z-index: 5;
-    height: 100vh;
+    min-height: 100vh;
     display: flex;
     flex-direction: column;
-    justify-content: center;
     align-items: center;
     text-align: center;
-    padding-bottom: 40px;
+    padding: 110px 24px 70px;
   }
 
   .title {
@@ -155,13 +153,167 @@
   }
 
   .page-sub {
-    margin-top: 26px;
+    margin-top: 22px;
     font-size: 14px;
     letter-spacing: 0.16em;
     text-indent: 0.16em;
     color: var(--muted);
     opacity: 0;
     animation: fadeIn 1.4s ease 0.4s forwards;
+  }
+
+  /* ========== 项目卡片区 ========== */
+  .project-grid {
+    margin-top: 60px;
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(230px, 1fr));
+    gap: 18px;
+    width: min(980px, 92vw);
+    opacity: 0;
+    animation: fadeIn 1.4s ease 0.6s forwards;
+  }
+
+  .project-card {
+    background: rgba(8, 9, 8, 0.48);
+    border: 1px solid rgba(255, 255, 255, 0.09);
+    border-radius: 16px;
+    backdrop-filter: blur(10px);
+    padding: 26px 24px;
+    text-align: left;
+    transition: transform 0.35s ease, border-color 0.35s ease, background 0.35s ease;
+  }
+  .project-card:hover {
+    transform: translateY(-6px);
+    border-color: rgba(200, 169, 110, 0.5);
+    background: rgba(10, 11, 10, 0.62);
+  }
+
+  .pc-name {
+    font-size: 22px;
+    font-weight: 700;
+    letter-spacing: 0.05em;
+    color: var(--fg);
+  }
+  .pc-tag {
+    display: inline-block;
+    margin-top: 8px;
+    font-size: 11px;
+    letter-spacing: 0.14em;
+    color: rgba(200, 169, 110, 0.85);
+  }
+  .pc-desc {
+    margin-top: 14px;
+    font-size: 13px;
+    line-height: 1.7;
+    color: var(--muted);
+  }
+
+  /* ========== 留言板 ========== */
+  .board {
+    margin-top: 70px;
+    width: min(680px, 92vw);
+    text-align: left;
+    opacity: 0;
+    animation: fadeIn 1.4s ease 0.8s forwards;
+  }
+  .board-title {
+    font-size: 11px;
+    letter-spacing: 0.34em;
+    text-transform: uppercase;
+    color: var(--muted);
+    margin-bottom: 18px;
+    display: flex;
+    align-items: center;
+    gap: 14px;
+  }
+  .board-title::after {
+    content: "";
+    flex: 1;
+    height: 1px;
+    background: rgba(247, 244, 238, 0.14);
+  }
+
+  .comment-item {
+    background: rgba(8, 9, 8, 0.42);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    border-radius: 12px;
+    backdrop-filter: blur(8px);
+    padding: 16px 20px;
+    margin-bottom: 12px;
+  }
+  .ci-head {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    margin-bottom: 8px;
+  }
+  .ci-name {
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--fg);
+  }
+  .ci-time {
+    font-size: 11px;
+    color: var(--muted);
+    letter-spacing: 0.06em;
+  }
+  .comment-item p {
+    font-size: 13.5px;
+    line-height: 1.7;
+    color: rgba(247, 244, 238, 0.85);
+  }
+
+  /* 留言表单 */
+  .comment-form {
+    margin-top: 22px;
+    background: rgba(8, 9, 8, 0.5);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    border-radius: 14px;
+    backdrop-filter: blur(10px);
+    padding: 18px;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+  }
+  .cf-row {
+    display: flex;
+    gap: 12px;
+    align-items: center;
+  }
+  .cf-input, .cf-text {
+    width: 100%;
+    background: rgba(255, 255, 255, 0.07);
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    border-radius: 9px;
+    color: var(--fg);
+    font-size: 13px;
+    font-family: inherit;
+    padding: 10px 14px;
+    outline: none;
+    transition: border-color 0.3s ease;
+  }
+  .cf-input:focus, .cf-text:focus { border-color: rgba(200, 169, 110, 0.6); }
+  .cf-input { max-width: 180px; }
+  .cf-text { resize: vertical; min-height: 74px; }
+  .cf-btn {
+    align-self: flex-end;
+    padding: 10px 28px;
+    border-radius: 999px;
+    border: 1px solid rgba(200, 169, 110, 0.55);
+    background: rgba(200, 169, 110, 0.18);
+    color: var(--fg);
+    font-size: 13px;
+    letter-spacing: 0.1em;
+    cursor: pointer;
+    transition: background 0.3s ease, transform 0.2s ease;
+  }
+  .cf-btn:hover { background: rgba(200, 169, 110, 0.34); transform: translateY(-1px); }
+
+  .board-count {
+    margin-top: 14px;
+    font-size: 12px;
+    letter-spacing: 0.14em;
+    color: var(--muted);
   }
 
   @keyframes fadeIn { to { opacity: 1; } }
@@ -265,11 +417,99 @@
     </div>
   </header>
 
-  <!-- 中央英雄区 -->
+  <!-- 页面主体 -->
   <main class="hero">
     <h1 class="title">Projects</h1>
     <p class="page-sub">精选作品与创作实践</p>
+
+    <!-- 项目卡片区 -->
+    <section class="project-grid">
+      <div class="project-card">
+        <div class="pc-name">Aurora</div>
+        <span class="pc-tag">VISUAL · WEBGL</span>
+        <p class="pc-desc">极光视觉实验，基于 WebGL 的动态光影生成器，让色彩在夜幕中缓慢呼吸。</p>
+      </div>
+      <div class="project-card">
+        <div class="pc-name">Nimbus</div>
+        <span class="pc-tag">TOOL · NOTES</span>
+        <p class="pc-desc">极简轻量的离线笔记工具，只保留记录本身，专注、安静、零打扰。</p>
+      </div>
+      <div class="project-card">
+        <div class="pc-name">Sable</div>
+        <span class="pc-tag">UI · THEME</span>
+        <p class="pc-desc">为创作者打造的高质感暗色 UI 套件，克制、细腻、经得起长久凝视。</p>
+      </div>
+      <div class="project-card">
+        <div class="pc-name">Drift</div>
+        <span class="pc-tag">SOUND · AMBIENT</span>
+        <p class="pc-desc">沉浸式声景漫游，用风声、水声与山谷的回响，把时间放慢下来。</p>
+      </div>
+    </section>
+
+    <!-- 留言板 -->
+    <section class="board">
+      <div class="board-title">Guestbook · 访客留言</div>
+      <div id="commentList"></div>
+
+      <div class="comment-form">
+        <div class="cf-row">
+          <input class="cf-input" id="cName" type="text" placeholder="昵称（默认访客）" maxlength="20">
+        </div>
+        <textarea class="cf-text" id="cText" placeholder="留下你的想法…"></textarea>
+        <button class="cf-btn" onclick="submitComment()">发表留言</button>
+      </div>
+      <p class="board-count" id="commentCount"></p>
+    </section>
   </main>
+
+  <script>
+    (function () {
+      var KEY = 'cealin_comments';
+      var seed = [
+        { name: '访客·林', text: '第一次来这个站点，被首页的黄昏油画背景震撼到了，很有氛围。', time: '3天前' },
+        { name: '访客·Momo', text: '项目卡片的质感很棒，期待看到更多作品更新！', time: '2天前' },
+        { name: '访客·阿哲', text: '安静又高级的个人网站，收藏了，常来看看。', time: '1天前' },
+        { name: '访客·Echo', text: '背景的河流光影处理得真舒服，赞一个。', time: '6小时前' }
+      ];
+      var list;
+
+      function load() {
+        try {
+          var v = JSON.parse(localStorage.getItem(KEY));
+          if (Array.isArray(v)) { list = v; return; }
+        } catch (e) {}
+        localStorage.setItem(KEY, JSON.stringify(seed));
+        list = seed.slice();
+      }
+
+      function esc(s) {
+        return String(s || '').replace(/[&<>"']/g, function (c) {
+          return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c];
+        });
+      }
+
+      function render() {
+        document.getElementById('commentList').innerHTML = list.map(function (c) {
+          return '<div class="comment-item"><div class="ci-head"><span class="ci-name">' + esc(c.name) + '</span><span class="ci-time">' + esc(c.time) + '</span></div><p>' + esc(c.text) + '</p></div>';
+        }).join('');
+        document.getElementById('commentCount').textContent = list.length + ' 条留言';
+      }
+
+      window.submitComment = function () {
+        var name = document.getElementById('cName').value.trim() || '访客';
+        var text = document.getElementById('cText').value.trim();
+        if (!text) return;
+        list.push({ name: name, text: text, time: '刚刚' });
+        localStorage.setItem(KEY, JSON.stringify(list));
+        document.getElementById('cName').value = '';
+        document.getElementById('cText').value = '';
+        render();
+      };
+
+      load();
+      render();
+    })();
+  </script>
 
 </body>
 </html>
