@@ -1,0 +1,29 @@
+# Cloudflare Pages + Pages Functions 部署配置
+# 留言板通过 KV（GUESTBOOK）实现跨设备同步。
+
+name = "every"
+compatibility_date = "2026-10-30"
+pages_build_output_dir = "."
+
+# ============ KV 命名空间（占位，需手动创建并填入 id） ============
+# 创建方式任选其一：
+#   1. Dashboard 创建：
+#      Cloudflare 控制台 -> Workers & Pages -> KV -> Create a namespace，
+#      名称建议 guestbook，创建后复制 Namespace ID 填入下方 id 字段。
+#   2. 命令行创建（需先 wrangler login）：
+#      wrangler kv namespace create GUESTBOOK
+#      命令会输出 { "id": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx", ... }，
+#      把 id 值填入下方 id 字段。
+#
+# 部署方式任选其一：
+#   1. Git 仓库：将本项目推送到 Git 仓库，在 Cloudflare Pages 控制台
+#      “Create a project -> Import a repository” 导入该仓库即可自动构建。
+#   2. 命令行：wrangler pages deploy . --project-name=every
+#
+# 注意：Pages 项目也可在控制台 Project Settings -> Functions ->
+#       KV namespace bindings 中添加变量名 GUESTBOOK 与对应 namespace，
+#       此时可把下方 id 留空由控制台绑定覆盖。
+
+[[kv_namespaces]]
+binding = "GUESTBOOK"
+id = "在此填入你的KV命名空间ID"

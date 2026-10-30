@@ -1,0 +1,546 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Projects - Cealin</title>
+<style>
+  :root {
+    --fg: #f7f4ee;
+    --muted: rgba(247, 244, 238, 0.55);
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  html, body { height: 100%; }
+
+  body {
+    color: var(--fg);
+    font-family: "Helvetica Neue", "PingFang SC", "Microsoft YaHei", Arial, sans-serif;
+    -webkit-font-smoothing: antialiased;
+    overflow-y: auto;
+    background: #14181a;
+  }
+
+  /* ========== 全屏油画背景：内嵌SVG山谷河流 + 多层渐变 + 噪点 ========== */
+  .art-bg {
+    position: fixed;
+    inset: 0;
+    z-index: 0;
+  }
+  .art-bg svg {
+    width: 100%;
+    height: 100%;
+    display: block;
+  }
+
+  /* 暖金氛围光 */
+  .glow {
+    position: fixed;
+    inset: 0;
+    z-index: 1;
+    pointer-events: none;
+    background:
+      radial-gradient(ellipse 55% 42% at 50% 46%, rgba(255, 196, 120, 0.20), transparent 62%),
+      radial-gradient(ellipse 40% 35% at 50% 60%, rgba(230, 170, 90, 0.10), transparent 70%),
+      linear-gradient(180deg, rgba(6, 8, 7, 0.30) 0%, rgba(6, 8, 7, 0) 30%, rgba(6, 8, 7, 0.20) 78%, rgba(4, 5, 4, 0.55) 100%);
+  }
+
+  /* 油画噪点颗粒 */
+  .grain {
+    position: fixed;
+    inset: 0;
+    z-index: 2;
+    pointer-events: none;
+    opacity: 0.07;
+    mix-blend-mode: overlay;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='180' height='180'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+  }
+
+  /* ========== 顶部导航栏 ========== */
+  .topbar {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    z-index: 10;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 16px 36px;
+    background: linear-gradient(180deg, rgba(8, 9, 8, 0.72), rgba(8, 9, 8, 0));
+    backdrop-filter: blur(2px);
+  }
+
+  .logo {
+    font-size: 22px;
+    font-weight: 800;
+    letter-spacing: 0.06em;
+    color: var(--fg);
+    text-decoration: none;
+  }
+
+  .nav-right {
+    display: flex;
+    align-items: center;
+    gap: 34px;
+  }
+
+  .menu {
+    display: flex;
+    gap: 30px;
+    list-style: none;
+  }
+  .menu a {
+    font-size: 15px;
+    font-weight: 500;
+    color: var(--muted);
+    text-decoration: none;
+    transition: color 0.3s ease;
+  }
+  .menu a:hover { color: var(--fg); }
+  .menu a.active { color: var(--fg); }
+  .menu a.active::after {
+    content: "";
+    display: block;
+    height: 1px;
+    margin-top: 3px;
+    background: rgba(247, 244, 238, 0.45);
+  }
+
+  .avatar {
+    width: 34px;
+    height: 34px;
+    border-radius: 50%;
+    border: 1.5px solid rgba(255, 255, 255, 0.35);
+    background:
+      radial-gradient(circle at 35% 30%, rgba(255, 255, 255, 0.35), transparent 40%),
+      linear-gradient(135deg, #7d8a7a, #3a4038);
+    cursor: pointer;
+    position: relative;
+    display: block;
+  }
+  .avatar::after {
+    content: "";
+    position: absolute;
+    inset: 4px;
+    border-radius: 50%;
+    border: 1px solid rgba(255, 255, 255, 0.15);
+  }
+
+  /* ========== 页面主体 ========== */
+  .hero {
+    position: relative;
+    z-index: 5;
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    text-align: center;
+    padding: 110px 24px 70px;
+  }
+
+  .title {
+    font-size: clamp(56px, 10vw, 132px);
+    font-weight: 800;
+    letter-spacing: 0.10em;
+    text-indent: 0.10em;
+    line-height: 1;
+    color: var(--fg);
+    text-shadow: 0 4px 60px rgba(0, 0, 0, 0.45);
+    user-select: none;
+    animation: fadeIn 1.4s ease both;
+  }
+
+  .page-sub {
+    margin-top: 22px;
+    font-size: 14px;
+    letter-spacing: 0.16em;
+    text-indent: 0.16em;
+    color: var(--muted);
+    opacity: 0;
+    animation: fadeIn 1.4s ease 0.4s forwards;
+  }
+
+  /* ========== 项目卡片区 ========== */
+  .project-grid {
+    margin-top: 60px;
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(230px, 1fr));
+    gap: 18px;
+    width: min(980px, 92vw);
+    opacity: 0;
+    animation: fadeIn 1.4s ease 0.6s forwards;
+  }
+
+  .project-card {
+    background: rgba(8, 9, 8, 0.48);
+    border: 1px solid rgba(255, 255, 255, 0.09);
+    border-radius: 16px;
+    backdrop-filter: blur(10px);
+    padding: 26px 24px;
+    text-align: left;
+    transition: transform 0.35s ease, border-color 0.35s ease, background 0.35s ease;
+  }
+  .project-card:hover {
+    transform: translateY(-6px);
+    border-color: rgba(200, 169, 110, 0.5);
+    background: rgba(10, 11, 10, 0.62);
+  }
+
+  .pc-name {
+    font-size: 22px;
+    font-weight: 700;
+    letter-spacing: 0.05em;
+    color: var(--fg);
+  }
+  .pc-tag {
+    display: inline-block;
+    margin-top: 8px;
+    font-size: 11px;
+    letter-spacing: 0.14em;
+    color: rgba(200, 169, 110, 0.85);
+  }
+  .pc-desc {
+    margin-top: 14px;
+    font-size: 13px;
+    line-height: 1.7;
+    color: var(--muted);
+  }
+
+  /* ========== 留言板 ========== */
+  .board {
+    margin-top: 70px;
+    width: min(680px, 92vw);
+    text-align: left;
+    opacity: 0;
+    animation: fadeIn 1.4s ease 0.8s forwards;
+  }
+  .board-title {
+    font-size: 11px;
+    letter-spacing: 0.34em;
+    text-transform: uppercase;
+    color: var(--muted);
+    margin-bottom: 18px;
+    display: flex;
+    align-items: center;
+    gap: 14px;
+  }
+  .board-title::after {
+    content: "";
+    flex: 1;
+    height: 1px;
+    background: rgba(247, 244, 238, 0.14);
+  }
+
+  .comment-item {
+    background: rgba(8, 9, 8, 0.42);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    border-radius: 12px;
+    backdrop-filter: blur(8px);
+    padding: 16px 20px;
+    margin-bottom: 12px;
+  }
+  .ci-head {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    margin-bottom: 8px;
+  }
+  .ci-name {
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--fg);
+  }
+  .ci-time {
+    font-size: 11px;
+    color: var(--muted);
+    letter-spacing: 0.06em;
+  }
+  .comment-item p {
+    font-size: 13.5px;
+    line-height: 1.7;
+    color: rgba(247, 244, 238, 0.85);
+  }
+
+  /* 留言表单 */
+  .comment-form {
+    margin-top: 22px;
+    background: rgba(8, 9, 8, 0.5);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    border-radius: 14px;
+    backdrop-filter: blur(10px);
+    padding: 18px;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+  }
+  .cf-row {
+    display: flex;
+    gap: 12px;
+    align-items: center;
+  }
+  .cf-input, .cf-text {
+    width: 100%;
+    background: rgba(255, 255, 255, 0.07);
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    border-radius: 9px;
+    color: var(--fg);
+    font-size: 13px;
+    font-family: inherit;
+    padding: 10px 14px;
+    outline: none;
+    transition: border-color 0.3s ease;
+  }
+  .cf-input:focus, .cf-text:focus { border-color: rgba(200, 169, 110, 0.6); }
+  .cf-input { max-width: 180px; }
+  .cf-text { resize: vertical; min-height: 74px; }
+  .cf-btn {
+    align-self: flex-end;
+    padding: 10px 28px;
+    border-radius: 999px;
+    border: 1px solid rgba(200, 169, 110, 0.55);
+    background: rgba(200, 169, 110, 0.18);
+    color: var(--fg);
+    font-size: 13px;
+    letter-spacing: 0.1em;
+    cursor: pointer;
+    transition: background 0.3s ease, transform 0.2s ease;
+  }
+  .cf-btn:hover { background: rgba(200, 169, 110, 0.34); transform: translateY(-1px); }
+
+  .board-count {
+    margin-top: 14px;
+    font-size: 12px;
+    letter-spacing: 0.14em;
+    color: var(--muted);
+  }
+
+  @keyframes fadeIn { to { opacity: 1; } }
+
+  /* ========== 内嵌SVG：黄昏山谷河流油画背景 ========== */
+  .art-svg {
+    position: absolute;
+    inset: 0;
+  }
+  .art-svg svg { width: 100%; height: 100%; }
+</style>
+</head>
+<body>
+
+  <!-- 油画背景 -->
+  <div class="art-bg">
+    <svg viewBox="0 0 1920 1080" preserveAspectRatio="xMidYMid slice" xmlns="http://www.w3.org/2000/svg">
+      <defs>
+        <linearGradient id="sky" x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0%"  stop-color="#22342e"/>
+          <stop offset="38%" stop-color="#3f5544"/>
+          <stop offset="62%" stop-color="#6b7350"/>
+          <stop offset="80%" stop-color="#a0844f"/>
+          <stop offset="100%" stop-color="#e8b36a"/>
+        </linearGradient>
+        <linearGradient id="river" x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0%"  stop-color="#d9a35c"/>
+          <stop offset="100%" stop-color="#2b3b30"/>
+        </linearGradient>
+        <radialGradient id="sun" cx="0.5" cy="0.5" r="0.5">
+          <stop offset="0%"  stop-color="#ffe6b0" stop-opacity="0.95"/>
+          <stop offset="45%" stop-color="#f4b968" stop-opacity="0.55"/>
+          <stop offset="100%" stop-color="#f4b968" stop-opacity="0"/>
+        </radialGradient>
+        <linearGradient id="mist" x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0%"  stop-color="#e8c48c" stop-opacity="0.30"/>
+          <stop offset="100%" stop-color="#e8c48c" stop-opacity="0"/>
+        </linearGradient>
+        <filter id="soft">
+          <feGaussianBlur stdDeviation="6"/>
+        </filter>
+        <filter id="soft2">
+          <feGaussianBlur stdDeviation="18"/>
+        </filter>
+      </defs>
+
+      <!-- 天空 -->
+      <rect width="1920" height="1080" fill="url(#sky)"/>
+
+      <!-- 云层笔触 -->
+      <g filter="url(#soft2)" opacity="0.5">
+        <ellipse cx="520" cy="150" rx="420" ry="70" fill="#7c8a68"/>
+        <ellipse cx="1500" cy="120" rx="460" ry="80" fill="#56644f"/>
+        <ellipse cx="980" cy="240" rx="520" ry="90" fill="#8a7c50"/>
+      </g>
+
+      <!-- 落日 -->
+      <circle cx="960" cy="470" r="120" fill="url(#sun)"/>
+      <circle cx="960" cy="470" r="56" fill="#ffe9bd" opacity="0.9"/>
+
+      <!-- 远山 -->
+      <g filter="url(#soft)">
+        <path d="M0 620 L210 470 L380 560 L520 440 L760 590 L980 470 L1220 600 L1420 480 L1660 590 L1920 500 L1920 760 L0 760 Z" fill="#42543f" opacity="0.85"/>
+        <path d="M0 680 L260 560 L480 660 L760 540 L1040 670 L1320 560 L1640 670 L1920 590 L1920 820 L0 820 Z" fill="#34442f" opacity="0.9"/>
+      </g>
+
+      <!-- 近山（油画层叠） -->
+      <path d="M0 760 L180 660 L420 780 L700 660 L960 800 L1220 690 L1500 800 L1750 700 L1920 790 L1920 1080 L0 1080 Z" fill="#2a3828"/>
+
+      <!-- 河谷 -->
+      <path d="M0 860 L520 820 L760 880 L1040 810 L1420 880 L1920 840 L1920 1080 L0 1080 Z" fill="#263229"/>
+
+      <!-- 河流 -->
+      <path d="M760 880 L900 830 L1040 810 L1180 840 L1280 890 L1400 960 L1580 1080 L1120 1080 L980 950 L860 900 Z" fill="url(#river)" opacity="0.9"/>
+
+      <!-- 河面金色反光 -->
+      <path d="M1040 810 L1100 850 L1180 840 L1260 900 L1360 990 L1580 1080 L1400 1080 L1260 950 L1120 860 Z" fill="#f0b964" opacity="0.45" filter="url(#soft)"/>
+      <path d="M900 830 L980 880 L860 900 L920 950 L900 1030 L760 1080 L700 1080 L820 950 L880 900 Z" fill="#f0b964" opacity="0.30" filter="url(#soft)"/>
+
+      <!-- 河谷薄雾 -->
+      <rect x="0" y="800" width="1920" height="260" fill="url(#mist)"/>
+
+      <!-- 前景暗部 -->
+      <path d="M0 950 L240 900 L420 960 L620 900 L820 960 L1040 920 L1260 980 L1480 930 L1700 980 L1920 940 L1920 1080 L0 1080 Z" fill="#10150f" opacity="0.75"/>
+    </svg>
+  </div>
+
+  <div class="glow"></div>
+  <div class="grain"></div>
+
+  <!-- 顶部导航 -->
+  <header class="topbar">
+    <a class="logo" href="index.html">Cealin</a>
+    <div class="nav-right">
+      <ul class="menu">
+        <li><a href="index.html">首页</a></li>
+        <li><a href="project.html" class="active">项目</a></li>
+        <li><a href="platform.html">平台</a></li>
+      </ul>
+      <a class="avatar" href="settings.html" title="设置"></a>
+    </div>
+  </header>
+
+  <!-- 页面主体 -->
+  <main class="hero">
+    <h1 class="title">Projects</h1>
+    <p class="page-sub">精选作品与创作实践</p>
+
+    <!-- 项目卡片区 -->
+    <section class="project-grid">
+      <div class="project-card">
+        <div class="pc-name">Aurora</div>
+        <span class="pc-tag">VISUAL · WEBGL</span>
+        <p class="pc-desc">极光视觉实验，基于 WebGL 的动态光影生成器，让色彩在夜幕中缓慢呼吸。</p>
+      </div>
+      <div class="project-card">
+        <div class="pc-name">Nimbus</div>
+        <span class="pc-tag">TOOL · NOTES</span>
+        <p class="pc-desc">极简轻量的离线笔记工具，只保留记录本身，专注、安静、零打扰。</p>
+      </div>
+      <div class="project-card">
+        <div class="pc-name">Sable</div>
+        <span class="pc-tag">UI · THEME</span>
+        <p class="pc-desc">为创作者打造的高质感暗色 UI 套件，克制、细腻、经得起长久凝视。</p>
+      </div>
+      <div class="project-card">
+        <div class="pc-name">Drift</div>
+        <span class="pc-tag">SOUND · AMBIENT</span>
+        <p class="pc-desc">沉浸式声景漫游，用风声、水声与山谷的回响，把时间放慢下来。</p>
+      </div>
+    </section>
+
+    <!-- 留言板 -->
+    <section class="board">
+      <div class="board-title">Guestbook · 访客留言</div>
+      <div id="commentList"></div>
+
+      <div class="comment-form">
+        <div class="cf-row">
+          <input class="cf-input" id="cName" type="text" placeholder="昵称（默认访客）" maxlength="20">
+        </div>
+        <textarea class="cf-text" id="cText" placeholder="留下你的想法…"></textarea>
+        <button class="cf-btn" onclick="submitComment()">发表留言</button>
+      </div>
+      <p class="board-count" id="commentCount"></p>
+    </section>
+  </main>
+
+  <script>
+    (function () {
+      var API = '/api/messages';
+
+      function esc(s) {
+        return String(s || '').replace(/[&<>"']/g, function (c) {
+          return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c];
+        });
+      }
+
+      // 服务端返回 ISO 时间，这里转为友好相对时间
+      function fmtTime(t) {
+        if (!t) return '';
+        var d = new Date(t);
+        if (isNaN(d.getTime())) return String(t);
+        var diff = Date.now() - d.getTime();
+        if (diff < 60000) return '刚刚';
+        if (diff < 3600000) return Math.floor(diff / 60000) + ' 分钟前';
+        if (diff < 86400000) return Math.floor(diff / 3600000) + ' 小时前';
+        if (diff < 2592000000) return Math.floor(diff / 86400000) + ' 天前';
+        return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
+      }
+
+      function render(list) {
+        var html;
+        if (!list.length) {
+          html = '<div class="comment-item"><div class="ci-head"><span class="ci-name">云端留言板</span></div><p>还没有留言，写下第一条吧。</p></div>';
+        } else {
+          html = list.map(function (c) {
+            return '<div class="comment-item"><div class="ci-head"><span class="ci-name">' + esc(c.name) + '</span><span class="ci-time">' + esc(fmtTime(c.time)) + '</span></div><p>' + esc(c.text) + '</p></div>';
+          }).join('');
+        }
+        document.getElementById('commentList').innerHTML = html;
+        document.getElementById('commentCount').textContent = list.length + ' 条留言';
+      }
+
+      // 接口不可用（如本地直接双击打开）时优雅降级
+      function showOffline() {
+        document.getElementById('commentList').innerHTML = '<div class="comment-item"><div class="ci-head"><span class="ci-name">云端留言板</span><span class="ci-time">offline</span></div><p>部署后可跨设备同步</p></div>';
+        document.getElementById('commentCount').textContent = '';
+      }
+
+      // 页面加载时拉取云端留言
+      function load() {
+        fetch(API)
+          .then(function (r) { return r.json(); })
+          .then(function (data) {
+            var list = data && Array.isArray(data.messages) ? data.messages : [];
+            render(list);
+          })
+          .catch(showOffline);
+      }
+
+      // 提交留言：POST 到云端并即时刷新列表
+      window.submitComment = function () {
+        var name = document.getElementById('cName').value.trim() || '访客';
+        var text = document.getElementById('cText').value.trim();
+        if (!text) return;
+        fetch(API, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ name: name, text: text })
+        })
+          .then(function (r) { return r.json(); })
+          .then(function (data) {
+            if (data && data.ok) {
+              document.getElementById('cName').value = '';
+              document.getElementById('cText').value = '';
+              load();
+            } else {
+              showOffline();
+            }
+          })
+          .catch(showOffline);
+      };
+
+      load();
+    })();
+  </script>
+
+</body>
+</html>
