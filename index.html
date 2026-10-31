@@ -353,23 +353,40 @@
           return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c];
         });
       }
+      function renderLatest(list) {
+        document.getElementById('latestList').innerHTML = list.slice(0, 2).map(function (p) {
+          var author = p.name || p.author || '';
+          return '<div class="latest-card"><span class="lc-author">' + esc(author) + '</span><span class="lc-text">' + esc(p.text) + '</span></div>';
+        }).join('');
+      }
+      function renderCount(n) {
+        document.getElementById('guestCount').textContent = n > 0 ? ('访客留言 ' + n + ' 条 →') : '访客留言 →';
+      }
+
       var fallbackPosts = [
         { author: '访客·鲸落', text: '把黄昏的颜色慢慢调亮，像时间在倒着走。' },
         { author: '访客·橘子汽水', text: '今天把导航栏的间距重新调了一遍，舒服多了。' }
       ];
       var posts = [];
       try { posts = JSON.parse(localStorage.getItem('cealin_posts')) || []; } catch (e) { posts = []; }
-      var list = (posts.length ? posts : fallbackPosts).slice(0, 2);
-      document.getElementById('latestList').innerHTML = list.map(function (p) {
-        return '<div class="latest-card"><span class="lc-author">' + esc(p.author) + '</span><span class="lc-text">' + esc(p.text) + '</span></div>';
-      }).join('');
+      renderLatest(posts.length ? posts : fallbackPosts);
 
       var count = 0;
       try {
         var cs = JSON.parse(localStorage.getItem('cealin_comments'));
         if (Array.isArray(cs)) count = cs.length;
       } catch (e) {}
-      document.getElementById('guestCount').textContent = count > 0 ? ('访客留言 ' + count + ' 条 →') : '访客留言 →';
+      renderCount(count);
+
+      fetch('/api/messages').then(function (r) { return r.json(); }).then(function (res) {
+        if (!res || !res.ok || !Array.isArray(res.messages)) throw new Error('bad payload');
+        function ts(t) { var d = new Date(t); return isNaN(d.getTime()) ? 0 : d.getTime(); }
+        var msgs = res.messages.slice().sort(function (a, b) { return ts(b.time) - ts(a.time); });
+        renderLatest(msgs);
+        renderCount(msgs.length);
+      }).catch(function () {
+        /* 云端拉取失败，保持本地数据 */
+      });
     })();
   </script>
 
