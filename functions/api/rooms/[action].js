@@ -1,7 +1,10 @@
-// Cloudflare Pages Function: /api/rooms
-// 聊天室功能：通过 KV（绑定名 GUESTBOOK）按房间存储消息数组。
-// 房间消息 key 为 `room:{code}`，值为 JSON 数组 [{ name, text, time }]。
-// KV 绑定方式见项目根目录 wrangler.toml 中的注释。
+// Cloudflare Pages Function: /api/rooms/[action]
+// 动态路由：一个文件同时处理 create / join / messages 三个动作。
+//   POST /api/rooms/create  -> 创建房间（自动生成唯一四字代码）
+//   POST /api/rooms/join    -> 加入房间（校验代码是否存在）
+//   GET  /api/rooms/messages -> 拉取房间消息
+//   POST /api/rooms/messages -> 发送消息
+// 房间消息通过 KV（绑定名 GUESTBOOK）按房间存储：key 为 `room:{code}`，值为 JSON 数组 [{ name, text, time }]。
 
 const PREFIX = 'room:';
 const MAX_MESSAGES = 200;
@@ -110,9 +113,9 @@ async function handleMessagesPost(env, body) {
 }
 
 export async function onRequest(context) {
-  const { env, request } = context;
+  const { env, request, params } = context;
   const url = new URL(request.url);
-  const path = url.pathname.replace(/\/+$/, '');
+  const action = String(params.action || '').toLowerCase();
 
   let body = null;
   if (request.method === 'POST') {
@@ -124,14 +127,17 @@ export async function onRequest(context) {
   }
 
   try {
-    if (request.method === 'GET' && path === '/api/rooms/messages') {
-      return await handleMessagesGet(env, url);
+    if (action === 'create' && request.method === 'POST') {
+      return await handleCreate(env, body);
     }
 
-    if (request.method === 'POST') {
-      if (path === '/api/rooms/create') return await handleCreate(env, body);
-      if (path === '/api/rooms/join') return await handleJoin(env, body);
-      if (path === '/api/rooms/messages') return await handleMessagesPost(env, body);
+    if (action === 'join' && request.method === 'POST') {
+      return await handleJoin(env, body);
+    }
+
+    if (action === 'messages') {
+      if (request.method === 'GET') return await handleMessagesGet(env, url);
+      if (request.method === 'POST') return await handleMessagesPost(env, body);
     }
 
     return json({ ok: false, error: '不支持的请求方法' }, 405);
