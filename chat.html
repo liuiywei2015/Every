@@ -469,8 +469,14 @@
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(body)
         });
-        if (!resp.ok) throw new Error('HTTP ' + resp.status);
-        return resp.json();
+        var data = null;
+        try { data = await resp.json(); } catch (e) {}
+        if (!resp.ok) {
+          var e = new Error(data && data.error ? data.error : ('HTTP ' + resp.status));
+          e.status = resp.status;
+          throw e;
+        }
+        return data;
       }
 
       function enterChat(code, name) {
@@ -500,8 +506,12 @@
             setErr(data && data.error ? data.error : '创建房间失败');
           }
         } catch (err) {
-          setErr('创建房间失败');
-          showOfflineTip();
+          if (err && err.status) {
+            setErr(err.message);
+          } else {
+            setErr('创建房间失败');
+            showOfflineTip();
+          }
         }
       };
 
@@ -519,8 +529,12 @@
             setErr(data && data.error ? data.error : '加入房间失败');
           }
         } catch (err) {
-          setErr('加入房间失败');
-          showOfflineTip();
+          if (err && err.status) {
+            setErr(err.message);
+          } else {
+            setErr('加入房间失败');
+            showOfflineTip();
+          }
         }
       };
 

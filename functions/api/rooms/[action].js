@@ -26,6 +26,15 @@ const readRoom = async (env, code) => {
 const writeRoom = (env, code, messages) =>
   env.GUESTBOOK.put(PREFIX + code, JSON.stringify(messages));
 
+// 房间成员名单：key 为 `room:{code}:names`，值为 JSON 数组（已占用昵称）
+const readRoomNames = async (env, code) => {
+  const raw = await env.GUESTBOOK.get(PREFIX + code + ':names', 'json');
+  return Array.isArray(raw) ? raw : [];
+};
+
+const writeRoomNames = (env, code, names) =>
+  env.GUESTBOOK.put(PREFIX + code + ':names', JSON.stringify(names));
+
 const normalizeCode = (code) =>
   String(code || '').trim().toUpperCase();
 
@@ -56,6 +65,7 @@ async function handleCreate(env, body) {
     return json({ ok: false, error: '创建房间失败，请重试' }, 500);
   }
   await writeRoom(env, code, []);
+  await writeRoomNames(env, code, [name]);
   return json({ ok: true, code, name });
 }
 
@@ -68,7 +78,15 @@ async function handleJoin(env, body) {
   if (room === null) {
     return json({ ok: false, error: '房间不存在' });
   }
-  return json({ ok: true, code });
+
+  const name = String(body.name || '').trim().slice(0, 20) || '访客';
+  const names = await readRoomNames(env, code);
+  if (names.includes(name)) {
+    return json({ ok: false, error: '此聊天室中已有重名人，请你更换名称' });
+  }
+  names.push(name);
+  await writeRoomNames(env, code, names);
+  return json({ ok: true, code, name });
 }
 
 async function handleMessagesGet(env, url) {
@@ -94,6 +112,10 @@ async function handleMessagesPost(env, body) {
   }
 
   const name = String(body.name || '').trim().slice(0, 20) || '访客';
+  const names = await readRoomNames(env, code);
+  if (!names.includes(name)) {
+    return json({ ok: false, error: '昵称未登记' });
+  }
   const text = String(body.text || '').trim().slice(0, 500);
   if (!text) {
     return json({ ok: false, error: '消息内容不能为空' }, 400);
