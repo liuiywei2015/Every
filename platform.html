@@ -418,9 +418,12 @@
         { author: '访客·远山', text: '河面反光那段画得太像了，盯着看了好久。', time: '2天前', likes: 21 },
         { author: '访客·K', text: '在安静的页面里待久了，心情会变软。', time: '4天前', likes: 15 }
       ];
-      var posts;
+      var posts = [];
+      var online = false;
+      var likeMap = {};
+      var LIKE_KEY = 'cealin_post_likes';
 
-      function load() {
+      function loadLocal() {
         try {
           var v = JSON.parse(localStorage.getItem(KEY));
           if (Array.isArray(v)) { posts = v; return; }
@@ -429,7 +432,16 @@
         posts = seed.slice();
       }
 
+      function loadLikes() {
+        try {
+          var v = JSON.parse(localStorage.getItem(LIKE_KEY));
+          if (v && typeof v === 'object') { likeMap = v; }
+        } catch (e) {}
+      }
+
       function save() { localStorage.setItem(KEY, JSON.stringify(posts)); }
+
+      function saveLikes() { try { localStorage.setItem(LIKE_KEY, JSON.stringify(likeMap)); } catch (e) {} }
 
       function esc(s) {
         return String(s || '').replace(/[&<>"']/g, function (c) {
@@ -437,9 +449,26 @@
         });
       }
 
+      function fmtTime(t) {
+        var d = new Date(t);
+        if (isNaN(d.getTime())) { return String(t || ''); }
+        var diff = (Date.now() - d.getTime()) / 1000;
+        if (diff < 60) { return '刚刚'; }
+        if (diff < 3600) { return Math.floor(diff / 60) + '分钟前'; }
+        if (diff < 86400) { return Math.floor(diff / 3600) + '小时前'; }
+        if (diff < 604800) { return Math.floor(diff / 86400) + '天前'; }
+        var m = d.getMonth() + 1;
+        var day = d.getDate();
+        return d.getFullYear() + '-' + (m < 10 ? '0' + m : m) + '-' + (day < 10 ? '0' + day : day);
+      }
+
       function render() {
-        document.getElementById('postList').innerHTML = posts.map(function (p, i) {
-          return '<div class="post-card"><div class="pc-head"><span class="pc-author">' + esc(p.author) + '</span><span class="pc-time">' + esc(p.time) + '</span></div><p class="pc-text">' + esc(p.text) + '</p><button class="like-btn' + (p.liked ? ' on' : '') + '" onclick="toggleLike(' + i + ')">♥ ' + (p.likes || 0) + '</button></div>';
+        document.getElementById('postList').innerHTML = posts.map(function (p) {
+          var key = String(p.time || '');
+          var st = likeMap[key] || {};
+          var liked = !!st.liked;
+          var likes = typeof st.likes === 'number' ? st.likes : (p.likes || 0);
+          return '<div class="post-card"><div class="pc-head"><span class="pc-author">' + esc(p.author) + '</span><span class="pc-time">' + esc(fmtTime(p.time)) + '</span></div><p class="pc-text">' + esc(p.text) + '</p><button class="like-btn' + (liked ? ' on' : '') + '" onclick="toggleLike(\'' + key + '\')">♥ ' + likes + '</button></div>';
         }).join('');
         document.getElementById('postCount').textContent = posts.length + ' 条动态';
       }
@@ -448,23 +477,59 @@
         var name = document.getElementById('pName').value.trim() || '访客';
         var text = document.getElementById('pText').value.trim();
         if (!text) return;
-        posts.unshift({ author: name, text: text, time: '刚刚', likes: 0 });
-        save();
         document.getElementById('pName').value = '';
         document.getElementById('pText').value = '';
-        render();
+        if (online) {
+          fetch('/api/messages', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ name: name, text: text })
+          }).then(function (r) { return r.json(); }).then(function (res) {
+            if (res && res.ok && res.message) {
+              posts.unshift(res.message);
+              render();
+            } else {
+              addLocal(name, text);
+            }
+          }).catch(function () { addLocal(name, text); });
+        } else {
+          addLocal(name, text);
+        }
       };
 
-      window.toggleLike = function (i) {
-        if (!posts[i]) return;
-        posts[i].liked = !posts[i].liked;
-        posts[i].likes = (posts[i].likes || 0) + (posts[i].liked ? 1 : -1);
+      function addLocal(name, text) {
+        posts.unshift({ author: name, text: text, time: new Date().toISOString(), likes: 0 });
         save();
         render();
+      }
+
+      window.toggleLike = function (key) {
+        var st = likeMap[key];
+        if (!st) {
+          var base = 0;
+          for (var i = 0; i < posts.length; i++) {
+            if (String(posts[i].time || '') === key) { base = posts[i].likes || 0; break; }
+          }
+          st = { liked: false, likes: base };
+        }
+        st.liked = !st.liked;
+        st.likes += st.liked ? 1 : -1;
+        if (st.likes < 0) { st.likes = 0; }
+        likeMap[key] = st;
+        saveLikes();
+        render();
       };
 
-      load();
+      loadLikes();
+      loadLocal();
       render();
+
+      fetch('/api/messages').then(function (r) { return r.json(); }).then(function (res) {
+        if (!res || !res.ok || !Array.isArray(res.messages)) { throw new Error('bad'); }
+        posts = res.messages.slice().reverse();
+        online = true;
+        render();
+      }).catch(function () { /* 加载失败保持本地降级 */ });
     })();
   </script>
 
