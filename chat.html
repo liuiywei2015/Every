@@ -216,6 +216,31 @@
     justify-content: center;
   }
 
+  /* ========== 代码类型选择 ========== */
+  .type-actions {
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+    justify-content: center;
+  }
+  .type-btn {
+    padding: 7px 18px;
+    border-radius: 999px;
+    border: 1px solid rgba(255, 255, 255, 0.2);
+    background: rgba(255, 255, 255, 0.06);
+    color: var(--muted);
+    font-size: 12px;
+    letter-spacing: 0.08em;
+    cursor: pointer;
+    transition: background 0.3s ease, color 0.3s ease, border-color 0.3s ease;
+  }
+  .type-btn:hover { background: rgba(255, 255, 255, 0.12); color: var(--fg); }
+  .type-btn.on {
+    border-color: rgba(200, 169, 110, 0.55);
+    background: rgba(200, 169, 110, 0.18);
+    color: var(--fg);
+  }
+
   .room-btn {
     padding: 10px 26px;
     border-radius: 999px;
@@ -424,6 +449,12 @@
       <input id="nickInput" class="room-input" type="text" maxlength="20" autocomplete="off" placeholder="给自己起个名字">
       <label class="field-label" for="codeInput">房间代码</label>
       <input id="codeInput" class="room-input" type="text" maxlength="4" autocomplete="off" placeholder="四字代码">
+      <label class="field-label" for="typeActions">代码类型</label>
+      <div class="type-actions" id="typeActions">
+        <button type="button" class="room-btn plain type-btn on" data-type="mixed" onclick="selectCodeType('mixed')">混合</button>
+        <button type="button" class="room-btn plain type-btn" data-type="digits" onclick="selectCodeType('digits')">纯数字</button>
+        <button type="button" class="room-btn plain type-btn" data-type="letters" onclick="selectCodeType('letters')">纯字母</button>
+      </div>
       <div class="room-actions">
         <button class="room-btn" onclick="joinRoom()">加入房间</button>
         <button class="room-btn plain" onclick="createRoom()">创建房间</button>
@@ -468,6 +499,7 @@
       var currentCode = '';
       var currentName = '';
       var lastCount = 0;
+      var codeType = 'mixed'; // 房间代码类型：mixed / digits / letters
 
       function esc(s) {
         return String(s || '').replace(/[&<>"']/g, function (c) {
@@ -475,6 +507,15 @@
         });
       }
       function el(id) { return document.getElementById(id); }
+
+      // 代码类型切换（混合 / 纯数字 / 纯字母）
+      window.selectCodeType = function (t) {
+        codeType = (t === 'digits' || t === 'letters') ? t : 'mixed';
+        var btns = document.querySelectorAll('.type-btn');
+        for (var i = 0; i < btns.length; i++) {
+          btns[i].classList.toggle('on', btns[i].getAttribute('data-type') === codeType);
+        }
+      };
 
       // 恢复上次昵称
       try {
@@ -531,7 +572,7 @@
         var name = el('nickInput').value.trim().slice(0, 20);
         if (!name) { setErr('请先输入昵称'); return; }
         try {
-          var data = await post('/create', { name: name });
+          var data = await post('/create', { name: name, type: codeType });
           if (data && data.ok && data.code) {
             enterChat(String(data.code).toUpperCase(), name);
           } else {
@@ -552,7 +593,7 @@
         var name = el('nickInput').value.trim().slice(0, 20);
         var code = el('codeInput').value.trim().toUpperCase();
         if (!name) { setErr('请先输入昵称'); return; }
-        if (!/^[2-9A-HJ-NP-Z]{4}$/.test(code)) { setErr('房间代码为四字代码（字母或数字）'); return; }
+        if (!/^[A-Za-z0-9]{4}$/.test(code)) { setErr('房间代码为四字代码（字母或数字）'); return; }
         try {
           var data = await post('/join', { code: code, name: name });
           if (data && data.ok) {
@@ -605,6 +646,8 @@
 
       window.genRandomCode = function () {
         var chars = '23456789ABCDEFGHJKLMNPQRSTUVWXYZ';
+        if (codeType === 'digits') chars = '0123456789';
+        else if (codeType === 'letters') chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
         var out = '';
         for (var i = 0; i < 4; i++) {
           out += chars[Math.floor(Math.random() * chars.length)];
@@ -614,8 +657,8 @@
 
       window.confirmChange = function () {
         var newCode = el('newCodeInput').value.trim().toUpperCase();
-        if (!/^[2-9A-HJ-NP-Z]{4}$/.test(newCode)) {
-          showTip('房间代码须为4位字母数字', false);
+        if (!/^[A-Za-z0-9]{4}$/.test(newCode)) {
+          showTip('房间代码须为4位字母或数字', false);
           return;
         }
         post('/change', { code: currentCode, name: currentName, newCode: newCode })

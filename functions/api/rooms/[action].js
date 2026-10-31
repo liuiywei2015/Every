@@ -9,8 +9,16 @@
 const PREFIX = 'room:';
 const MAX_MESSAGES = 200;
 
-// 四字代码字符集：排除易混淆的 0/O/1/I
-const CODE_CHARS = '23456789ABCDEFGHJKLMNPQRSTUVWXYZ';
+// 四字代码字符集：按类型选择
+const CODE_CHARS_MIXED = '23456789ABCDEFGHJKLMNPQRSTUVWXYZ'; // 混合：排除易混淆的 0/O/1/I
+const CODE_CHARS_DIGITS = '0123456789';                       // 纯数字
+const CODE_CHARS_LETTERS = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';      // 纯字母
+
+const getChars = (type) => {
+  if (type === 'digits') return CODE_CHARS_DIGITS;
+  if (type === 'letters') return CODE_CHARS_LETTERS;
+  return CODE_CHARS_MIXED;
+};
 
 const json = (data, status = 200) =>
   new Response(JSON.stringify(data), {
@@ -38,20 +46,21 @@ const writeRoomNames = (env, code, names) =>
 const normalizeCode = (code) =>
   String(code || '').trim().toUpperCase();
 
-const isValidCode = (code) => /^[2-9A-HJ-NP-Z]{4}$/.test(code);
+const isValidCode = (code) => /^[A-Z0-9]{4}$/.test(code);
 
-const randomCode = () => {
+const randomCode = (chars) => {
   let out = '';
   for (let i = 0; i < 4; i++) {
-    out += CODE_CHARS[Math.floor(Math.random() * CODE_CHARS.length)];
+    out += chars[Math.floor(Math.random() * chars.length)];
   }
   return out;
 };
 
 // 生成唯一房间代码：已存在则重新生成
-async function genUniqueCode(env) {
+async function genUniqueCode(env, type) {
+  const chars = getChars(type);
   for (let i = 0; i < 100; i++) {
-    const code = randomCode();
+    const code = randomCode(chars);
     const existing = await env.GUESTBOOK.get(PREFIX + code);
     if (existing === null) return code;
   }
@@ -60,7 +69,9 @@ async function genUniqueCode(env) {
 
 async function handleCreate(env, body) {
   const name = String(body.name || '').trim().slice(0, 20) || '访客';
-  const code = await genUniqueCode(env);
+  let type = String(body.type || '').toLowerCase();
+  if (type !== 'digits' && type !== 'letters') type = 'mixed';
+  const code = await genUniqueCode(env, type);
   if (!code) {
     return json({ ok: false, error: '创建房间失败，请重试' }, 500);
   }
@@ -151,7 +162,7 @@ async function handleChange(env, body) {
   }
 
   if (!isValidCode(newCode)) {
-    return json({ ok: false, error: '房间代码须为4位字母数字' }, 400);
+    return json({ ok: false, error: '房间代码须为4位字母或数字' }, 400);
   }
 
   // 新代码与当前相同，无需迁移
