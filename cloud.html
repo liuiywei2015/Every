@@ -249,6 +249,66 @@
     color: var(--muted);
   }
 
+  /* ========== 密码解锁面板 ========== */
+  .lock-box {
+    margin-top: 60px;
+    width: min(440px, 92vw);
+    background: rgba(8, 9, 8, 0.5);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    border-radius: 16px;
+    backdrop-filter: blur(10px);
+    padding: 28px 24px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 16px;
+    text-align: center;
+    opacity: 0;
+    animation: fadeIn 1.4s ease 0.6s forwards;
+  }
+  .lock-tip {
+    font-size: 13px;
+    letter-spacing: 0.12em;
+    text-indent: 0.12em;
+    color: var(--fg);
+  }
+  .lock-input {
+    width: 100%;
+    background: rgba(255, 255, 255, 0.07);
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    border-radius: 9px;
+    color: var(--fg);
+    font-size: 15px;
+    font-family: inherit;
+    padding: 12px 16px;
+    outline: none;
+    text-align: center;
+    letter-spacing: 0.3em;
+    transition: border-color 0.3s ease;
+  }
+  .lock-input::placeholder { letter-spacing: 0.12em; color: rgba(247, 244, 238, 0.35); }
+  .lock-input:focus { border-color: rgba(200, 169, 110, 0.6); }
+  .lock-btn {
+    padding: 10px 34px;
+    border-radius: 999px;
+    border: 1px solid rgba(200, 169, 110, 0.55);
+    background: rgba(200, 169, 110, 0.18);
+    color: var(--fg);
+    font-size: 13px;
+    letter-spacing: 0.1em;
+    cursor: pointer;
+    transition: background 0.3s ease, transform 0.2s ease;
+  }
+  .lock-btn:hover { background: rgba(200, 169, 110, 0.34); transform: translateY(-1px); }
+  .lock-err {
+    min-height: 18px;
+    font-size: 12px;
+    letter-spacing: 0.06em;
+    color: #e8a08c;
+    opacity: 0;
+    transition: opacity 0.3s ease;
+  }
+
   /* ========== 预览层 ========== */
   .preview-overlay {
     position: fixed;
@@ -337,8 +397,16 @@
     <h1 class="title">云储存</h1>
     <p class="page-sub">本机文件 · 随时取用</p>
 
+    <!-- 密码解锁 -->
+    <section id="lockBox" class="lock-box" style="display:none;">
+      <p class="lock-tip">请输入访问密码</p>
+      <input id="lockInput" class="lock-input" type="password" autocomplete="off" placeholder="••••••••">
+      <button class="lock-btn" onclick="unlock()">解锁</button>
+      <p class="lock-err" id="lockErr"></p>
+    </section>
+
     <!-- 文件浏览器 -->
-    <section class="file-box">
+    <section id="fileBox" class="file-box">
       <p class="browser-note">文件清单由 cloud-files.js 维护，新增文件后更新该文件即可</p>
       <div id="fileList" class="file-list"></div>
       <p class="feed-count" id="fileCount"></p>
@@ -359,6 +427,51 @@
   <!-- 文件清单（由 cloud-files.js 维护） -->
   <script src="cloud-files.js"></script>
   <script>
+    // ========== 密码解锁 ==========
+    (function () {
+      var UNLOCK_KEY = 'cealin_cloud_unlocked';
+      var lockBox = document.getElementById('lockBox');
+      var fileBox = document.getElementById('fileBox');
+
+      function showLock() {
+        lockBox.style.display = 'flex';
+        fileBox.style.display = 'none';
+        var input = document.getElementById('lockInput');
+        input.value = '';
+        input.focus();
+      }
+
+      function showBrowser() {
+        lockBox.style.display = 'none';
+        fileBox.style.display = 'flex';
+      }
+
+      function doUnlock() {
+        var input = document.getElementById('lockInput');
+        var err = document.getElementById('lockErr');
+        var ok = input.value === String(window.CLOUD_PWD || '');
+        if (ok) {
+          try { sessionStorage.setItem(UNLOCK_KEY, '1'); } catch (e) {}
+          err.style.opacity = '0';
+          showBrowser();
+        } else {
+          err.textContent = '密码错误';
+          err.style.opacity = '1';
+          input.value = '';
+          input.focus();
+        }
+      }
+      window.unlock = doUnlock;
+
+      document.getElementById('lockInput').addEventListener('keydown', function (ev) {
+        if (ev.key === 'Enter') doUnlock();
+      });
+
+      var unlocked = false;
+      try { unlocked = sessionStorage.getItem(UNLOCK_KEY) === '1'; } catch (e) {}
+      if (unlocked) showBrowser(); else showLock();
+    })();
+
     (function () {
       var files = Array.isArray(window.CLOUD_FILES) ? window.CLOUD_FILES.slice() : [];
       files.sort(function (a, b) { return String(a.name).localeCompare(String(b.name), 'zh'); });
