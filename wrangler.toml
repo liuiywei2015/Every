@@ -26,4 +26,4 @@ pages_build_output_dir = "."
 
 [[kv_namespaces]]
 binding = "GUESTBOOK"
-id = "在此填入你的KV命名空间ID"
+id = "40dc020509814a3a8322d426cf52a87a"
