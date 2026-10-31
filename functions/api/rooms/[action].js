@@ -134,6 +134,45 @@ async function handleMessagesPost(env, body) {
   return json({ ok: true, message: { name, text, time } });
 }
 
+// 更改房间代码：将房间消息与成员名单迁移到新代码，并删除旧 key
+async function handleChange(env, body) {
+  const code = normalizeCode(body.code);
+  const newCode = normalizeCode(body.newCode);
+
+  const room = await readRoom(env, code);
+  if (room === null) {
+    return json({ ok: false, error: '房间不存在' });
+  }
+
+  const name = String(body.name || '').trim().slice(0, 20) || '访客';
+  const names = await readRoomNames(env, code);
+  if (!names.includes(name)) {
+    return json({ ok: false, error: '昵称未登记' });
+  }
+
+  if (!isValidCode(newCode)) {
+    return json({ ok: false, error: '房间代码须为4位字母数字' }, 400);
+  }
+
+  // 新代码与当前相同，无需迁移
+  if (newCode === code) {
+    return json({ ok: true, code: newCode });
+  }
+
+  // 新代码已被其他房间占用
+  const existing = await env.GUESTBOOK.get(PREFIX + newCode);
+  if (existing !== null) {
+    return json({ ok: false, error: '该代码已被其他房间使用，请换一个' });
+  }
+
+  // 迁移消息与成员名单，删除旧 key
+  await writeRoom(env, newCode, room);
+  await writeRoomNames(env, newCode, names);
+  await env.GUESTBOOK.delete(PREFIX + code);
+  await env.GUESTBOOK.delete(PREFIX + code + ':names');
+  return json({ ok: true, code: newCode });
+}
+
 export async function onRequest(context) {
   const { env, request, params } = context;
   const url = new URL(request.url);
@@ -155,6 +194,10 @@ export async function onRequest(context) {
 
     if (action === 'join' && request.method === 'POST') {
       return await handleJoin(env, body);
+    }
+
+    if (action === 'change' && request.method === 'POST') {
+      return await handleChange(env, body);
     }
 
     if (action === 'messages') {

@@ -364,6 +364,27 @@
     min-height: 16px;
     text-align: center;
   }
+  .offline-tip.ok { color: rgba(200, 169, 110, 0.95); }
+
+  /* ========== 更改房间代码面板 ========== */
+  .change-box {
+    flex-direction: column;
+    gap: 10px;
+    background: rgba(255, 255, 255, 0.05);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    border-radius: 10px;
+    padding: 12px 14px;
+  }
+  .change-row {
+    display: flex;
+    gap: 10px;
+    align-items: center;
+    justify-content: center;
+  }
+  .change-input {
+    width: 180px;
+    letter-spacing: 0.3em;
+  }
 
   @keyframes fadeIn { to { opacity: 1; } }
 </style>
@@ -417,7 +438,18 @@
           <span class="chat-room-code" id="roomCodeText"></span>
           <span class="chat-my-name" id="myNameText"></span>
         </div>
+        <button class="room-btn plain" onclick="toggleChangeBox()">更改代码</button>
         <button class="room-btn plain" onclick="leaveRoom()">退出房间</button>
+      </div>
+      <div id="changeBox" class="change-box" style="display:none;">
+        <div class="change-row">
+          <input id="newCodeInput" class="room-input change-input" type="text" maxlength="4" autocomplete="off" placeholder="新四字代码">
+          <button class="room-btn plain" onclick="genRandomCode()">随机生成</button>
+        </div>
+        <div class="change-row">
+          <button class="room-btn" onclick="confirmChange()">确认更改</button>
+          <button class="room-btn plain" onclick="toggleChangeBox()">取消</button>
+        </div>
       </div>
       <div id="msgList" class="msg-list"></div>
       <div class="chat-input-row">
@@ -557,6 +589,52 @@
           });
       };
 
+      // 聊天阶段提示（复用 offlineTip 位置）
+      function showTip(msg, ok) {
+        var tip = el('offlineTip');
+        tip.textContent = msg;
+        tip.classList.toggle('ok', !!ok);
+      }
+
+      window.toggleChangeBox = function () {
+        var box = el('changeBox');
+        var isHidden = box.style.display === 'none';
+        box.style.display = isHidden ? 'flex' : 'none';
+        if (isHidden) { el('newCodeInput').value = ''; el('msgInput').focus(); }
+      };
+
+      window.genRandomCode = function () {
+        var chars = '23456789ABCDEFGHJKLMNPQRSTUVWXYZ';
+        var out = '';
+        for (var i = 0; i < 4; i++) {
+          out += chars[Math.floor(Math.random() * chars.length)];
+        }
+        el('newCodeInput').value = out;
+      };
+
+      window.confirmChange = function () {
+        var newCode = el('newCodeInput').value.trim().toUpperCase();
+        if (!/^[2-9A-HJ-NP-Z]{4}$/.test(newCode)) {
+          showTip('房间代码须为4位字母数字', false);
+          return;
+        }
+        post('/change', { code: currentCode, name: currentName, newCode: newCode })
+          .then(function (data) {
+            if (data && data.ok && data.code) {
+              currentCode = String(data.code).toUpperCase();
+              el('roomCodeText').textContent = currentCode;
+              toggleChangeBox();
+              showTip('房间代码已更新为 ' + currentCode, true);
+              loadMessages();
+            } else {
+              showTip(data && data.error ? data.error : '更改失败', false);
+            }
+          })
+          .catch(function (err) {
+            showTip(err && err.status ? err.message : '更改失败', false);
+          });
+      };
+
       window.leaveRoom = function () {
         if (pollTimer) { clearInterval(pollTimer); pollTimer = null; }
         currentCode = '';
@@ -565,6 +643,9 @@
         el('codeInput').value = '';
         el('msgList').innerHTML = '';
         el('offlineTip').textContent = '';
+        el('offlineTip').classList.remove('ok');
+        el('changeBox').style.display = 'none';
+        el('newCodeInput').value = '';
         el('nickInput').focus();
       };
 
