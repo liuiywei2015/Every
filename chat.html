@@ -1,0 +1,602 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>聊天室 - Cealin</title>
+<style>
+  :root {
+    --fg: #f7f4ee;
+    --muted: rgba(247, 244, 238, 0.55);
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  html, body { height: 100%; }
+
+  body {
+    color: var(--fg);
+    font-family: "Helvetica Neue", "PingFang SC", "Microsoft YaHei", Arial, sans-serif;
+    -webkit-font-smoothing: antialiased;
+    overflow-y: auto;
+    background: #14181a;
+  }
+
+  /* ========== 全屏背景图 ========== */
+  .art-bg {
+    position: fixed;
+    inset: 0;
+    z-index: 0;
+    background-image: url('assets/bg.jpg');
+    background-size: cover;
+    background-position: center;
+  }
+
+  /* 暖金氛围光 */
+  .glow {
+    position: fixed;
+    inset: 0;
+    z-index: 1;
+    pointer-events: none;
+    background:
+      radial-gradient(ellipse 55% 42% at 50% 46%, rgba(255, 196, 120, 0.20), transparent 62%),
+      radial-gradient(ellipse 40% 35% at 50% 60%, rgba(230, 170, 90, 0.10), transparent 70%),
+      linear-gradient(180deg, rgba(6, 8, 7, 0.30) 0%, rgba(6, 8, 7, 0) 30%, rgba(6, 8, 7, 0.20) 78%, rgba(4, 5, 4, 0.55) 100%);
+  }
+
+  /* 油画噪点颗粒 */
+  .grain {
+    position: fixed;
+    inset: 0;
+    z-index: 2;
+    pointer-events: none;
+    opacity: 0.07;
+    mix-blend-mode: overlay;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='180' height='180'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+  }
+
+  /* ========== 顶部导航栏 ========== */
+  .topbar {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    z-index: 10;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 16px 36px;
+    background: linear-gradient(180deg, rgba(8, 9, 8, 0.72), rgba(8, 9, 8, 0));
+    backdrop-filter: blur(2px);
+  }
+
+  .logo {
+    font-size: 22px;
+    font-weight: 800;
+    letter-spacing: 0.06em;
+    color: var(--fg);
+    text-decoration: none;
+  }
+
+  .nav-right {
+    display: flex;
+    align-items: center;
+    gap: 34px;
+  }
+
+  .menu {
+    display: flex;
+    gap: 30px;
+    list-style: none;
+  }
+  .menu a {
+    font-size: 15px;
+    font-weight: 500;
+    color: var(--muted);
+    text-decoration: none;
+    transition: color 0.3s ease;
+  }
+  .menu a:hover { color: var(--fg); }
+  .menu a.active { color: var(--fg); }
+  .menu a.active::after {
+    content: "";
+    display: block;
+    height: 1px;
+    margin-top: 3px;
+    background: rgba(247, 244, 238, 0.45);
+  }
+
+  .avatar {
+    width: 34px;
+    height: 34px;
+    border-radius: 50%;
+    border: 1.5px solid rgba(255, 255, 255, 0.35);
+    background:
+      radial-gradient(circle at 35% 30%, rgba(255, 255, 255, 0.35), transparent 40%),
+      linear-gradient(135deg, #7d8a7a, #3a4038);
+    cursor: pointer;
+    position: relative;
+    display: block;
+  }
+  .avatar::after {
+    content: "";
+    position: absolute;
+    inset: 4px;
+    border-radius: 50%;
+    border: 1px solid rgba(255, 255, 255, 0.15);
+  }
+
+  /* ========== 页面主体 ========== */
+  .hero {
+    position: relative;
+    z-index: 5;
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    text-align: center;
+    padding: 110px 24px 70px;
+  }
+
+  .title {
+    font-size: clamp(56px, 10vw, 132px);
+    font-weight: 800;
+    letter-spacing: 0.10em;
+    text-indent: 0.10em;
+    line-height: 1;
+    color: var(--fg);
+    text-shadow: 0 4px 60px rgba(0, 0, 0, 0.45);
+    user-select: none;
+    animation: fadeIn 1.4s ease both;
+  }
+
+  .page-sub {
+    margin-top: 22px;
+    font-size: 14px;
+    letter-spacing: 0.16em;
+    text-indent: 0.16em;
+    color: var(--muted);
+    opacity: 0;
+    animation: fadeIn 1.4s ease 0.4s forwards;
+  }
+
+  /* ========== 聊天面板 ========== */
+  .room-box {
+    margin-top: 56px;
+    width: min(560px, 92vw);
+    background: rgba(8, 9, 8, 0.5);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    border-radius: 16px;
+    backdrop-filter: blur(10px);
+    padding: 28px 24px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 14px;
+    text-align: center;
+    opacity: 0;
+    animation: fadeIn 1.4s ease 0.6s forwards;
+  }
+
+  .room-tip {
+    font-size: 13px;
+    letter-spacing: 0.1em;
+    color: var(--muted);
+    line-height: 1.8;
+  }
+
+  .field-label {
+    align-self: flex-start;
+    font-size: 12px;
+    letter-spacing: 0.12em;
+    color: var(--muted);
+  }
+
+  .room-input {
+    width: 100%;
+    background: rgba(255, 255, 255, 0.07);
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    border-radius: 9px;
+    color: var(--fg);
+    font-size: 15px;
+    font-family: inherit;
+    padding: 12px 16px;
+    outline: none;
+    text-align: center;
+    letter-spacing: 0.3em;
+    transition: border-color 0.3s ease;
+  }
+  .room-input::placeholder { letter-spacing: 0.12em; color: rgba(247, 244, 238, 0.35); }
+  .room-input:focus { border-color: rgba(200, 169, 110, 0.6); }
+
+  .room-actions {
+    display: flex;
+    gap: 12px;
+    flex-wrap: wrap;
+    justify-content: center;
+  }
+
+  .room-btn {
+    padding: 10px 26px;
+    border-radius: 999px;
+    border: 1px solid rgba(200, 169, 110, 0.55);
+    background: rgba(200, 169, 110, 0.18);
+    color: var(--fg);
+    font-size: 13px;
+    letter-spacing: 0.1em;
+    cursor: pointer;
+    transition: background 0.3s ease, transform 0.2s ease;
+  }
+  .room-btn:hover { background: rgba(200, 169, 110, 0.34); transform: translateY(-1px); }
+  .room-btn.plain {
+    border-color: rgba(255, 255, 255, 0.2);
+    background: rgba(255, 255, 255, 0.06);
+  }
+  .room-btn.plain:hover { background: rgba(255, 255, 255, 0.12); }
+
+  .room-err {
+    min-height: 18px;
+    font-size: 12px;
+    letter-spacing: 0.06em;
+    color: #e8a08c;
+    opacity: 0;
+    transition: opacity 0.3s ease;
+  }
+  .room-err.show { opacity: 1; }
+
+  /* ========== 聊天阶段 ========== */
+  .chat-panel {
+    margin-top: 56px;
+    width: min(680px, 92vw);
+    background: rgba(8, 9, 8, 0.55);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    border-radius: 16px;
+    backdrop-filter: blur(10px);
+    padding: 22px 24px;
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+    text-align: left;
+    opacity: 0;
+    animation: fadeIn 1.4s ease 0.6s forwards;
+  }
+
+  .chat-head {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 14px;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+    padding-bottom: 14px;
+  }
+  .chat-head-left {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+  }
+  .chat-room-code {
+    font-size: 30px;
+    font-weight: 800;
+    letter-spacing: 0.32em;
+    text-indent: 0.32em;
+    color: var(--fg);
+  }
+  .chat-my-name {
+    font-size: 12px;
+    letter-spacing: 0.1em;
+    color: var(--muted);
+  }
+
+  .msg-list {
+    height: min(52vh, 420px);
+    overflow-y: auto;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    padding: 4px 2px;
+    scroll-behavior: smooth;
+  }
+
+  .msg-item {
+    background: rgba(255, 255, 255, 0.05);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    border-radius: 10px;
+    padding: 10px 14px;
+  }
+  .msg-meta {
+    display: flex;
+    justify-content: space-between;
+    gap: 10px;
+    margin-bottom: 5px;
+  }
+  .msg-name {
+    font-size: 12px;
+    font-weight: 600;
+    color: rgba(200, 169, 110, 0.95);
+    letter-spacing: 0.04em;
+  }
+  .msg-time {
+    font-size: 11px;
+    color: var(--muted);
+    letter-spacing: 0.04em;
+  }
+  .msg-text {
+    font-size: 14px;
+    line-height: 1.6;
+    color: var(--fg);
+    word-break: break-all;
+    white-space: pre-wrap;
+  }
+
+  .msg-empty {
+    padding: 26px 0;
+    text-align: center;
+    font-size: 13px;
+    letter-spacing: 0.1em;
+    color: var(--muted);
+  }
+
+  .chat-input-row {
+    display: flex;
+    gap: 10px;
+    align-items: center;
+  }
+  .chat-input {
+    flex: 1;
+    background: rgba(255, 255, 255, 0.07);
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    border-radius: 9px;
+    color: var(--fg);
+    font-size: 14px;
+    font-family: inherit;
+    padding: 11px 14px;
+    outline: none;
+    letter-spacing: 0.02em;
+    transition: border-color 0.3s ease;
+  }
+  .chat-input::placeholder { color: rgba(247, 244, 238, 0.35); }
+  .chat-input:focus { border-color: rgba(200, 169, 110, 0.6); }
+
+  .offline-tip {
+    font-size: 12px;
+    letter-spacing: 0.06em;
+    color: #e8a08c;
+    min-height: 16px;
+    text-align: center;
+  }
+
+  @keyframes fadeIn { to { opacity: 1; } }
+</style>
+</head>
+<body>
+
+  <!-- 油画背景 -->
+  <div class="art-bg"></div>
+
+  <div class="glow"></div>
+  <div class="grain"></div>
+
+  <!-- 顶部导航 -->
+  <header class="topbar">
+    <a class="logo" href="index.html">Cealin</a>
+    <div class="nav-right">
+      <ul class="menu">
+        <li><a href="index.html">首页</a></li>
+        <li><a href="project.html">项目</a></li>
+        <li><a href="platform.html">平台</a></li>
+        <li><a href="chat.html" class="active">聊天室</a></li>
+        <li><a href="cloud.html">云储存</a></li>
+      </ul>
+      <a class="avatar" href="settings.html" title="设置"></a>
+    </div>
+  </header>
+
+  <!-- 页面主体 -->
+  <main class="hero">
+    <h1 class="title">聊天室</h1>
+    <p class="page-sub">四字代码 · 随时畅聊</p>
+
+    <!-- 进入阶段 -->
+    <section id="enterBox" class="room-box">
+      <p class="room-tip">每个聊天室有唯一四字代码，分享代码即可邀请朋友加入</p>
+      <label class="field-label" for="nickInput">昵称</label>
+      <input id="nickInput" class="room-input" type="text" maxlength="20" autocomplete="off" placeholder="给自己起个名字">
+      <label class="field-label" for="codeInput">房间代码</label>
+      <input id="codeInput" class="room-input" type="text" maxlength="4" autocomplete="off" placeholder="四字代码">
+      <div class="room-actions">
+        <button class="room-btn" onclick="joinRoom()">加入房间</button>
+        <button class="room-btn plain" onclick="createRoom()">创建房间</button>
+      </div>
+      <p class="room-err" id="enterErr"></p>
+    </section>
+
+    <!-- 聊天阶段 -->
+    <section id="chatBox" class="chat-panel" style="display:none;">
+      <div class="chat-head">
+        <div class="chat-head-left">
+          <span class="chat-room-code" id="roomCodeText"></span>
+          <span class="chat-my-name" id="myNameText"></span>
+        </div>
+        <button class="room-btn plain" onclick="leaveRoom()">退出房间</button>
+      </div>
+      <div id="msgList" class="msg-list"></div>
+      <div class="chat-input-row">
+        <input id="msgInput" class="chat-input" type="text" maxlength="500" autocomplete="off" placeholder="说点什么…">
+        <button class="room-btn" onclick="sendMsg()">发送</button>
+      </div>
+      <p class="offline-tip" id="offlineTip"></p>
+    </section>
+  </main>
+
+  <script>
+    (function () {
+      var NAME_KEY = 'cealin_chat_name';
+      var API = '/api/rooms';
+      var pollTimer = null;
+      var currentCode = '';
+      var currentName = '';
+      var lastCount = 0;
+
+      function esc(s) {
+        return String(s || '').replace(/[&<>"']/g, function (c) {
+          return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c];
+        });
+      }
+      function el(id) { return document.getElementById(id); }
+
+      // 恢复上次昵称
+      try {
+        var savedName = localStorage.getItem(NAME_KEY) || '';
+        if (savedName) el('nickInput').value = savedName;
+      } catch (e) {}
+
+      function setErr(msg) {
+        var err = el('enterErr');
+        if (msg) { err.textContent = msg; err.classList.add('show'); }
+        else { err.textContent = ''; err.classList.remove('show'); }
+      }
+
+      function showOfflineTip() {
+        el('offlineTip').textContent = '部署后可跨设备聊天';
+      }
+      function clearOfflineTip() {
+        el('offlineTip').textContent = '';
+      }
+
+      async function post(path, body) {
+        var resp = await fetch(API + path, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(body)
+        });
+        if (!resp.ok) throw new Error('HTTP ' + resp.status);
+        return resp.json();
+      }
+
+      function enterChat(code, name) {
+        currentCode = code;
+        currentName = name;
+        try { localStorage.setItem(NAME_KEY, name); } catch (e) {}
+        el('roomCodeText').textContent = code;
+        el('myNameText').textContent = '昵称：' + name;
+        el('enterBox').style.display = 'none';
+        el('chatBox').style.display = 'flex';
+        clearOfflineTip();
+        loadMessages();
+        if (pollTimer) clearInterval(pollTimer);
+        pollTimer = setInterval(loadMessages, 3000);
+        el('msgInput').focus();
+      }
+
+      window.createRoom = async function () {
+        setErr('');
+        var name = el('nickInput').value.trim().slice(0, 20);
+        if (!name) { setErr('请先输入昵称'); return; }
+        try {
+          var data = await post('/create', { name: name });
+          if (data && data.ok && data.code) {
+            enterChat(String(data.code).toUpperCase(), name);
+          } else {
+            setErr(data && data.error ? data.error : '创建房间失败');
+          }
+        } catch (err) {
+          setErr('创建房间失败');
+          showOfflineTip();
+        }
+      };
+
+      window.joinRoom = async function () {
+        setErr('');
+        var name = el('nickInput').value.trim().slice(0, 20);
+        var code = el('codeInput').value.trim().toUpperCase();
+        if (!name) { setErr('请先输入昵称'); return; }
+        if (!/^[2-9A-HJ-NP-Z]{4}$/.test(code)) { setErr('房间代码为四字代码（字母或数字）'); return; }
+        try {
+          var data = await post('/join', { code: code });
+          if (data && data.ok) {
+            enterChat(code, name);
+          } else {
+            setErr(data && data.error ? data.error : '加入房间失败');
+          }
+        } catch (err) {
+          setErr('加入房间失败');
+          showOfflineTip();
+        }
+      };
+
+      window.sendMsg = function () {
+        var text = el('msgInput').value.trim().slice(0, 500);
+        if (!text || !currentCode) return;
+        el('msgInput').value = '';
+        post('/messages', { code: currentCode, name: currentName, text: text })
+          .then(function (data) {
+            if (data && !data.ok) {
+              el('msgInput').value = text;
+              showOfflineTip();
+              return;
+            }
+            loadMessages();
+          })
+          .catch(function () {
+            el('msgInput').value = text;
+            showOfflineTip();
+          });
+      };
+
+      window.leaveRoom = function () {
+        if (pollTimer) { clearInterval(pollTimer); pollTimer = null; }
+        currentCode = '';
+        el('chatBox').style.display = 'none';
+        el('enterBox').style.display = 'flex';
+        el('codeInput').value = '';
+        el('msgList').innerHTML = '';
+        el('offlineTip').textContent = '';
+        el('nickInput').focus();
+      };
+
+      window.loadMessages = function () {
+        if (!currentCode) return;
+        fetch(API + '/messages?code=' + encodeURIComponent(currentCode))
+          .then(function (resp) { return resp.json(); })
+          .then(function (data) {
+            if (!data || !data.ok || !Array.isArray(data.messages)) return;
+            var list = data.messages;
+            var wrap = el('msgList');
+            if (!list.length) {
+              wrap.innerHTML = '<div class="msg-empty">暂无消息，来发第一条吧</div>';
+              lastCount = 0;
+              return;
+            }
+            wrap.innerHTML = list.map(function (m) {
+              return '<div class="msg-item">' +
+                '<div class="msg-meta"><span class="msg-name">' + esc(m.name) + '</span>' +
+                '<span class="msg-time">' + esc(fmtTime(m.time)) + '</span></div>' +
+                '<div class="msg-text">' + esc(m.text) + '</div></div>';
+            }).join('');
+            if (list.length !== lastCount) {
+              wrap.scrollTop = wrap.scrollHeight;
+              lastCount = list.length;
+            }
+          })
+          .catch(function () { /* 轮询失败静默，等待下次 */ });
+      };
+
+      function fmtTime(iso) {
+        if (!iso) return '';
+        var d = new Date(iso);
+        if (isNaN(d.getTime())) return '';
+        return d.getHours() + ':' + String(d.getMinutes()).padStart(2, '0');
+      }
+
+      // 回车快捷操作
+      el('codeInput').addEventListener('keydown', function (ev) {
+        if (ev.key === 'Enter') joinRoom();
+      });
+      el('msgInput').addEventListener('keydown', function (ev) {
+        if (ev.key === 'Enter') sendMsg();
+      });
+    })();
+  </script>
+
+</body>
+</html>
