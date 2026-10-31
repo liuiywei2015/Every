@@ -22,16 +22,14 @@
     background: #14181a;
   }
 
-  /* ========== 全屏油画背景：内嵌SVG山谷河流 + 多层渐变 + 噪点 ========== */
+  /* ========== 全屏背景图 ========== */
   .art-bg {
     position: fixed;
     inset: 0;
     z-index: 0;
-  }
-  .art-bg svg {
-    width: 100%;
-    height: 100%;
-    display: block;
+    background-image: url('assets/bg.jpg');
+    background-size: cover;
+    background-position: center;
   }
 
   /* 暖金氛围光 */
@@ -310,88 +308,12 @@
 
   @keyframes fadeIn { to { opacity: 1; } }
 
-  /* ========== 内嵌SVG：黄昏山谷河流油画背景 ========== */
-  .art-svg {
-    position: absolute;
-    inset: 0;
-  }
-  .art-svg svg { width: 100%; height: 100%; }
 </style>
 </head>
 <body>
 
   <!-- 油画背景 -->
-  <div class="art-bg">
-    <svg viewBox="0 0 1920 1080" preserveAspectRatio="xMidYMid slice" xmlns="http://www.w3.org/2000/svg">
-      <defs>
-        <linearGradient id="sky" x1="0" y1="0" x2="0" y2="1">
-          <stop offset="0%"  stop-color="#22342e"/>
-          <stop offset="38%" stop-color="#3f5544"/>
-          <stop offset="62%" stop-color="#6b7350"/>
-          <stop offset="80%" stop-color="#a0844f"/>
-          <stop offset="100%" stop-color="#e8b36a"/>
-        </linearGradient>
-        <linearGradient id="river" x1="0" y1="0" x2="0" y2="1">
-          <stop offset="0%"  stop-color="#d9a35c"/>
-          <stop offset="100%" stop-color="#2b3b30"/>
-        </linearGradient>
-        <radialGradient id="sun" cx="0.5" cy="0.5" r="0.5">
-          <stop offset="0%"  stop-color="#ffe6b0" stop-opacity="0.95"/>
-          <stop offset="45%" stop-color="#f4b968" stop-opacity="0.55"/>
-          <stop offset="100%" stop-color="#f4b968" stop-opacity="0"/>
-        </radialGradient>
-        <linearGradient id="mist" x1="0" y1="0" x2="0" y2="1">
-          <stop offset="0%"  stop-color="#e8c48c" stop-opacity="0.30"/>
-          <stop offset="100%" stop-color="#e8c48c" stop-opacity="0"/>
-        </linearGradient>
-        <filter id="soft">
-          <feGaussianBlur stdDeviation="6"/>
-        </filter>
-        <filter id="soft2">
-          <feGaussianBlur stdDeviation="18"/>
-        </filter>
-      </defs>
-
-      <!-- 天空 -->
-      <rect width="1920" height="1080" fill="url(#sky)"/>
-
-      <!-- 云层笔触 -->
-      <g filter="url(#soft2)" opacity="0.5">
-        <ellipse cx="520" cy="150" rx="420" ry="70" fill="#7c8a68"/>
-        <ellipse cx="1500" cy="120" rx="460" ry="80" fill="#56644f"/>
-        <ellipse cx="980" cy="240" rx="520" ry="90" fill="#8a7c50"/>
-      </g>
-
-      <!-- 落日 -->
-      <circle cx="960" cy="470" r="120" fill="url(#sun)"/>
-      <circle cx="960" cy="470" r="56" fill="#ffe9bd" opacity="0.9"/>
-
-      <!-- 远山 -->
-      <g filter="url(#soft)">
-        <path d="M0 620 L210 470 L380 560 L520 440 L760 590 L980 470 L1220 600 L1420 480 L1660 590 L1920 500 L1920 760 L0 760 Z" fill="#42543f" opacity="0.85"/>
-        <path d="M0 680 L260 560 L480 660 L760 540 L1040 670 L1320 560 L1640 670 L1920 590 L1920 820 L0 820 Z" fill="#34442f" opacity="0.9"/>
-      </g>
-
-      <!-- 近山（油画层叠） -->
-      <path d="M0 760 L180 660 L420 780 L700 660 L960 800 L1220 690 L1500 800 L1750 700 L1920 790 L1920 1080 L0 1080 Z" fill="#2a3828"/>
-
-      <!-- 河谷 -->
-      <path d="M0 860 L520 820 L760 880 L1040 810 L1420 880 L1920 840 L1920 1080 L0 1080 Z" fill="#263229"/>
-
-      <!-- 河流 -->
-      <path d="M760 880 L900 830 L1040 810 L1180 840 L1280 890 L1400 960 L1580 1080 L1120 1080 L980 950 L860 900 Z" fill="url(#river)" opacity="0.9"/>
-
-      <!-- 河面金色反光 -->
-      <path d="M1040 810 L1100 850 L1180 840 L1260 900 L1360 990 L1580 1080 L1400 1080 L1260 950 L1120 860 Z" fill="#f0b964" opacity="0.45" filter="url(#soft)"/>
-      <path d="M900 830 L980 880 L860 900 L920 950 L900 1030 L760 1080 L700 1080 L820 950 L880 900 Z" fill="#f0b964" opacity="0.30" filter="url(#soft)"/>
-
-      <!-- 河谷薄雾 -->
-      <rect x="0" y="800" width="1920" height="260" fill="url(#mist)"/>
-
-      <!-- 前景暗部 -->
-      <path d="M0 950 L240 900 L420 960 L620 900 L820 960 L1040 920 L1260 980 L1480 930 L1700 980 L1920 940 L1920 1080 L0 1080 Z" fill="#10150f" opacity="0.75"/>
-    </svg>
-  </div>
+  <div class="art-bg"></div>
 
   <div class="glow"></div>
   <div class="grain"></div>
