@@ -554,7 +554,7 @@
         if (!name) { setErr('请先输入昵称'); return; }
         if (!/^[2-9A-HJ-NP-Z]{4}$/.test(code)) { setErr('房间代码为四字代码（字母或数字）'); return; }
         try {
-          var data = await post('/join', { code: code });
+          var data = await post('/join', { code: code, name: name });
           if (data && data.ok) {
             enterChat(code, name);
           } else {
