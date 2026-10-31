@@ -637,6 +637,9 @@
 
       window.leaveRoom = function () {
         if (pollTimer) { clearInterval(pollTimer); pollTimer = null; }
+        if (currentCode && currentName) {
+          post('/leave', { code: currentCode, name: currentName }).catch(function () {});
+        }
         currentCode = '';
         el('chatBox').style.display = 'none';
         el('enterBox').style.display = 'flex';
@@ -651,7 +654,7 @@
 
       window.loadMessages = function () {
         if (!currentCode) return;
-        fetch(API + '/messages?code=' + encodeURIComponent(currentCode))
+        fetch(API + '/messages?code=' + encodeURIComponent(currentCode) + '&name=' + encodeURIComponent(currentName))
           .then(function (resp) { return resp.json(); })
           .then(function (data) {
             if (!data || !data.ok || !Array.isArray(data.messages)) return;

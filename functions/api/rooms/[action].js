@@ -1,10 +1,13 @@
 // Cloudflare Pages Function: /api/rooms/[action]
-// 动态路由：一个文件同时处理 create / join / messages 三个动作。
+// 动态路由：一个文件同时处理 create / join / leave / change / messages 等动作。
 //   POST /api/rooms/create  -> 创建房间（自动生成唯一四字代码）
-//   POST /api/rooms/join    -> 加入房间（校验代码是否存在）
-//   GET  /api/rooms/messages -> 拉取房间消息
+//   POST /api/rooms/join    -> 加入房间（校验代码是否存在，昵称仅在线占用）
+//   POST /api/rooms/leave   -> 退出房间（清除在线状态与成员名单登记）
+//   POST /api/rooms/change  -> 更改房间代码（迁移消息/名单/在线状态）
+//   GET  /api/rooms/messages -> 拉取房间消息（携带 name 时同时作为心跳）
 //   POST /api/rooms/messages -> 发送消息
-// 房间消息通过 KV（绑定名 GUESTBOOK）按房间存储：key 为 `room:{code}`，值为 JSON 数组 [{ name, text, time }]。
+// 房间消息通过 KV（绑定名 GUESTBOOK）按房间存储：key 为 `room:{code}`，值为 JSON 数组 [{ name, text, time }]；
+// 成员名单 key 为 `room:{code}:names`；在线状态 key 为 `room:{code}:presence`（{ name: lastActiveTs }）。
 
 const PREFIX = 'room:';
 const MAX_MESSAGES = 200;
@@ -34,6 +37,18 @@ const readRoomNames = async (env, code) => {
 
 const writeRoomNames = (env, code, names) =>
   env.GUESTBOOK.put(PREFIX + code + ':names', JSON.stringify(names));
+
+// 房间成员在线状态：key 为 `room:{code}:presence`，值为 JSON 对象 { name: lastActiveTs }
+const readPresence = async (env, code) => {
+  const raw = await env.GUESTBOOK.get(PREFIX + code + ':presence', 'json');
+  return raw && typeof raw === 'object' ? raw : {};
+};
+
+const writePresence = (env, code, presence) =>
+  env.GUESTBOOK.put(PREFIX + code + ':presence', JSON.stringify(presence));
+
+// 30 秒内活跃视为在线
+const ONLINE_TTL = 30000;
 
 const normalizeCode = (code) =>
   String(code || '').trim().toUpperCase();
@@ -81,11 +96,20 @@ async function handleJoin(env, body) {
 
   const name = String(body.name || '').trim().slice(0, 20) || '访客';
   const names = await readRoomNames(env, code);
-  if (names.includes(name)) {
+  const presence = await readPresence(env, code);
+  const now = Date.now();
+  const lastActive = presence[name];
+  // 仅当该昵称 30 秒内活跃（在线）才拒绝重名，否则允许进入
+  if (typeof lastActive === 'number' && now - lastActive < ONLINE_TTL) {
     return json({ ok: false, error: '此聊天室中已有重名人，请你更换名称' });
   }
-  names.push(name);
-  await writeRoomNames(env, code, names);
+  // 允许进入：更新在线状态；若名单中没有则追加
+  presence[name] = now;
+  await writePresence(env, code, presence);
+  if (!names.includes(name)) {
+    names.push(name);
+    await writeRoomNames(env, code, names);
+  }
   return json({ ok: true, code, name });
 }
 
@@ -97,6 +121,13 @@ async function handleMessagesGet(env, url) {
   const room = await readRoom(env, code);
   if (room === null) {
     return json({ ok: false, error: '房间不存在' });
+  }
+  // 心跳：轮询拉消息时更新该成员在线状态（前端每 3 秒轮询自动续期）
+  const name = String(url.searchParams.get('name') || '').trim().slice(0, 20);
+  if (name) {
+    const presence = await readPresence(env, code);
+    presence[name] = Date.now();
+    await writePresence(env, code, presence);
   }
   return json({ ok: true, code, messages: room }); // 最新在最后
 }
@@ -131,6 +162,11 @@ async function handleMessagesPost(env, body) {
   }
 
   await writeRoom(env, code, room);
+
+  // 发送成功即视为在线
+  const presence = await readPresence(env, code);
+  presence[name] = Date.now();
+  await writePresence(env, code, presence);
   return json({ ok: true, message: { name, text, time } });
 }
 
@@ -165,12 +201,38 @@ async function handleChange(env, body) {
     return json({ ok: false, error: '该代码已被其他房间使用，请换一个' });
   }
 
-  // 迁移消息与成员名单，删除旧 key
+  // 迁移消息、成员名单与在线状态，删除旧 key
   await writeRoom(env, newCode, room);
   await writeRoomNames(env, newCode, names);
+  const presence = await readPresence(env, code);
+  await writePresence(env, newCode, presence);
   await env.GUESTBOOK.delete(PREFIX + code);
   await env.GUESTBOOK.delete(PREFIX + code + ':names');
+  await env.GUESTBOOK.delete(PREFIX + code + ':presence');
   return json({ ok: true, code: newCode });
+}
+
+// 退出房间：删除在线状态与成员名单登记
+async function handleLeave(env, body) {
+  const code = normalizeCode(body.code);
+  if (!isValidCode(code)) {
+    return json({ ok: false, error: '房间代码格式不正确' }, 400);
+  }
+  const name = String(body.name || '').trim().slice(0, 20) || '访客';
+
+  const presence = await readPresence(env, code);
+  if (Object.prototype.hasOwnProperty.call(presence, name)) {
+    delete presence[name];
+    await writePresence(env, code, presence);
+  }
+
+  const names = await readRoomNames(env, code);
+  const idx = names.indexOf(name);
+  if (idx !== -1) {
+    names.splice(idx, 1);
+    await writeRoomNames(env, code, names);
+  }
+  return json({ ok: true });
 }
 
 export async function onRequest(context) {
@@ -194,6 +256,10 @@ export async function onRequest(context) {
 
     if (action === 'join' && request.method === 'POST') {
       return await handleJoin(env, body);
+    }
+
+    if (action === 'leave' && request.method === 'POST') {
+      return await handleLeave(env, body);
     }
 
     if (action === 'change' && request.method === 'POST') {
