@@ -380,10 +380,10 @@
       window.doLogin = function () {
         var pwd = document.getElementById('adminPwd').value;
         if (!pwd) { showMsg(loginMsg, '请输入密码', 'err'); return; }
-        fetch('/api/auth/login', {
+        fetch('/api/notice', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ password: pwd })
+          body: JSON.stringify({ action: 'login', password: pwd })
         })
           .then(function (res) { return res.json(); })
           .then(function (data) {

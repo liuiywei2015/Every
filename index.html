@@ -430,10 +430,10 @@
         var err = document.getElementById('loginGateErr');
         if (!pwd) { err.textContent = '请输入管理员密码'; return; }
         try {
-          var resp = await fetch('/api/auth/login', {
+          var resp = await fetch('/api/notice', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ password: pwd })
+            body: JSON.stringify({ action: 'login', password: pwd })
           });
           var data = null;
           try { data = await resp.json(); } catch (e) {}

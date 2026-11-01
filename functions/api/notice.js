@@ -44,6 +44,11 @@ export async function onRequest(context) {
       return json({ ok: false, error: '密码错误' }, 401);
     }
 
+    // 登录校验模式：action === 'login' 只校验密码，不写公告（供首页/公告后台登录复用）
+    if (body && body.action === 'login') {
+      return json({ ok: true, role: 'admin' });
+    }
+
     let notice = '';
     if (body && typeof body.notice === 'string') notice = body.notice.trim();
     if (notice.length > 2000) {
