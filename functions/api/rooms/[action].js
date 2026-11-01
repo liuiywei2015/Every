@@ -186,6 +186,12 @@ async function handleMessagesPost(env, body) {
     return json({ ok: false, error: '房间不存在' });
   }
 
+  // 封禁状态：被封禁房间禁止发送新消息（仍可进入查看历史消息）
+  const status = await readStatus(env, code);
+  if (status.banned) {
+    return json({ ok: false, error: '聊天室已被封禁，无法发送消息' }, 403);
+  }
+
   const name = String(body.name || '').trim().slice(0, 20) || '访客';
   const names = await readRoomNames(env, code);
   if (!names.includes(name)) {

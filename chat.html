@@ -557,7 +557,6 @@
 
     <!-- 聊天阶段 -->
     <section id="chatBox" class="chat-panel" style="display:none;">
-      <div id="bannedBanner" class="banned-banner" style="display:none;">聊天室已被封禁</div>
       <div class="chat-head">
         <div class="chat-head-left">
           <span class="chat-room-code" id="roomCodeText"></span>
@@ -586,10 +585,12 @@
           <button type="button" class="settings-item settings-close" onclick="closeSettings()">关闭</button>
         </div>
       </div>
+      <!-- 封禁提示：显示在聊天消息显示区顶部，被封禁房间仍可进入查看历史消息 -->
+      <div id="bannedBanner" class="banned-banner" style="display:none;">聊天室已被封禁</div>
       <div id="msgList" class="msg-list"></div>
       <div class="chat-input-row">
         <input id="msgInput" class="chat-input" type="text" maxlength="500" autocomplete="off" placeholder="说点什么…">
-        <button class="room-btn" onclick="sendMsg()">发送</button>
+        <button class="room-btn" id="sendBtn" onclick="sendMsg()">发送</button>
       </div>
       <p class="offline-tip" id="offlineTip"></p>
     </section>
@@ -602,6 +603,7 @@
       var pollTimer = null;
       var currentCode = '';
       var currentName = '';
+      var currentBanned = false;
       var lastCount = 0;
       var currentRole = 'guest';
       // 管理员会话标记由首页登录时写入 sessionStorage，进入聊天室时恢复身份
@@ -677,8 +679,12 @@
         try { localStorage.setItem(NAME_KEY, name); } catch (e) {}
         el('roomCodeText').textContent = code;
         el('myNameText').textContent = '昵称：' + name;
-        // 封禁状态：用户仍可进入，但聊天室内显示红色大字
-        el('bannedBanner').style.display = state.banned ? 'block' : 'none';
+        // 封禁状态：用户仍可进入、可查看历史，但聊天室内显示红色大字并禁止发送新消息
+        currentBanned = !!state.banned;
+        el('bannedBanner').style.display = currentBanned ? 'block' : 'none';
+        el('msgInput').disabled = currentBanned;
+        el('msgInput').placeholder = currentBanned ? '聊天室已被封禁，无法发送消息' : '说点什么…';
+        el('sendBtn').disabled = currentBanned;
         // 进入房间时确保设置面板关闭
         el('settingsMask').style.display = 'none';
         // 举报按钮：进入房间后恢复为可用状态
@@ -742,6 +748,8 @@
       };
 
       window.sendMsg = function () {
+        // 封禁房间禁止发送（前端兜底拦截，后端同样校验）
+        if (currentBanned) return;
         var text = el('msgInput').value.trim().slice(0, 500);
         if (!text || !currentCode) return;
         el('msgInput').value = '';
@@ -857,11 +865,15 @@
         el('offlineTip').classList.remove('ok');
         el('changeBox').style.display = 'none';
         el('newCodeInput').value = '';
-        // 退出后隐藏封禁横幅并恢复举报按钮
+        // 退出后隐藏封禁横幅、恢复举报按钮与消息输入
+        currentBanned = false;
         el('bannedBanner').style.display = 'none';
         var reportBtn = el('reportBtn');
         reportBtn.disabled = false;
         reportBtn.textContent = '举报房间';
+        el('msgInput').disabled = false;
+        el('msgInput').placeholder = '说点什么…';
+        el('sendBtn').disabled = false;
         // 退出后关闭设置面板
         el('settingsMask').style.display = 'none';
         // 退出后隐藏管理员编辑入口
