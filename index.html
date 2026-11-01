@@ -148,7 +148,7 @@
     color: var(--fg);
     text-shadow: 0 4px 60px rgba(0, 0, 0, 0.45);
     user-select: none;
-    animation: fadeIn 1.4s ease both;
+    animation: fadeIn 0.85s cubic-bezier(0.22, 1, 0.36, 1) both;
   }
 
   .page-sub {
@@ -158,7 +158,7 @@
     text-indent: 0.16em;
     color: var(--muted);
     opacity: 0;
-    animation: fadeIn 1.4s ease 0.4s forwards;
+    animation: fadeIn 0.85s cubic-bezier(0.22, 1, 0.36, 1) 0.4s forwards;
   }
 
   /* ========== 低调的最新动态区块 ========== */
@@ -167,7 +167,7 @@
     width: min(560px, 90vw);
     text-align: left;
     opacity: 0;
-    animation: fadeIn 1.4s ease 0.8s forwards;
+    animation: fadeIn 0.85s cubic-bezier(0.22, 1, 0.36, 1) 0.8s forwards;
   }
   .latest-title {
     font-size: 11px;
@@ -230,7 +230,13 @@
     border-color: var(--fg);
   }
 
-  @keyframes fadeIn { to { opacity: 1; } }
+  @keyframes fadeIn {
+  from { opacity: 0; transform: translateY(14px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+  @keyframes maskIn { from { opacity: 0; } to { opacity: 1; } }
+  @keyframes popIn { from { opacity: 0; transform: scale(0.94); } to { opacity: 1; transform: scale(1); } }
 
   /* ========== 登录选择遮罩 ========== */
   .login-gate {
@@ -243,6 +249,7 @@
     background: rgba(12, 15, 14, 0.78);
     backdrop-filter: blur(14px);
     -webkit-backdrop-filter: blur(14px);
+     animation: maskIn 0.5s cubic-bezier(0.22, 1, 0.36, 1) both;
   }
   .login-gate-card {
     width: min(440px, 90vw);
@@ -256,6 +263,7 @@
     align-items: center;
     gap: 18px;
     text-align: center;
+     animation: popIn 0.55s cubic-bezier(0.22, 1, 0.36, 1) 0.08s both;
   }
   .login-gate-title {
     font-size: 26px;
@@ -282,6 +290,7 @@
     display: none;
     flex-direction: column;
     gap: 12px;
+     animation: fadeIn 0.45s cubic-bezier(0.22, 1, 0.36, 1) both;
   }
   .login-gate-err {
     min-height: 20px;
@@ -298,9 +307,9 @@
     font-size: 13px;
     letter-spacing: 0.1em;
     cursor: pointer;
-    transition: background 0.3s ease, transform 0.2s ease;
+    transition: background 0.25s cubic-bezier(0.22, 1, 0.36, 1), transform 0.2s cubic-bezier(0.22, 1, 0.36, 1), box-shadow 0.25s cubic-bezier(0.22, 1, 0.36, 1);
   }
-  .login-btn:hover { background: rgba(200, 169, 110, 0.34); transform: translateY(-1px); }
+  .login-btn:hover { background: rgba(200, 169, 110, 0.34); transform: translateY(-1px); box-shadow: 0 6px 22px rgba(200, 169, 110, 0.18); }
   .login-pwd {
     width: 100%;
     padding: 10px 16px;
@@ -316,6 +325,7 @@
   .login-pwd::placeholder { color: var(--muted); }
   .login-pwd:focus { border-color: rgba(200, 169, 110, 0.65); }
 
+  button:hover:active:not(:disabled) { transform: translateY(0) scale(0.97); }
 </style>
   <script src="notice-link.js"></script>
 </head>

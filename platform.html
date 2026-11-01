@@ -147,7 +147,7 @@
     color: var(--fg);
     text-shadow: 0 4px 60px rgba(0, 0, 0, 0.45);
     user-select: none;
-    animation: fadeIn 1.4s ease both;
+    animation: fadeIn 0.85s cubic-bezier(0.22, 1, 0.36, 1) both;
   }
 
   .page-sub {
@@ -157,7 +157,7 @@
     text-indent: 0.16em;
     color: var(--muted);
     opacity: 0;
-    animation: fadeIn 1.4s ease 0.4s forwards;
+    animation: fadeIn 0.85s cubic-bezier(0.22, 1, 0.36, 1) 0.4s forwards;
   }
 
   /* ========== 发布框 ========== */
@@ -174,7 +174,7 @@
     gap: 12px;
     text-align: left;
     opacity: 0;
-    animation: fadeIn 1.4s ease 0.6s forwards;
+    animation: fadeIn 0.85s cubic-bezier(0.22, 1, 0.36, 1) 0.6s forwards;
   }
   .pb-input {
     background: rgba(255, 255, 255, 0.07);
@@ -204,9 +204,9 @@
     font-size: 13px;
     letter-spacing: 0.1em;
     cursor: pointer;
-    transition: background 0.3s ease, transform 0.2s ease;
+    transition: background 0.25s cubic-bezier(0.22, 1, 0.36, 1), transform 0.2s cubic-bezier(0.22, 1, 0.36, 1), box-shadow 0.25s cubic-bezier(0.22, 1, 0.36, 1);
   }
-  .pb-btn:hover { background: rgba(200, 169, 110, 0.34); transform: translateY(-1px); }
+  .pb-btn:hover { background: rgba(200, 169, 110, 0.34); transform: translateY(-1px); box-shadow: 0 6px 22px rgba(200, 169, 110, 0.18); }
 
   /* ========== 动态流 ========== */
   .feed {
@@ -214,7 +214,7 @@
     width: min(640px, 92vw);
     text-align: left;
     opacity: 0;
-    animation: fadeIn 1.4s ease 0.8s forwards;
+    animation: fadeIn 0.85s cubic-bezier(0.22, 1, 0.36, 1) 0.8s forwards;
   }
   .feed-title {
     font-size: 11px;
@@ -283,8 +283,12 @@
     color: var(--muted);
   }
 
-  @keyframes fadeIn { to { opacity: 1; } }
+  @keyframes fadeIn {
+  from { opacity: 0; transform: translateY(14px); }
+  to { opacity: 1; transform: translateY(0); }
+}
 
+  button:hover:active:not(:disabled) { transform: translateY(0) scale(0.97); }
 </style>
   <script src="notice-link.js"></script>
 </head>

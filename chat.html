@@ -147,7 +147,7 @@
     color: var(--fg);
     text-shadow: 0 4px 60px rgba(0, 0, 0, 0.45);
     user-select: none;
-    animation: fadeIn 1.4s ease both;
+    animation: fadeIn 0.85s cubic-bezier(0.22, 1, 0.36, 1) both;
   }
 
   .page-sub {
@@ -157,7 +157,7 @@
     text-indent: 0.16em;
     color: var(--muted);
     opacity: 0;
-    animation: fadeIn 1.4s ease 0.4s forwards;
+    animation: fadeIn 0.85s cubic-bezier(0.22, 1, 0.36, 1) 0.4s forwards;
   }
 
   /* ========== 公告区 ========== */
@@ -171,7 +171,7 @@
     padding: 18px 22px;
     text-align: left;
     opacity: 0;
-    animation: fadeIn 1.4s ease 0.55s forwards;
+    animation: fadeIn 0.85s cubic-bezier(0.22, 1, 0.36, 1) 0.55s forwards;
   }
   .notice-title {
     margin: 0 0 8px;
@@ -201,7 +201,7 @@
     gap: 14px;
     text-align: center;
     opacity: 0;
-    animation: fadeIn 1.4s ease 0.6s forwards;
+    animation: fadeIn 0.85s cubic-bezier(0.22, 1, 0.36, 1) 0.6s forwards;
   }
 
   .room-tip {
@@ -267,6 +267,7 @@
     letter-spacing: 0.18em;
     text-indent: 0.18em;
     text-align: center;
+     animation: fadeIn 0.45s cubic-bezier(0.22, 1, 0.36, 1) both;
   }
 
   .edit-entry {
@@ -287,9 +288,9 @@
     font-size: 13px;
     letter-spacing: 0.1em;
     cursor: pointer;
-    transition: background 0.3s ease, transform 0.2s ease;
+    transition: background 0.25s cubic-bezier(0.22, 1, 0.36, 1), transform 0.2s cubic-bezier(0.22, 1, 0.36, 1), box-shadow 0.25s cubic-bezier(0.22, 1, 0.36, 1);
   }
-  .room-btn:hover { background: rgba(200, 169, 110, 0.34); transform: translateY(-1px); }
+  .room-btn:hover { background: rgba(200, 169, 110, 0.34); transform: translateY(-1px); box-shadow: 0 6px 22px rgba(200, 169, 110, 0.18); }
   .room-btn.plain {
     border-color: rgba(255, 255, 255, 0.2);
     background: rgba(255, 255, 255, 0.06);
@@ -320,7 +321,7 @@
     gap: 14px;
     text-align: left;
     opacity: 0;
-    animation: fadeIn 1.4s ease 0.6s forwards;
+    animation: fadeIn 0.85s cubic-bezier(0.22, 1, 0.36, 1) 0.6s forwards;
   }
 
   .chat-head {
@@ -436,6 +437,7 @@
     border: 1px solid rgba(255, 255, 255, 0.1);
     border-radius: 10px;
     padding: 12px 14px;
+     animation: fadeIn 0.4s cubic-bezier(0.22, 1, 0.36, 1) both;
   }
   .change-row {
     display: flex;
@@ -458,7 +460,7 @@
     align-items: center;
     justify-content: center;
     z-index: 99;
-    animation: fadeIn 0.25s ease forwards;
+    animation: maskIn 0.3s cubic-bezier(0.22, 1, 0.36, 1) forwards;
   }
   .settings-panel {
     width: min(360px, 84vw);
@@ -469,7 +471,7 @@
     padding: 22px;
     box-shadow: 0 18px 60px rgba(0, 0, 0, 0.5);
     text-align: left;
-    animation: fadeIn 0.25s ease forwards;
+    animation: panelIn 0.38s cubic-bezier(0.22, 1, 0.36, 1) forwards;
   }
   .settings-title {
     font-size: 16px;
@@ -497,7 +499,18 @@
   .settings-item:disabled { opacity: 0.45; cursor: not-allowed; }
   .settings-close { margin-top: 4px; text-align: center; }
 
-  @keyframes fadeIn { to { opacity: 1; } }
+  @keyframes fadeIn {
+  from { opacity: 0; transform: translateY(14px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+  @keyframes maskIn { from { opacity: 0; } to { opacity: 1; } }
+  @keyframes panelIn { from { opacity: 0; transform: scale(0.94) translateY(10px); } to { opacity: 1; transform: scale(1) translateY(0); } }
+  @keyframes maskOut { from { opacity: 1; } to { opacity: 0; } }
+  @keyframes panelOut { from { opacity: 1; transform: scale(1); } to { opacity: 0; transform: scale(0.96); } }
+  .settings-mask.closing { animation: maskOut 0.2s ease forwards; }
+  .settings-mask.closing .settings-panel { animation: panelOut 0.2s ease forwards; }
+  button:hover:active:not(:disabled) { transform: translateY(0) scale(0.97); }
 </style>
   <script src="notice-link.js"></script>
 </head>
@@ -799,10 +812,18 @@
 
       // 设置面板：收纳举报房间与更改代码
       window.openSettings = function () {
-        el('settingsMask').style.display = 'flex';
+        var m = el('settingsMask');
+        m.classList.remove('closing');
+        m.style.display = 'flex';
       };
       window.closeSettings = function () {
-        el('settingsMask').style.display = 'none';
+        var m = el('settingsMask');
+        if (m.style.display === 'none') return;
+        m.classList.add('closing');
+        setTimeout(function () {
+          m.style.display = 'none';
+          m.classList.remove('closing');
+        }, 220);
       };
       window.settingsChangeCode = function () {
         closeSettings();

@@ -168,7 +168,7 @@
     color: var(--fg);
     text-shadow: 0 4px 60px rgba(0, 0, 0, 0.45);
     user-select: none;
-    animation: fadeIn 1.2s ease both;
+    animation: fadeIn 0.85s cubic-bezier(0.22, 1, 0.36, 1) both;
   }
 
   .panel {
@@ -182,7 +182,7 @@
     text-align: left;
     box-shadow: 0 24px 80px rgba(0, 0, 0, 0.45);
     opacity: 0;
-    animation: fadeIn 1.2s ease 0.25s forwards;
+    animation: fadeIn 0.85s cubic-bezier(0.22, 1, 0.36, 1) 0.25s forwards;
   }
 
   .panel-row {
@@ -217,7 +217,7 @@
     height: 18px;
     border-radius: 50%;
     background: #f7f4ee;
-    transition: left 0.3s ease, background 0.3s ease;
+    transition: left 0.3s cubic-bezier(0.22, 1, 0.36, 1), background 0.3s ease;
   }
   .switch.on { background: rgba(200, 169, 110, 0.75); }
   .switch.on::after { left: 20px; }
@@ -228,7 +228,7 @@
     letter-spacing: 0.1em;
     color: var(--muted);
     opacity: 0;
-    animation: fadeIn 1.2s ease 0.4s forwards;
+    animation: fadeIn 0.85s cubic-bezier(0.22, 1, 0.36, 1) 0.4s forwards;
   }
 
   .version {
@@ -238,11 +238,15 @@
     letter-spacing: 0.2em;
     color: var(--muted);
     opacity: 0;
-    animation: fadeIn 1.2s ease 0.5s forwards;
+    animation: fadeIn 0.85s cubic-bezier(0.22, 1, 0.36, 1) 0.5s forwards;
   }
 
-  @keyframes fadeIn { to { opacity: 1; } }
+  @keyframes fadeIn {
+  from { opacity: 0; transform: translateY(14px); }
+  to { opacity: 1; transform: translateY(0); }
+}
 
+  button:hover:active:not(:disabled) { transform: translateY(0) scale(0.97); }
 </style>
   <script src="notice-link.js"></script>
 </head>
