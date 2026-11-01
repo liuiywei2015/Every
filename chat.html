@@ -242,6 +242,27 @@
     justify-content: center;
   }
 
+  .role-actions {
+    display: flex;
+    gap: 12px;
+    flex-wrap: wrap;
+    justify-content: center;
+  }
+  .role-btn.on {
+    background: rgba(200, 169, 110, 0.42);
+    border-color: rgba(200, 169, 110, 0.9);
+    color: var(--fg);
+  }
+
+  .edit-entry {
+    display: none;
+    margin-top: 16px;
+  }
+  .edit-entry a {
+    display: inline-block;
+    text-decoration: none;
+  }
+
   .room-btn {
     padding: 10px 26px;
     border-radius: 999px;
@@ -450,11 +471,23 @@
       <p class="notice-text" id="noticeText">加载中…</p>
     </section>
 
+    <!-- 管理员编辑入口（仅管理员身份显示） -->
+    <div class="edit-entry" id="adminEditEntry">
+      <a class="room-btn plain" href="notice-admin.html">编辑公告</a>
+    </div>
+
     <!-- 进入阶段 -->
     <section id="enterBox" class="room-box">
       <p class="room-tip">每个聊天室有唯一四字代码，分享代码即可邀请朋友加入</p>
+      <label class="field-label" for="roleActions">身份</label>
+      <div class="role-actions" id="roleActions">
+        <button type="button" class="room-btn plain role-btn on" data-role="guest" onclick="selectRole('guest')">游客（免密）</button>
+        <button type="button" class="room-btn plain role-btn" data-role="admin" onclick="selectRole('admin')">管理员</button>
+      </div>
       <label class="field-label" for="nickInput">昵称</label>
       <input id="nickInput" class="room-input" type="text" maxlength="20" autocomplete="off" placeholder="给自己起个名字">
+      <label class="field-label" id="adminPwdLabel" for="adminPwdInput" style="display:none;">管理员密码</label>
+      <input id="adminPwdInput" class="room-input" type="password" maxlength="50" autocomplete="off" placeholder="管理员密码" style="display:none;">
       <label class="field-label" for="codeInput">房间代码</label>
       <input id="codeInput" class="room-input" type="text" maxlength="4" autocomplete="off" placeholder="四字代码">
       <div class="room-actions">
@@ -501,6 +534,7 @@
       var currentCode = '';
       var currentName = '';
       var lastCount = 0;
+      var currentRole = 'guest';
 
       function esc(s) {
         return String(s || '').replace(/[&<>"']/g, function (c) {
@@ -557,6 +591,53 @@
         return data;
       }
 
+      // 管理员登录：POST /api/auth/login，成功返回 {ok:true, role:'admin'}
+      async function loginAdmin(password) {
+        var resp = await fetch('/api/auth/login', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ password: password })
+        });
+        var data = null;
+        try { data = await resp.json(); } catch (e) {}
+        if (!resp.ok || !data || !data.ok) {
+          var e = new Error(data && data.error ? data.error : '管理员登录失败');
+          e.status = resp.status;
+          throw e;
+        }
+        return data;
+      }
+
+      // 身份切换：游客免密直进，管理员需密码登录
+      window.selectRole = function (role) {
+        currentRole = role === 'admin' ? 'admin' : 'guest';
+        var btns = document.querySelectorAll('.role-btn');
+        for (var i = 0; i < btns.length; i++) {
+          var on = btns[i].getAttribute('data-role') === currentRole;
+          if (on) { btns[i].classList.add('on'); } else { btns[i].classList.remove('on'); }
+        }
+        var pwd = el('adminPwdInput');
+        var pwdLabel = el('adminPwdLabel');
+        var show = currentRole === 'admin';
+        pwd.style.display = show ? '' : 'none';
+        pwdLabel.style.display = show ? '' : 'none';
+        if (!show) pwd.value = '';
+      };
+
+      // 管理员进入聊天前先校验密码
+      async function ensureAdminLogin() {
+        if (currentRole !== 'admin') return true;
+        var pwd = el('adminPwdInput').value.trim();
+        if (!pwd) { setErr('请输入管理员密码'); return false; }
+        try {
+          await loginAdmin(pwd);
+          return true;
+        } catch (err) {
+          setErr(err.message || '密码错误');
+          return false;
+        }
+      }
+
       function enterChat(code, name) {
         currentCode = code;
         currentName = name;
@@ -565,6 +646,9 @@
         el('myNameText').textContent = '昵称：' + name;
         el('enterBox').style.display = 'none';
         el('chatBox').style.display = 'flex';
+        // 管理员显示"编辑公告"入口，游客不显示
+        var editEntry = el('adminEditEntry');
+        if (editEntry) editEntry.style.display = currentRole === 'admin' ? 'block' : 'none';
         clearOfflineTip();
         loadMessages();
         if (pollTimer) clearInterval(pollTimer);
@@ -576,6 +660,7 @@
         setErr('');
         var name = el('nickInput').value.trim().slice(0, 20);
         if (!name) { setErr('请先输入昵称'); return; }
+        if (!(await ensureAdminLogin())) return;
         try {
           var data = await post('/create', { name: name });
           if (data && data.ok && data.code) {
@@ -599,6 +684,7 @@
         var code = el('codeInput').value.trim().toUpperCase();
         if (!name) { setErr('请先输入昵称'); return; }
         if (!/^[A-Za-z0-9]{4}$/.test(code)) { setErr('房间代码为四字代码（字母或数字）'); return; }
+        if (!(await ensureAdminLogin())) return;
         try {
           var data = await post('/join', { code: code, name: name });
           if (data && data.ok) {
@@ -695,6 +781,9 @@
         el('offlineTip').classList.remove('ok');
         el('changeBox').style.display = 'none';
         el('newCodeInput').value = '';
+        // 退出后隐藏管理员编辑入口
+        var editEntry = el('adminEditEntry');
+        if (editEntry) editEntry.style.display = 'none';
         el('nickInput').focus();
       };
 

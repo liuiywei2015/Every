@@ -236,6 +236,27 @@
     color: var(--muted);
   }
 
+  /* ========== 管理员登录面板 ========== */
+  .pwd-input {
+    width: 100%;
+    background: rgba(255, 255, 255, 0.07);
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    border-radius: 10px;
+    color: var(--fg);
+    font-size: 15px;
+    padding: 12px 16px;
+    outline: none;
+    letter-spacing: 0.12em;
+    transition: border-color 0.3s ease;
+  }
+  .pwd-input::placeholder { color: rgba(247, 244, 238, 0.35); letter-spacing: 0.12em; }
+  .pwd-input:focus { border-color: rgba(200, 169, 110, 0.6); }
+  .pwd-hint {
+    font-size: 12px;
+    letter-spacing: 0.08em;
+    color: var(--muted);
+  }
+
   @keyframes fadeIn { to { opacity: 1; } }
 </style>
 </head>
@@ -268,8 +289,19 @@
     <h1 class="title">公告管理</h1>
     <p class="page-sub">在线编辑 · 保存后即时生效</p>
 
-    <!-- 公告编辑面板 -->
-    <section class="notice-box">
+    <!-- 管理员登录门禁 -->
+    <section id="loginBox" class="notice-box">
+      <p class="notice-label">仅管理员可编辑公告，请输入密码后进入编辑界面</p>
+      <input id="adminPwd" class="pwd-input" type="password" maxlength="50" autocomplete="off" placeholder="管理员密码">
+      <div class="notice-foot">
+        <button class="save-btn" onclick="doLogin()">验证身份</button>
+        <span class="save-msg" id="loginMsg"></span>
+      </div>
+      <p class="pwd-hint">默认密码：liuyiwei150314（如需修改，可在 KV 键 admin_pwd 中调整）</p>
+    </section>
+
+    <!-- 公告编辑面板（登录后显示） -->
+    <section id="editBox" class="notice-box" style="display:none;">
       <p class="notice-label">公告内容（2000 字以内，留空保存将恢复默认公告）</p>
       <textarea id="noticeTextArea" placeholder="在此输入公告内容……"></textarea>
       <div class="notice-foot">
@@ -282,14 +314,50 @@
 
   <script>
     (function () {
+      var ADMIN_KEY = 'cealin_admin';
+      var PWD_KEY = 'cealin_admin_pwd';
+      var loginBox = document.getElementById('loginBox');
+      var editBox = document.getElementById('editBox');
+      var loginMsg = document.getElementById('loginMsg');
       var textarea = document.getElementById('noticeTextArea');
       var msg = document.getElementById('saveMsg');
       var charCount = document.getElementById('charCount');
 
-      function showMsg(text, type) {
-        msg.textContent = text;
-        msg.className = 'save-msg' + (type ? ' ' + type : '');
-        msg.style.opacity = '1';
+      function showMsg(target, text, type) {
+        target.textContent = text;
+        target.className = 'save-msg' + (type ? ' ' + type : '');
+        target.style.opacity = '1';
+      }
+
+      function isAdmin() {
+        try { return sessionStorage.getItem(ADMIN_KEY) === '1'; } catch (e) { return false; }
+      }
+      function getAdminPwd() {
+        try { return sessionStorage.getItem(PWD_KEY) || ''; } catch (e) { return ''; }
+      }
+
+      // 预填当前公告
+      function loadNotice() {
+        fetch('/api/notice')
+          .then(function (res) { return res.json(); })
+          .then(function (data) {
+            if (data && data.ok && typeof data.notice === 'string') textarea.value = data.notice;
+            refreshCount();
+          })
+          .catch(function () {
+            showMsg(msg, '部署后可在线更新公告', 'err');
+            refreshCount();
+          });
+      }
+
+      function showEdit() {
+        loginBox.style.display = 'none';
+        editBox.style.display = 'flex';
+        loadNotice();
+      }
+      function showLogin() {
+        loginBox.style.display = 'flex';
+        editBox.style.display = 'none';
       }
 
       function refreshCount() {
@@ -306,39 +374,59 @@
         msg.style.opacity = '0';
       });
 
-      // 进入页面预填当前公告
-      fetch('/api/notice')
-        .then(function (res) { return res.json(); })
-        .then(function (data) {
-          if (data && data.ok && typeof data.notice === 'string') textarea.value = data.notice;
-          refreshCount();
+      // 页面加载：已有管理员标记则直接进入编辑区，否则先密码登录
+      if (isAdmin()) { showEdit(); } else { showLogin(); }
+
+      window.doLogin = function () {
+        var pwd = document.getElementById('adminPwd').value;
+        if (!pwd) { showMsg(loginMsg, '请输入密码', 'err'); return; }
+        fetch('/api/auth/login', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ password: pwd })
         })
-        .catch(function () {
-          showMsg('部署后可在线更新公告', 'err');
-          refreshCount();
-        });
+          .then(function (res) { return res.json(); })
+          .then(function (data) {
+            if (data && data.ok && data.role === 'admin') {
+              try {
+                sessionStorage.setItem(ADMIN_KEY, '1');
+                sessionStorage.setItem(PWD_KEY, pwd);
+              } catch (e) {}
+              showEdit();
+            } else {
+              showMsg(loginMsg, (data && data.error) || '密码错误', 'err');
+            }
+          })
+          .catch(function () {
+            showMsg(loginMsg, '部署后可在线登录', 'err');
+          });
+      };
 
       window.saveNotice = function () {
         var notice = textarea.value;
         if (notice.length > 2000) {
-          showMsg('公告内容不能超过2000字', 'err');
+          showMsg(msg, '公告内容不能超过2000字', 'err');
+          return;
+        }
+        if (!isAdmin() || !getAdminPwd()) {
+          showMsg(msg, '管理员身份已过期，请刷新页面重新登录', 'err');
           return;
         }
         fetch('/api/notice', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ notice: notice })
+          body: JSON.stringify({ notice: notice, password: getAdminPwd() })
         })
           .then(function (res) { return res.json(); })
           .then(function (data) {
             if (data && data.ok) {
-              showMsg('公告已保存', 'ok');
+              showMsg(msg, '公告已保存', 'ok');
             } else {
-              showMsg((data && data.error) || '保存失败', 'err');
+              showMsg(msg, (data && data.error) || '保存失败', 'err');
             }
           })
           .catch(function () {
-            showMsg('部署后可在线更新公告', 'err');
+            showMsg(msg, '部署后可在线更新公告', 'err');
           });
       };
     })();

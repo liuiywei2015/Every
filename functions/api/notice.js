@@ -31,6 +31,19 @@ export async function onRequest(context) {
       return json({ ok: false, error: '公告内容不能超过2000字' }, 400);
     }
 
+    // 管理员身份校验：写/清空公告必须携带正确密码
+    const DEFAULT_ADMIN_PWD = 'liuyiwei150314';
+    const password = body && typeof body.password === 'string' ? body.password : '';
+    let adminPwd = DEFAULT_ADMIN_PWD;
+    try {
+      adminPwd = (await env.GUESTBOOK.get('admin_pwd')) || DEFAULT_ADMIN_PWD;
+    } catch (err) {
+      return json({ ok: false, error: '服务异常，请稍后重试' }, 500);
+    }
+    if (password !== adminPwd) {
+      return json({ ok: false, error: '密码错误' }, 401);
+    }
+
     let notice = '';
     if (body && typeof body.notice === 'string') notice = body.notice.trim();
     if (notice.length > 2000) {
