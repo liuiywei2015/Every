@@ -1073,7 +1073,10 @@
               el('roomCodeSub').style.display = currentRoomName ? 'block' : 'none';
               el('verifyBadge').style.display = currentVerified ? 'inline-flex' : 'none';
               el('verifiedBanner').style.display = currentVerified ? 'block' : 'none';
-              el('roomNameInput').value = currentRoomName;
+              // 起名输入框：仅在其未聚焦时同步初始值；用户正在输入时轮询不得改写，避免内容被清空
+              if (document.activeElement !== el('roomNameInput')) {
+                el('roomNameInput').value = currentRoomName;
+              }
             }
             var list = data.messages;
             var wrap = el('msgList');
