@@ -448,6 +448,55 @@
     letter-spacing: 0.3em;
   }
 
+  /* ========== 设置面板 ========== */
+  .settings-mask {
+    position: fixed;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.55);
+    backdrop-filter: blur(4px);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 99;
+    animation: fadeIn 0.25s ease forwards;
+  }
+  .settings-panel {
+    width: min(360px, 84vw);
+    background: rgba(12, 13, 12, 0.92);
+    border: 1px solid rgba(200, 169, 110, 0.4);
+    border-radius: 16px;
+    backdrop-filter: blur(14px);
+    padding: 22px;
+    box-shadow: 0 18px 60px rgba(0, 0, 0, 0.5);
+    text-align: left;
+    animation: fadeIn 0.25s ease forwards;
+  }
+  .settings-title {
+    font-size: 16px;
+    font-weight: 800;
+    letter-spacing: 0.14em;
+    color: var(--gold);
+    margin-bottom: 16px;
+    text-align: center;
+  }
+  .settings-item {
+    width: 100%;
+    padding: 12px 16px;
+    border-radius: 10px;
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    background: rgba(255, 255, 255, 0.05);
+    color: var(--fg);
+    font-size: 14px;
+    letter-spacing: 0.1em;
+    cursor: pointer;
+    text-align: left;
+    transition: background 0.3s ease, border-color 0.3s ease;
+    margin-bottom: 10px;
+  }
+  .settings-item:hover:not(:disabled) { background: rgba(200, 169, 110, 0.16); border-color: rgba(200, 169, 110, 0.45); }
+  .settings-item:disabled { opacity: 0.45; cursor: not-allowed; }
+  .settings-close { margin-top: 4px; text-align: center; }
+
   @keyframes fadeIn { to { opacity: 1; } }
 </style>
   <script src="notice-link.js"></script>
@@ -514,8 +563,7 @@
           <span class="chat-room-code" id="roomCodeText"></span>
           <span class="chat-my-name" id="myNameText"></span>
         </div>
-        <button class="room-btn plain" id="reportBtn" onclick="reportRoom()">举报房间</button>
-        <button class="room-btn plain" onclick="toggleChangeBox()">更改代码</button>
+        <button class="room-btn plain" onclick="openSettings()">设置</button>
         <button class="room-btn plain" onclick="leaveRoom()">退出房间</button>
       </div>
       <div id="changeBox" class="change-box" style="display:none;">
@@ -526,6 +574,16 @@
         <div class="change-row">
           <button class="room-btn" onclick="confirmChange()">确认更改</button>
           <button class="room-btn plain" onclick="toggleChangeBox()">取消</button>
+        </div>
+      </div>
+
+      <!-- 设置面板：收纳举报房间与更改代码 -->
+      <div id="settingsMask" class="settings-mask" style="display:none;" onclick="if (event.target === this) closeSettings()">
+        <div class="settings-panel">
+          <div class="settings-title">聊天室设置</div>
+          <button type="button" class="settings-item" id="reportBtn" onclick="reportRoom()">举报房间</button>
+          <button type="button" class="settings-item" onclick="settingsChangeCode()">更改代码</button>
+          <button type="button" class="settings-item settings-close" onclick="closeSettings()">关闭</button>
         </div>
       </div>
       <div id="msgList" class="msg-list"></div>
@@ -621,6 +679,8 @@
         el('myNameText').textContent = '昵称：' + name;
         // 封禁状态：用户仍可进入，但聊天室内显示红色大字
         el('bannedBanner').style.display = state.banned ? 'block' : 'none';
+        // 进入房间时确保设置面板关闭
+        el('settingsMask').style.display = 'none';
         // 举报按钮：进入房间后恢复为可用状态
         var reportBtn = el('reportBtn');
         reportBtn.disabled = false;
@@ -729,6 +789,21 @@
           });
       };
 
+      // 设置面板：收纳举报房间与更改代码
+      window.openSettings = function () {
+        el('settingsMask').style.display = 'flex';
+      };
+      window.closeSettings = function () {
+        el('settingsMask').style.display = 'none';
+      };
+      window.settingsChangeCode = function () {
+        closeSettings();
+        var box = el('changeBox');
+        if (box.style.display === 'none') { el('newCodeInput').value = ''; }
+        box.style.display = 'flex';
+        el('msgInput').focus();
+      };
+
       window.toggleChangeBox = function () {
         var box = el('changeBox');
         var isHidden = box.style.display === 'none';
@@ -787,6 +862,8 @@
         var reportBtn = el('reportBtn');
         reportBtn.disabled = false;
         reportBtn.textContent = '举报房间';
+        // 退出后关闭设置面板
+        el('settingsMask').style.display = 'none';
         // 退出后隐藏管理员编辑入口
         var editEntry = el('adminEditEntry');
         if (editEntry) editEntry.style.display = 'none';
