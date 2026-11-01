@@ -232,6 +232,90 @@
 
   @keyframes fadeIn { to { opacity: 1; } }
 
+  /* ========== 登录选择遮罩 ========== */
+  .login-gate {
+    position: fixed;
+    inset: 0;
+    z-index: 100;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: rgba(12, 15, 14, 0.78);
+    backdrop-filter: blur(14px);
+    -webkit-backdrop-filter: blur(14px);
+  }
+  .login-gate-card {
+    width: min(440px, 90vw);
+    background: rgba(8, 9, 8, 0.6);
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    border-radius: 18px;
+    box-shadow: 0 24px 70px rgba(0, 0, 0, 0.5);
+    padding: 34px 28px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 18px;
+    text-align: center;
+  }
+  .login-gate-title {
+    font-size: 26px;
+    font-weight: 800;
+    letter-spacing: 0.06em;
+    color: var(--fg);
+  }
+  .login-gate-sub {
+    font-size: 13px;
+    letter-spacing: 0.14em;
+    text-indent: 0.14em;
+    color: var(--muted);
+  }
+  .login-gate-actions {
+    display: flex;
+    gap: 14px;
+    flex-wrap: wrap;
+    justify-content: center;
+    margin-top: 6px;
+  }
+  .login-gate-btn { min-width: 148px; }
+  .login-gate-pwd-row {
+    width: 100%;
+    display: none;
+    flex-direction: column;
+    gap: 12px;
+  }
+  .login-gate-err {
+    min-height: 20px;
+    font-size: 13px;
+    color: #e8a08c;
+    letter-spacing: 0.05em;
+  }
+  .login-btn {
+    padding: 10px 26px;
+    border-radius: 999px;
+    border: 1px solid rgba(200, 169, 110, 0.55);
+    background: rgba(200, 169, 110, 0.18);
+    color: var(--fg);
+    font-size: 13px;
+    letter-spacing: 0.1em;
+    cursor: pointer;
+    transition: background 0.3s ease, transform 0.2s ease;
+  }
+  .login-btn:hover { background: rgba(200, 169, 110, 0.34); transform: translateY(-1px); }
+  .login-pwd {
+    width: 100%;
+    padding: 10px 16px;
+    border-radius: 999px;
+    border: 1px solid rgba(255, 255, 255, 0.18);
+    background: rgba(255, 255, 255, 0.05);
+    color: var(--fg);
+    font-size: 13px;
+    letter-spacing: 0.06em;
+    outline: none;
+    text-align: center;
+  }
+  .login-pwd::placeholder { color: var(--muted); }
+  .login-pwd:focus { border-color: rgba(200, 169, 110, 0.65); }
+
 </style>
 </head>
 <body>
@@ -241,6 +325,23 @@
 
   <div class="glow"></div>
   <div class="grain"></div>
+
+  <!-- 登录选择遮罩（打开页面第一时间显示） -->
+  <div id="loginGate" class="login-gate">
+    <div class="login-gate-card">
+      <h2 class="login-gate-title">欢迎来到 Cealin</h2>
+      <p class="login-gate-sub">请选择登录身份</p>
+      <div class="login-gate-actions">
+        <button type="button" class="login-btn login-gate-btn" onclick="loginAsGuest()">游客登录</button>
+        <button type="button" class="login-btn login-gate-btn" onclick="loginAsAdmin()">管理员登录</button>
+      </div>
+      <div class="login-gate-pwd-row" id="loginGatePwdRow">
+        <input id="loginGatePwd" class="login-pwd" type="password" maxlength="50" autocomplete="off" placeholder="管理员密码">
+        <button type="button" class="login-btn login-gate-btn" onclick="confirmAdminLogin()">验证并进入</button>
+      </div>
+      <p class="login-gate-err" id="loginGateErr"></p>
+    </div>
+  </div>
 
   <!-- 顶部导航 -->
   <header class="topbar">
@@ -312,6 +413,41 @@
       }).catch(function () {
         /* 云端拉取失败，保持本地数据 */
       });
+
+      // ===== 登录分流：游客 / 管理员 =====
+      window.loginAsGuest = function () {
+        window.location.href = 'guest.html';
+      };
+
+      window.loginAsAdmin = function () {
+        document.getElementById('loginGatePwdRow').style.display = 'flex';
+        document.getElementById('loginGateErr').textContent = '';
+        document.getElementById('loginGatePwd').focus();
+      };
+
+      window.confirmAdminLogin = async function () {
+        var pwd = document.getElementById('loginGatePwd').value.trim();
+        var err = document.getElementById('loginGateErr');
+        if (!pwd) { err.textContent = '请输入管理员密码'; return; }
+        try {
+          var resp = await fetch('/api/auth/login', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ password: pwd })
+          });
+          var data = null;
+          try { data = await resp.json(); } catch (e) {}
+          if (!resp.ok || !data || !data.ok) {
+            throw new Error(data && data.error ? data.error : '密码错误');
+          }
+          try { sessionStorage.setItem('cealin_admin', '1'); } catch (e) {}
+          window.location.href = 'admin.html';
+        } catch (errObj) {
+          err.textContent = errObj.message || '密码错误';
+          document.getElementById('loginGatePwd').value = '';
+          document.getElementById('loginGatePwd').focus();
+        }
+      };
     })();
   </script>
 

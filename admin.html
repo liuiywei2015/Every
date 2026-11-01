@@ -1,0 +1,306 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>管理员界面 - Cealin</title>
+<style>
+  :root {
+    --fg: #f7f4ee;
+    --muted: rgba(247, 244, 238, 0.55);
+    --gold: #c8a96e;
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  html, body { height: 100%; }
+
+  body {
+    color: var(--fg);
+    font-family: "Helvetica Neue", "PingFang SC", "Microsoft YaHei", Arial, sans-serif;
+    -webkit-font-smoothing: antialiased;
+    overflow-y: auto;
+    background: #14181a;
+  }
+
+  /* ========== 全屏背景图 ========== */
+  .art-bg {
+    position: fixed;
+    inset: 0;
+    z-index: 0;
+    background-image: url('assets/bg.jpg');
+    background-size: cover;
+    background-position: center;
+  }
+
+  /* 暖金氛围光 */
+  .glow {
+    position: fixed;
+    inset: 0;
+    z-index: 1;
+    pointer-events: none;
+    background:
+      radial-gradient(ellipse 55% 42% at 50% 46%, rgba(255, 196, 120, 0.20), transparent 62%),
+      radial-gradient(ellipse 40% 35% at 50% 60%, rgba(230, 170, 90, 0.10), transparent 70%),
+      linear-gradient(180deg, rgba(6, 8, 7, 0.30) 0%, rgba(6, 8, 7, 0) 30%, rgba(6, 8, 7, 0.20) 78%, rgba(4, 5, 4, 0.55) 100%);
+  }
+
+  /* 油画噪点颗粒 */
+  .grain {
+    position: fixed;
+    inset: 0;
+    z-index: 2;
+    pointer-events: none;
+    opacity: 0.07;
+    mix-blend-mode: overlay;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='180' height='180'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+  }
+
+  /* ========== 顶部导航栏 ========== */
+  .topbar {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    z-index: 10;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 16px 36px;
+    background: linear-gradient(180deg, rgba(8, 9, 8, 0.72), rgba(8, 9, 8, 0));
+    backdrop-filter: blur(2px);
+  }
+
+  .logo {
+    font-size: 22px;
+    font-weight: 800;
+    letter-spacing: 0.06em;
+    color: var(--fg);
+    text-decoration: none;
+  }
+
+  .nav-right {
+    display: flex;
+    align-items: center;
+    gap: 34px;
+  }
+
+  .menu {
+    display: flex;
+    gap: 30px;
+    list-style: none;
+  }
+  .menu a {
+    font-size: 15px;
+    font-weight: 500;
+    color: var(--muted);
+    text-decoration: none;
+    transition: color 0.3s ease;
+  }
+  .menu a:hover { color: var(--fg); }
+  .menu a.active { color: var(--fg); }
+  .menu a.active::after {
+    content: "";
+    display: block;
+    height: 1px;
+    margin-top: 3px;
+    background: rgba(247, 244, 238, 0.45);
+  }
+
+  .avatar {
+    width: 34px;
+    height: 34px;
+    border-radius: 50%;
+    border: 1.5px solid rgba(255, 255, 255, 0.35);
+    background:
+      radial-gradient(circle at 35% 30%, rgba(255, 255, 255, 0.35), transparent 40%),
+      linear-gradient(135deg, #7d8a7a, #3a4038);
+    cursor: pointer;
+    position: relative;
+    display: block;
+  }
+  .avatar::after {
+    content: "";
+    position: absolute;
+    inset: 4px;
+    border-radius: 50%;
+    border: 1px solid rgba(255, 255, 255, 0.15);
+  }
+
+  /* ========== 页面主体 ========== */
+  .main {
+    position: relative;
+    z-index: 5;
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    text-align: center;
+    padding: 110px 24px 60px;
+  }
+
+  .page-title {
+    font-size: clamp(36px, 6vw, 64px);
+    font-weight: 800;
+    letter-spacing: 0.10em;
+    text-indent: 0.10em;
+    line-height: 1.1;
+    color: var(--fg);
+    text-shadow: 0 4px 60px rgba(0, 0, 0, 0.45);
+    animation: fadeIn 1.4s ease both;
+  }
+
+  .page-sub {
+    margin-top: 18px;
+    font-size: 14px;
+    letter-spacing: 0.16em;
+    text-indent: 0.16em;
+    color: var(--muted);
+    opacity: 0;
+    animation: fadeIn 1.4s ease 0.4s forwards;
+  }
+
+  /* ========== 公告区 ========== */
+  .notice-card {
+    margin-top: 48px;
+    width: min(640px, 90vw);
+    background: rgba(8, 9, 8, 0.42);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    border-radius: 12px;
+    backdrop-filter: blur(8px);
+    padding: 22px 26px;
+    text-align: left;
+    opacity: 0;
+    animation: fadeIn 1.4s ease 0.7s forwards;
+  }
+  .notice-title {
+    font-size: 11px;
+    letter-spacing: 0.34em;
+    text-transform: uppercase;
+    color: var(--gold);
+    margin-bottom: 14px;
+    display: flex;
+    align-items: center;
+    gap: 14px;
+  }
+  .notice-title::after {
+    content: "";
+    flex: 1;
+    height: 1px;
+    background: rgba(247, 244, 238, 0.14);
+  }
+  .notice-text {
+    font-size: 14px;
+    line-height: 1.8;
+    color: var(--fg);
+    white-space: pre-wrap;
+    word-break: break-word;
+  }
+
+  /* ========== 入口区 ========== */
+  .entries {
+    margin-top: 40px;
+    display: flex;
+    gap: 18px;
+    flex-wrap: wrap;
+    justify-content: center;
+    opacity: 0;
+    animation: fadeIn 1.4s ease 0.9s forwards;
+  }
+  .entry-btn {
+    display: inline-block;
+    padding: 12px 34px;
+    border-radius: 999px;
+    border: 1px solid rgba(200, 169, 110, 0.55);
+    background: rgba(200, 169, 110, 0.18);
+    color: var(--fg);
+    font-size: 14px;
+    letter-spacing: 0.1em;
+    text-decoration: none;
+    transition: background 0.3s ease, transform 0.2s ease;
+  }
+  .entry-btn:hover { background: rgba(200, 169, 110, 0.34); transform: translateY(-1px); }
+
+  .back-home {
+    margin-top: 34px;
+    font-size: 13px;
+    letter-spacing: 0.08em;
+    color: var(--muted);
+    text-decoration: none;
+    border-bottom: 1px solid rgba(247, 244, 238, 0.22);
+    padding-bottom: 3px;
+    transition: color 0.3s ease, border-color 0.3s ease;
+    opacity: 0;
+    animation: fadeIn 1.4s ease 1.1s forwards;
+  }
+  .back-home:hover {
+    color: var(--fg);
+    border-color: var(--fg);
+  }
+
+  @keyframes fadeIn { to { opacity: 1; } }
+</style>
+</head>
+<body>
+
+  <!-- 油画背景 -->
+  <div class="art-bg"></div>
+
+  <div class="glow"></div>
+  <div class="grain"></div>
+
+  <!-- 顶部导航 -->
+  <header class="topbar">
+    <a class="logo" href="index.html">Cealin</a>
+    <div class="nav-right">
+      <ul class="menu">
+        <li><a href="index.html">首页</a></li>
+        <li><a href="project.html">项目</a></li>
+        <li><a href="platform.html">平台</a></li>
+        <li><a href="chat.html">聊天室</a></li>
+        <li><a href="cloud.html">云储存</a></li>
+        <li><a href="notice-admin.html">公告</a></li>
+      </ul>
+      <a class="avatar" href="settings.html" title="设置"></a>
+    </div>
+  </header>
+
+  <!-- 页面主体 -->
+  <main class="main">
+    <h1 class="page-title">管理员界面</h1>
+    <p class="page-sub">欢迎回来，管理员</p>
+
+    <!-- 公告区 -->
+    <section class="notice-card">
+      <h2 class="notice-title">公告</h2>
+      <p class="notice-text" id="noticeText">加载中…</p>
+    </section>
+
+    <!-- 入口 -->
+    <div class="entries">
+      <a class="entry-btn" href="notice-admin.html">编辑公告</a>
+      <a class="entry-btn" href="chat.html">进入聊天室</a>
+    </div>
+
+    <a class="back-home" href="index.html">返回首页</a>
+  </main>
+
+  <script>
+    (function () {
+      // 加载公告（管理员可读）
+      var fallback = '欢迎来到 Cealin，公告内容加载中，请稍后再试。';
+      fetch('/api/notice')
+        .then(function (resp) { return resp.json(); })
+        .then(function (data) {
+          var textEl = document.getElementById('noticeText');
+          textEl.textContent = (data && data.ok && data.notice) ? data.notice : fallback;
+        })
+        .catch(function () {
+          document.getElementById('noticeText').textContent = fallback;
+        });
+    })();
+  </script>
+
+</body>
+</html>
