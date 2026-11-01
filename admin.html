@@ -334,6 +334,18 @@
     white-space: nowrap;
     margin-right: 8px;
   }
+  .room-verified-tag {
+    display: inline-block;
+    color: #e8c07a;
+    border: 1px solid rgba(200, 169, 110, 0.65);
+    background: rgba(200, 169, 110, 0.14);
+    border-radius: 999px;
+    padding: 2px 10px;
+    font-size: 11px;
+    letter-spacing: 0.08em;
+    white-space: nowrap;
+    margin-right: 8px;
+  }
   .room-ops {
     display: flex;
     gap: 8px;
@@ -351,6 +363,17 @@
     transition: background 0.25s cubic-bezier(0.22, 1, 0.36, 1), border-color 0.3s ease, transform 0.2s cubic-bezier(0.22, 1, 0.36, 1), box-shadow 0.25s cubic-bezier(0.22, 1, 0.36, 1);
   }
   .op-btn:hover:not(:disabled) { transform: translateY(-1px); box-shadow: 0 6px 22px rgba(200, 169, 110, 0.18); }
+  .op-btn.verify {
+    border-color: rgba(200, 169, 110, 0.7);
+    color: #e8c07a;
+  }
+  .op-btn.verify:hover:not(:disabled) {
+    background: rgba(200, 169, 110, 0.22);
+  }
+  .op-btn.verify.on {
+    background: rgba(200, 169, 110, 0.3);
+    border-color: rgba(200, 169, 110, 0.95);
+  }
   .op-btn.ban:hover:not(:disabled) {
     border-color: rgba(200, 169, 110, 0.7);
     background: rgba(200, 169, 110, 0.2);
@@ -579,11 +602,13 @@
                 namesHtml = '<span class="off">暂无昵称占用</span>';
               }
               var opsHtml = '<span class="room-ops">'
+                + '<button type="button" class="op-btn verify' + (r.verified ? ' on' : '') + '" onclick="verifyRoom(\'' + r.code + '\',' + (r.verified ? 'false' : 'true') + ')">' + (r.verified ? '取消授权' : '官方授权') + '</button>'
                 + '<button type="button" class="op-btn ban" onclick="banRoom(\'' + r.code + '\')"' + (r.banned ? ' disabled' : '') + '>' + (r.banned ? '已封禁' : '封禁') + '</button>'
                 + '<button type="button" class="op-btn del" onclick="deleteRoom(\'' + r.code + '\')">删除</button>'
                 + '</span>';
               var metaHtml = ''
                 + (r.banned ? '<span class="room-banned-tag">已封禁 · ' + fmtRoomTime(r.bannedAt) + '</span>' : '')
+                + (r.verified ? '<span class="room-verified-tag">官方认证 · ' + fmtRoomTime(r.verifiedAt) + '</span>' : '')
                 + '消息 ' + r.messageCount + ' 条 · 在线 ' + (r.onlineNames ? r.onlineNames.length : 0) + ' 人 · 最近活跃 ' + fmtRoomTime(r.lastActive);
               html += '<div class="room-item" data-code="' + r.code + '">'
                 + '<div class="room-item-head">'
@@ -625,8 +650,8 @@
         if (!found) loadRoomsList();
       }
 
-      // 封禁 / 删除聊天室（需管理员密码校验，POST /api/admin-rooms）
-      function adminRoomOp(action, code, confirmText) {
+      // 封禁 / 删除 / 授权聊天室（需管理员密码校验，POST /api/admin-rooms）
+      function adminRoomOp(action, code, confirmText, extra) {
         if (!pwd || !adminFlag) {
           roomMsgEl.textContent = '请返回首页重新登录后使用';
           return;
@@ -634,10 +659,16 @@
         if (!window.confirm(confirmText)) return;
         roomMsgEl.textContent = '';
         roomMsgEl.classList.remove('ok');
+        var payload = { action: action, code: code, password: pwd };
+        if (extra) {
+          for (var k in extra) {
+            if (Object.prototype.hasOwnProperty.call(extra, k)) payload[k] = extra[k];
+          }
+        }
         fetch('/api/admin-rooms', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ action: action, code: code, password: pwd })
+          body: JSON.stringify(payload)
         })
           .then(function (resp) {
             return resp.json().then(function (data) { return { status: resp.status, data: data }; });
@@ -650,6 +681,10 @@
                 // 删除：即时移除该行并保留成功提示（不再全量刷新，避免列表闪烁与提示被清空）
                 roomMsgEl.textContent = '已删除 ' + code + '，云端数据已全部清除';
                 removeRoomRow(code);
+              } else if (action === 'verify') {
+                // 授权：提示授权状态变化并刷新列表
+                roomMsgEl.textContent = data.verified ? ('已授权 ' + code + ' 为官方认证房间') : ('已取消 ' + code + ' 的官方授权');
+                loadRoomsList();
               } else {
                 roomMsgEl.textContent = '已封禁 ' + code;
                 loadRoomsList();
@@ -669,6 +704,11 @@
       }
       window.banRoom = function (code) {
         adminRoomOp('ban', code, '确认封禁聊天室 ' + code + ' ？封禁后该房间将被标记，10 天后自动清除。');
+      };
+      window.verifyRoom = function (code, verify) {
+        adminRoomOp('verify', code, verify
+          ? '确认授权聊天室 ' + code + ' 为官方认证房间？授权后该房间将显示认证横幅与金色 V 标。'
+          : '确认取消聊天室 ' + code + ' 的官方授权？', { verify: verify });
       };
       window.deleteRoom = function (code) {
         adminRoomOp('delete', code, '确认删除聊天室 ' + code + ' ？将立即清除该房间全部数据（消息、昵称、在线状态），不可恢复。');

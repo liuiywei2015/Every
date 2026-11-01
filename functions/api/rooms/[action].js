@@ -3,11 +3,13 @@
 //   POST /api/rooms/create  -> 创建房间（自动生成唯一四字代码）
 //   POST /api/rooms/join    -> 加入房间（校验代码是否存在，昵称仅在线占用）
 //   POST /api/rooms/leave   -> 退出房间（清除在线状态与成员名单登记）
-//   POST /api/rooms/change  -> 更改房间代码（迁移消息/名单/在线状态）
+//   POST /api/rooms/change  -> 更改房间代码（迁移消息/名单/在线状态/状态/元信息）
+//   POST /api/rooms/rename  -> 聊天室起名（保存显示名称到 room:{code}:meta 的 name 字段）
 //   GET  /api/rooms/messages -> 拉取房间消息（携带 name 时同时作为心跳）
 //   POST /api/rooms/messages -> 发送消息
 // 房间消息通过 KV（绑定名 GUESTBOOK）按房间存储：key 为 `room:{code}`，值为 JSON 数组 [{ name, text, time }]；
-// 成员名单 key 为 `room:{code}:names`；在线状态 key 为 `room:{code}:presence`（{ name: lastActiveTs }）。
+// 成员名单 key 为 `room:{code}:names`；在线状态 key 为 `room:{code}:presence`（{ name: lastActiveTs }）；
+// 元信息 key 为 `room:{code}:meta`（{ verified, verifiedAt, name }，官方授权与聊天室起名共用）。
 
 const PREFIX = 'room:';
 const MAX_MESSAGES = 200;
@@ -62,6 +64,18 @@ const readStatus = async (env, code) => {
 
 const writeStatus = (env, code, status) =>
   env.GUESTBOOK.put(PREFIX + code + ':status', JSON.stringify(status));
+
+// 房间元信息：key 为 `room:{code}:meta`，值为 JSON 对象
+//   { verified: Boolean, verifiedAt: Number(ms) | null, name: String | null }
+//   verified 表示官方授权（管理端 admin-rooms.js 的 verify action 写入）；
+//   name 表示房间显示名称（聊天室起名功能写入）。
+const readMeta = async (env, code) => {
+  const raw = await env.GUESTBOOK.get(PREFIX + code + ':meta', 'json');
+  return raw && typeof raw === 'object' ? raw : {};
+};
+
+const writeMeta = (env, code, meta) =>
+  env.GUESTBOOK.put(PREFIX + code + ':meta', JSON.stringify(meta));
 
 // 删除房间全部 KV 数据，一个不剩：
 // 先按前缀 room:{code}: 分页 list 删除全部派生键（names/presence/status 及未来新增派生键），再删除主键 room:{code}。
@@ -152,7 +166,18 @@ async function handleJoin(env, body) {
     names.push(name);
     await writeRoomNames(env, code, names);
   }
-  return json({ ok: true, code, name, banned: !!status.banned, bannedAt: status.bannedAt || null, reported: !!status.reported });
+  // 返回 meta：前端据此判断官方授权状态与房间显示名称
+  const meta = await readMeta(env, code);
+  return json({
+    ok: true,
+    code,
+    name,
+    banned: !!status.banned,
+    bannedAt: status.bannedAt || null,
+    reported: !!status.reported,
+    verified: !!meta.verified,
+    roomName: typeof meta.name === 'string' ? meta.name : null
+  });
 }
 
 async function handleMessagesGet(env, url) {
@@ -175,7 +200,15 @@ async function handleMessagesGet(env, url) {
     presence[name] = Date.now();
     await writePresence(env, code, presence);
   }
-  return json({ ok: true, code, messages: room }); // 最新在最后
+  // 返回 meta：前端轮询时同步官方授权状态与房间显示名称
+  const meta = await readMeta(env, code);
+  return json({
+    ok: true,
+    code,
+    messages: room, // 最新在最后
+    verified: !!meta.verified,
+    roomName: typeof meta.name === 'string' ? meta.name : null
+  });
 }
 
 async function handleMessagesPost(env, body) {
@@ -223,7 +256,14 @@ async function handleMessagesPost(env, body) {
   const presence = await readPresence(env, code);
   presence[name] = Date.now();
   await writePresence(env, code, presence);
-  return json({ ok: true, message: { name, text, time } });
+  // 返回 meta：前端可据此同步官方授权状态与房间显示名称
+  const meta = await readMeta(env, code);
+  return json({
+    ok: true,
+    message: { name, text, time },
+    verified: !!meta.verified,
+    roomName: typeof meta.name === 'string' ? meta.name : null
+  });
 }
 
 // 更改房间代码：将房间消息与成员名单迁移到新代码，并删除旧 key
@@ -261,7 +301,7 @@ async function handleChange(env, body) {
     return json({ ok: false, error: '该代码已被其他房间使用，请换一个' });
   }
 
-  // 迁移消息、成员名单、在线状态与状态标记（封禁/举报），删除旧 key（全部派生键 + 主键，一个不剩）
+  // 迁移消息、成员名单、在线状态与状态标记（封禁/举报）及元信息（授权/名称），删除旧 key（全部派生键 + 主键，一个不剩）
   await writeRoom(env, newCode, room);
   await writeRoomNames(env, newCode, names);
   const presence = await readPresence(env, code);
@@ -270,8 +310,55 @@ async function handleChange(env, body) {
   if (Object.keys(status).length) {
     await writeStatus(env, newCode, status);
   }
+  const meta = await readMeta(env, code);
+  if (Object.keys(meta).length) {
+    await writeMeta(env, newCode, meta);
+  }
   await deleteRoomData(env, code);
-  return json({ ok: true, code: newCode });
+  return json({
+    ok: true,
+    code: newCode,
+    verified: !!meta.verified,
+    roomName: typeof meta.name === 'string' ? meta.name : null
+  });
+}
+
+// 聊天室起名：为当前房间设置显示名称，保存到 room:{code}:meta 的 name 字段
+// 权限校验与更改代码（change）一致：必须是已登记昵称的成员；空名称视为清除名称（恢复显示代码）
+async function handleRename(env, body) {
+  const code = normalizeCode(body.code);
+  if (!isValidCode(code)) {
+    return json({ ok: false, error: '房间代码格式不正确' }, 400);
+  }
+  const room = await readRoom(env, code);
+  if (room === null) {
+    return json({ ok: false, error: '房间不存在' });
+  }
+  // 封禁到期自动清除
+  if (await cleanupExpiredBan(env, code)) {
+    return json({ ok: false, error: '房间不存在' });
+  }
+
+  const name = String(body.name || '').trim().slice(0, 20) || '访客';
+  const names = await readRoomNames(env, code);
+  if (!names.includes(name)) {
+    return json({ ok: false, error: '昵称未登记' });
+  }
+
+  const roomName = String(body.roomName || '').trim().slice(0, 20);
+  const meta = await readMeta(env, code);
+  if (roomName) {
+    meta.name = roomName;
+  } else {
+    delete meta.name;
+  }
+  await writeMeta(env, code, meta);
+  return json({
+    ok: true,
+    code,
+    roomName: typeof meta.name === 'string' ? meta.name : null,
+    verified: !!meta.verified
+  });
 }
 
 // 退出房间：删除在线状态与成员名单登记
@@ -347,6 +434,10 @@ export async function onRequest(context) {
 
     if (action === 'change' && request.method === 'POST') {
       return await handleChange(env, body);
+    }
+
+    if (action === 'rename' && request.method === 'POST') {
+      return await handleRename(env, body);
     }
 
     if (action === 'report' && request.method === 'POST') {

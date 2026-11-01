@@ -46,6 +46,33 @@ export async function onRequest(context) {
     return json({ ok: false, error: '密码错误' }, 401);
   }
 
+  // 官方授权 / 取消授权聊天室：标记保存在 room:{code}:meta 的 verified 字段（用户进房显示认证横幅与金色 V 标）
+  if (action === 'verify') {
+    if (!/^[A-Z0-9]{4}$/.test(code)) {
+      return json({ ok: false, error: '房间代码格式不正确' }, 400);
+    }
+    const verify = body && body.verify !== false;
+    try {
+      const room = await env.GUESTBOOK.get(PREFIX + code);
+      if (room === null) {
+        return json({ ok: false, error: '房间不存在' });
+      }
+      const metaRaw = await env.GUESTBOOK.get(PREFIX + code + ':meta', 'json');
+      const meta = metaRaw && typeof metaRaw === 'object' ? metaRaw : {};
+      if (verify) {
+        meta.verified = true;
+        meta.verifiedAt = Date.now();
+      } else {
+        delete meta.verified;
+        delete meta.verifiedAt;
+      }
+      await env.GUESTBOOK.put(PREFIX + code + ':meta', JSON.stringify(meta));
+      return json({ ok: true, code, verified: !!meta.verified });
+    } catch (err) {
+      return json({ ok: false, error: '服务异常，请稍后重试' }, 500);
+    }
+  }
+
   // 封禁聊天室：标记封禁状态与封禁时间（用户仍可进入，前端显示封禁红字）
   if (action === 'ban') {
     if (!/^[A-Z0-9]{4}$/.test(code)) {
@@ -111,6 +138,7 @@ export async function onRequest(context) {
           await env.GUESTBOOK.delete(name + ':names');
           await env.GUESTBOOK.delete(name + ':presence');
           await env.GUESTBOOK.delete(name + ':status');
+          await env.GUESTBOOK.delete(name + ':meta');
           continue;
         }
 
@@ -120,6 +148,8 @@ export async function onRequest(context) {
         const names = Array.isArray(namesRaw) ? namesRaw : [];
         const presenceRaw = await env.GUESTBOOK.get(name + ':presence', 'json');
         const presence = presenceRaw && typeof presenceRaw === 'object' ? presenceRaw : {};
+        const metaRaw = await env.GUESTBOOK.get(name + ':meta', 'json');
+        const meta = metaRaw && typeof metaRaw === 'object' ? metaRaw : {};
 
         const onlineNames = [];
         let lastActive = 0;
@@ -140,7 +170,10 @@ export async function onRequest(context) {
           banned: !!status.banned,
           bannedAt: status.bannedAt || null,
           reported: !!status.reported,
-          reportedAt: status.reportedAt || null
+          reportedAt: status.reportedAt || null,
+          verified: !!meta.verified,
+          verifiedAt: meta.verifiedAt || null,
+          roomName: typeof meta.name === 'string' ? meta.name : ''
         });
       }
       cursor = listResult.cursor;
