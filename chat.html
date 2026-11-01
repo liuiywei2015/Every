@@ -160,6 +160,32 @@
     animation: fadeIn 1.4s ease 0.4s forwards;
   }
 
+  /* ========== 公告区 ========== */
+  .notice-card {
+    margin-top: 40px;
+    width: min(560px, 92vw);
+    background: rgba(8, 9, 8, 0.45);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    border-radius: 16px;
+    backdrop-filter: blur(10px);
+    padding: 18px 22px;
+    text-align: left;
+    opacity: 0;
+    animation: fadeIn 1.4s ease 0.55s forwards;
+  }
+  .notice-title {
+    margin: 0 0 8px;
+    font-size: 13px;
+    letter-spacing: 0.14em;
+    color: rgba(247, 244, 238, 0.85);
+  }
+  .notice-text {
+    margin: 0;
+    font-size: 13px;
+    line-height: 1.8;
+    color: rgba(247, 244, 238, 0.75);
+  }
+
   /* ========== 聊天面板 ========== */
   .room-box {
     margin-top: 56px;
@@ -417,6 +443,12 @@
     <h1 class="title">聊天室</h1>
     <p class="page-sub">四字代码 · 随时畅聊</p>
 
+    <!-- 公告区 -->
+    <section class="notice-card">
+      <h2 class="notice-title">公告</h2>
+      <p class="notice-text" id="noticeText">加载中…</p>
+    </section>
+
     <!-- 进入阶段 -->
     <section id="enterBox" class="room-box">
       <p class="room-tip">每个聊天室有唯一四字代码，分享代码即可邀请朋友加入</p>
@@ -475,6 +507,19 @@
         });
       }
       function el(id) { return document.getElementById(id); }
+
+      // 加载公告（每次进入页面自动展示；本地双击打开时静默降级为默认文案）
+      function loadNotice() {
+        var textEl = el('noticeText');
+        var fallback = '欢迎来到 Cealin 聊天室，请文明交流，聊天记录云端同步。';
+        fetch('/api/notice')
+          .then(function (resp) { return resp.json(); })
+          .then(function (data) {
+            textEl.textContent = (data && data.ok && data.notice) ? data.notice : fallback;
+          })
+          .catch(function () { textEl.textContent = fallback; });
+      }
+      loadNotice();
 
       // 恢复上次昵称
       try {
