@@ -440,7 +440,10 @@
           if (!resp.ok || !data || !data.ok) {
             throw new Error(data && data.error ? data.error : '密码错误');
           }
-          try { sessionStorage.setItem('cealin_admin', '1'); } catch (e) {}
+          try {
+            sessionStorage.setItem('cealin_admin', '1');
+            sessionStorage.setItem('cealin_admin_pwd', pwd);
+          } catch (e) {}
           window.location.href = 'admin.html';
         } catch (errObj) {
           err.textContent = errObj.message || '密码错误';

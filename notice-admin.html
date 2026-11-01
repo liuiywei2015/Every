@@ -375,7 +375,7 @@
       });
 
       // 页面加载：已有管理员标记则直接进入编辑区，否则先密码登录
-      if (isAdmin()) { showEdit(); } else { showLogin(); }
+      if (isAdmin() && getAdminPwd()) { showEdit(); } else { showLogin(); }
 
       window.doLogin = function () {
         var pwd = document.getElementById('adminPwd').value;
