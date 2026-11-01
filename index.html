@@ -330,7 +330,7 @@
   <!-- 登录选择遮罩（打开页面第一时间显示） -->
   <div id="loginGate" class="login-gate">
     <div class="login-gate-card">
-      <h2 class="login-gate-title">欢迎来到 Cealin</h2>
+      <h2 class="login-gate-title" id="loginGateTitle">欢迎来到Cealin生态系统</h2>
       <p class="login-gate-sub">请选择登录身份</p>
       <div class="login-gate-actions">
         <button type="button" class="login-btn login-gate-btn" onclick="loginAsGuest()">游客登录</button>
@@ -420,10 +420,14 @@
         // 游客登录前清除管理员会话标记，防止残留身份让游客进入公告编辑区
         try { sessionStorage.removeItem('cealin_admin'); } catch (e) {}
         try { sessionStorage.removeItem('cealin_admin_pwd'); } catch (e) {}
+        var t = document.getElementById('loginGateTitle');
+        if (t) { t.textContent = '欢迎来到Cealin生态系统'; }
         window.location.href = 'guest.html';
       };
 
       window.loginAsAdmin = function () {
+        var t = document.getElementById('loginGateTitle');
+        if (t) { t.textContent = '欢迎来到Cealin管理员系统'; }
         document.getElementById('loginGatePwdRow').style.display = 'flex';
         document.getElementById('loginGateErr').textContent = '';
         document.getElementById('loginGatePwd').focus();
