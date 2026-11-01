@@ -263,6 +263,64 @@
     text-decoration: none;
   }
 
+  /* ========== 登录选择遮罩 ========== */
+  .login-gate {
+    position: fixed;
+    inset: 0;
+    z-index: 100;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: rgba(12, 15, 14, 0.78);
+    backdrop-filter: blur(14px);
+    -webkit-backdrop-filter: blur(14px);
+  }
+  .login-gate-card {
+    width: min(440px, 90vw);
+    background: rgba(8, 9, 8, 0.6);
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    border-radius: 18px;
+    box-shadow: 0 24px 70px rgba(0, 0, 0, 0.5);
+    padding: 34px 28px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 18px;
+    text-align: center;
+  }
+  .login-gate-title {
+    font-size: 26px;
+    font-weight: 800;
+    letter-spacing: 0.06em;
+    color: var(--fg);
+  }
+  .login-gate-sub {
+    font-size: 13px;
+    letter-spacing: 0.14em;
+    text-indent: 0.14em;
+    color: var(--muted);
+  }
+  .login-gate-actions {
+    display: flex;
+    gap: 14px;
+    flex-wrap: wrap;
+    justify-content: center;
+    margin-top: 6px;
+  }
+  .login-gate-btn { min-width: 148px; }
+  .login-gate-pwd-row {
+    width: 100%;
+    display: none;
+    flex-direction: column;
+    gap: 12px;
+  }
+  .login-gate-err {
+    min-height: 20px;
+    font-size: 13px;
+    color: #e8a08c;
+    letter-spacing: 0.05em;
+  }
+
   .room-btn {
     padding: 10px 26px;
     border-radius: 999px;
@@ -444,6 +502,23 @@
   <div class="glow"></div>
   <div class="grain"></div>
 
+  <!-- 登录选择遮罩（打开页面第一时间显示） -->
+  <div id="loginGate" class="login-gate">
+    <div class="login-gate-card">
+      <h2 class="login-gate-title">欢迎来到 Cealin 聊天室</h2>
+      <p class="login-gate-sub">请选择登录身份</p>
+      <div class="login-gate-actions">
+        <button type="button" class="room-btn login-gate-btn" onclick="loginAsGuest()">游客登录</button>
+        <button type="button" class="room-btn plain login-gate-btn" onclick="loginAsAdmin()">管理员登录</button>
+      </div>
+      <div class="login-gate-pwd-row" id="loginGatePwdRow">
+        <input id="loginGatePwd" class="room-input" type="password" maxlength="50" autocomplete="off" placeholder="管理员密码">
+        <button type="button" class="room-btn login-gate-btn" onclick="confirmAdminLogin()">验证并进入</button>
+      </div>
+      <p class="login-gate-err" id="loginGateErr"></p>
+    </div>
+  </div>
+
   <!-- 顶部导航 -->
   <header class="topbar">
     <a class="logo" href="index.html">Cealin</a>
@@ -479,15 +554,8 @@
     <!-- 进入阶段 -->
     <section id="enterBox" class="room-box">
       <p class="room-tip">每个聊天室有唯一四字代码，分享代码即可邀请朋友加入</p>
-      <label class="field-label" for="roleActions">身份</label>
-      <div class="role-actions" id="roleActions">
-        <button type="button" class="room-btn plain role-btn on" data-role="guest" onclick="selectRole('guest')">游客（免密）</button>
-        <button type="button" class="room-btn plain role-btn" data-role="admin" onclick="selectRole('admin')">管理员</button>
-      </div>
       <label class="field-label" for="nickInput">昵称</label>
       <input id="nickInput" class="room-input" type="text" maxlength="20" autocomplete="off" placeholder="给自己起个名字">
-      <label class="field-label" id="adminPwdLabel" for="adminPwdInput" style="display:none;">管理员密码</label>
-      <input id="adminPwdInput" class="room-input" type="password" maxlength="50" autocomplete="off" placeholder="管理员密码" style="display:none;">
       <label class="field-label" for="codeInput">房间代码</label>
       <input id="codeInput" class="room-input" type="text" maxlength="4" autocomplete="off" placeholder="四字代码">
       <div class="room-actions">
@@ -608,34 +676,48 @@
         return data;
       }
 
-      // 身份切换：游客免密直进，管理员需密码登录
-      window.selectRole = function (role) {
-        currentRole = role === 'admin' ? 'admin' : 'guest';
-        var btns = document.querySelectorAll('.role-btn');
-        for (var i = 0; i < btns.length; i++) {
-          var on = btns[i].getAttribute('data-role') === currentRole;
-          if (on) { btns[i].classList.add('on'); } else { btns[i].classList.remove('on'); }
-        }
-        var pwd = el('adminPwdInput');
-        var pwdLabel = el('adminPwdLabel');
-        var show = currentRole === 'admin';
-        pwd.style.display = show ? '' : 'none';
-        pwdLabel.style.display = show ? '' : 'none';
-        if (!show) pwd.value = '';
+      // ===== 登录选择遮罩 =====
+      // 游客登录：关闭遮罩，直接显示主界面
+      window.loginAsGuest = function () {
+        currentRole = 'guest';
+        closeLoginGate();
       };
 
-      // 管理员进入聊天前先校验密码
-      async function ensureAdminLogin() {
-        if (currentRole !== 'admin') return true;
-        var pwd = el('adminPwdInput').value.trim();
-        if (!pwd) { setErr('请输入管理员密码'); return false; }
+      // 管理员登录：展开密码输入行
+      window.loginAsAdmin = function () {
+        var row = el('loginGatePwdRow');
+        var err = el('loginGateErr');
+        row.style.display = 'flex';
+        err.textContent = '';
+        el('loginGatePwd').focus();
+      };
+
+      // 管理员验证密码：通过后关闭遮罩并标记管理员会话
+      window.confirmAdminLogin = async function () {
+        var pwd = el('loginGatePwd').value.trim();
+        var err = el('loginGateErr');
+        if (!pwd) { err.textContent = '请输入管理员密码'; return; }
         try {
           await loginAdmin(pwd);
-          return true;
-        } catch (err) {
-          setErr(err.message || '密码错误');
-          return false;
+          currentRole = 'admin';
+          try { sessionStorage.setItem('cealin_admin', '1'); } catch (e) {}
+          closeLoginGate();
+          showAdminEditEntry();
+        } catch (errObj) {
+          err.textContent = errObj.message || '密码错误';
+          el('loginGatePwd').value = '';
+          el('loginGatePwd').focus();
         }
+      };
+
+      function closeLoginGate() {
+        el('loginGate').style.display = 'none';
+      }
+
+      // 管理员会话下显示"编辑公告"入口
+      function showAdminEditEntry() {
+        var editEntry = el('adminEditEntry');
+        if (editEntry) editEntry.style.display = 'block';
       }
 
       function enterChat(code, name) {
@@ -660,7 +742,6 @@
         setErr('');
         var name = el('nickInput').value.trim().slice(0, 20);
         if (!name) { setErr('请先输入昵称'); return; }
-        if (!(await ensureAdminLogin())) return;
         try {
           var data = await post('/create', { name: name });
           if (data && data.ok && data.code) {
@@ -684,7 +765,6 @@
         var code = el('codeInput').value.trim().toUpperCase();
         if (!name) { setErr('请先输入昵称'); return; }
         if (!/^[A-Za-z0-9]{4}$/.test(code)) { setErr('房间代码为四字代码（字母或数字）'); return; }
-        if (!(await ensureAdminLogin())) return;
         try {
           var data = await post('/join', { code: code, name: name });
           if (data && data.ok) {
