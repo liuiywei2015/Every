@@ -197,6 +197,62 @@
     white-space: pre-wrap;
     word-break: break-word;
   }
+  /* ========== 编辑公告区 ========== */
+  .notice-input {
+    width: 100%;
+    min-height: 160px;
+    padding: 12px 14px;
+    border-radius: 10px;
+    border: 1px solid rgba(255, 255, 255, 0.14);
+    background: rgba(255, 255, 255, 0.05);
+    color: var(--fg);
+    font-size: 14px;
+    line-height: 1.7;
+    resize: vertical;
+    outline: none;
+    font-family: inherit;
+  }
+  .notice-input:focus { border-color: rgba(200, 169, 110, 0.65); }
+  .notice-input::placeholder { color: var(--muted); }
+  .notice-meta {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 14px;
+    margin-top: 14px;
+  }
+  .notice-count {
+    font-size: 12px;
+    letter-spacing: 0.06em;
+    color: var(--muted);
+  }
+  .save-btn {
+    padding: 10px 30px;
+    border-radius: 999px;
+    border: 1px solid rgba(200, 169, 110, 0.55);
+    background: rgba(200, 169, 110, 0.18);
+    color: var(--fg);
+    font-size: 13px;
+    letter-spacing: 0.1em;
+    cursor: pointer;
+    transition: background 0.3s ease, transform 0.2s ease;
+  }
+  .save-btn:hover:not(:disabled) { background: rgba(200, 169, 110, 0.34); transform: translateY(-1px); }
+  .save-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+  .notice-msg {
+    min-height: 20px;
+    font-size: 13px;
+    letter-spacing: 0.05em;
+    color: #e8a08c;
+    margin-top: 10px;
+  }
+  .notice-msg.ok { color: #9fc69a; }
+  .notice-tip {
+    font-size: 13px;
+    line-height: 1.8;
+    color: var(--muted);
+    margin-bottom: 12px;
+  }
 
   /* ========== 入口区 ========== */
   .entries {
@@ -271,15 +327,20 @@
     <h1 class="page-title">管理员界面</h1>
     <p class="page-sub">欢迎回来，管理员</p>
 
-    <!-- 公告区 -->
+    <!-- 编辑公告区 -->
     <section class="notice-card">
-      <h2 class="notice-title">公告</h2>
-      <p class="notice-text" id="noticeText">加载中…</p>
+      <h2 class="notice-title">编辑公告</h2>
+      <p class="notice-tip" id="noticeAuthTip" style="display:none;">管理员会话已过期，请返回首页重新登录。</p>
+      <textarea id="noticeInput" class="notice-input" maxlength="2000" placeholder="输入公告内容…"></textarea>
+      <div class="notice-meta">
+        <span class="notice-count" id="noticeCount">0 / 2000</span>
+        <button type="button" class="save-btn" id="saveNoticeBtn" onclick="saveNotice()">保存公告</button>
+      </div>
+      <p class="notice-msg" id="noticeMsg"></p>
     </section>
 
     <!-- 入口 -->
     <div class="entries">
-      <a class="entry-btn" href="notice-admin.html">编辑公告</a>
       <a class="entry-btn" href="chat.html">进入聊天室</a>
     </div>
 
@@ -288,17 +349,92 @@
 
   <script>
     (function () {
-      // 加载公告（管理员可读）
-      var fallback = '欢迎来到 Cealin，公告内容加载中，请稍后再试。';
+      // 编辑公告：读取当前公告预填 → 字数计数 → 保存（POST /api/notice）
+      var fallback = '欢迎来到 Cealin，请文明交流。';
+      var pwd = '';
+      try { pwd = sessionStorage.getItem('cealin_admin_pwd') || ''; } catch (e) {}
+
+      var input = document.getElementById('noticeInput');
+      var msgEl = document.getElementById('noticeMsg');
+      var countEl = document.getElementById('noticeCount');
+      var tipEl = document.getElementById('noticeAuthTip');
+      var saveBtn = document.getElementById('saveNoticeBtn');
+
+      function showMsg(text, ok) {
+        msgEl.textContent = text;
+        msgEl.classList.toggle('ok', !!ok);
+      }
+
+      function refreshCount() {
+        countEl.textContent = input.value.length + ' / 2000';
+      }
+
+      // 未登录 / 旧会话：提示重新登录并禁用编辑
+      if (!pwd) {
+        tipEl.style.display = 'block';
+        input.disabled = true;
+        saveBtn.disabled = true;
+        showMsg('请返回首页重新登录后使用', false);
+      }
+
+      // 读取当前公告并预填
       fetch('/api/notice')
         .then(function (resp) { return resp.json(); })
         .then(function (data) {
-          var textEl = document.getElementById('noticeText');
-          textEl.textContent = (data && data.ok && data.notice) ? data.notice : fallback;
+          input.value = (data && data.ok && data.notice) ? data.notice : fallback;
+          refreshCount();
         })
         .catch(function () {
-          document.getElementById('noticeText').textContent = fallback;
+          input.value = fallback;
+          refreshCount();
         });
+
+      input.addEventListener('input', function () {
+        refreshCount();
+        showMsg('', false);
+      });
+
+      window.saveNotice = function () {
+        if (!pwd) {
+          showMsg('请返回首页重新登录后使用', false);
+          return;
+        }
+        var notice = input.value.trim();
+        if (!notice) {
+          showMsg('公告内容不能为空', false);
+          return;
+        }
+        if (notice.length > 2000) {
+          showMsg('公告内容不能超过2000字', false);
+          return;
+        }
+        saveBtn.disabled = true;
+        fetch('/api/notice', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ notice: notice, password: pwd })
+        })
+          .then(function (resp) {
+            return resp.json().then(function (data) {
+              return { status: resp.status, data: data };
+            });
+          })
+          .then(function (res) {
+            saveBtn.disabled = false;
+            var data = res.data || {};
+            if (data.ok) {
+              showMsg('公告已保存', true);
+            } else if (res.status === 401 || data.error === '密码错误') {
+              showMsg('密码错误或登录已过期，请返回首页重新登录', false);
+            } else {
+              showMsg(data.error || '保存失败，请稍后重试', false);
+            }
+          })
+          .catch(function () {
+            saveBtn.disabled = false;
+            showMsg('网络异常，保存失败', false);
+          });
+      };
     })();
   </script>
 

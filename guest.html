@@ -197,6 +197,15 @@
     white-space: pre-wrap;
     word-break: break-word;
   }
+  .readonly-badge {
+    font-size: 10px;
+    letter-spacing: 0.12em;
+    color: var(--muted);
+    border: 1px solid rgba(247, 244, 238, 0.2);
+    border-radius: 999px;
+    padding: 2px 10px;
+    white-space: nowrap;
+  }
 
   /* ========== 入口区 ========== */
   .entries {
@@ -273,7 +282,7 @@
 
     <!-- 公告区（游客只读） -->
     <section class="notice-card">
-      <h2 class="notice-title">公告</h2>
+      <h2 class="notice-title">公告<span class="readonly-badge">游客只读</span></h2>
       <p class="notice-text" id="noticeText">加载中…</p>
     </section>
 
