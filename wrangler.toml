@@ -3,6 +3,8 @@
 
 name = "every"
 compatibility_date = "2026-10-30"
+# 开启 Node.js 兼容：suggestions.js 原生 SMTP 邮件通知依赖 tls 模块
+compatibility_flags = ["nodejs_compat"]
 pages_build_output_dir = "."
 
 # ============ KV 命名空间（占位，需手动创建并填入 id） ============
