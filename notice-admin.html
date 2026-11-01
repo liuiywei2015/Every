@@ -1,0 +1,348 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>公告管理 - Cealin</title>
+<style>
+  :root {
+    --fg: #f7f4ee;
+    --muted: rgba(247, 244, 238, 0.55);
+    --gold: #c8a96e;
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  html, body { height: 100%; }
+
+  body {
+    color: var(--fg);
+    font-family: "Helvetica Neue", "PingFang SC", "Microsoft YaHei", Arial, sans-serif;
+    -webkit-font-smoothing: antialiased;
+    overflow-y: auto;
+    background: #14181a;
+  }
+
+  /* ========== 全屏背景图 ========== */
+  .art-bg {
+    position: fixed;
+    inset: 0;
+    z-index: 0;
+    background-image: url('assets/bg.jpg');
+    background-size: cover;
+    background-position: center;
+  }
+
+  /* 暖金氛围光 */
+  .glow {
+    position: fixed;
+    inset: 0;
+    z-index: 1;
+    pointer-events: none;
+    background:
+      radial-gradient(ellipse 55% 42% at 50% 46%, rgba(255, 196, 120, 0.20), transparent 62%),
+      radial-gradient(ellipse 40% 35% at 50% 60%, rgba(230, 170, 90, 0.10), transparent 70%),
+      linear-gradient(180deg, rgba(6, 8, 7, 0.30) 0%, rgba(6, 8, 7, 0) 30%, rgba(6, 8, 7, 0.20) 78%, rgba(4, 5, 4, 0.55) 100%);
+  }
+
+  /* 油画噪点颗粒 */
+  .grain {
+    position: fixed;
+    inset: 0;
+    z-index: 2;
+    pointer-events: none;
+    opacity: 0.07;
+    mix-blend-mode: overlay;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='180' height='180'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+  }
+
+  /* ========== 顶部导航栏 ========== */
+  .topbar {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    z-index: 10;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 16px 36px;
+    background: linear-gradient(180deg, rgba(8, 9, 8, 0.72), rgba(8, 9, 8, 0));
+    backdrop-filter: blur(2px);
+  }
+
+  .logo {
+    font-size: 22px;
+    font-weight: 800;
+    letter-spacing: 0.06em;
+    color: var(--fg);
+    text-decoration: none;
+  }
+
+  .nav-right {
+    display: flex;
+    align-items: center;
+    gap: 34px;
+  }
+
+  .menu {
+    display: flex;
+    gap: 30px;
+    list-style: none;
+  }
+  .menu a {
+    font-size: 15px;
+    font-weight: 500;
+    color: var(--muted);
+    text-decoration: none;
+    transition: color 0.3s ease;
+  }
+  .menu a:hover { color: var(--fg); }
+  .menu a.active { color: var(--fg); }
+  .menu a.active::after {
+    content: "";
+    display: block;
+    height: 1px;
+    margin-top: 3px;
+    background: rgba(247, 244, 238, 0.45);
+  }
+
+  .avatar {
+    width: 34px;
+    height: 34px;
+    border-radius: 50%;
+    border: 1.5px solid rgba(255, 255, 255, 0.35);
+    background:
+      radial-gradient(circle at 35% 30%, rgba(255, 255, 255, 0.35), transparent 40%),
+      linear-gradient(135deg, #7d8a7a, #3a4038);
+    cursor: pointer;
+    position: relative;
+    display: block;
+  }
+  .avatar::after {
+    content: "";
+    position: absolute;
+    inset: 4px;
+    border-radius: 50%;
+    border: 1px solid rgba(255, 255, 255, 0.15);
+  }
+
+  /* ========== 页面主体 ========== */
+  .hero {
+    position: relative;
+    z-index: 5;
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    text-align: center;
+    padding: 110px 24px 70px;
+  }
+
+  .title {
+    font-size: clamp(56px, 10vw, 132px);
+    font-weight: 800;
+    letter-spacing: 0.10em;
+    text-indent: 0.10em;
+    line-height: 1;
+    color: var(--fg);
+    text-shadow: 0 4px 60px rgba(0, 0, 0, 0.45);
+    user-select: none;
+    animation: fadeIn 1.4s ease both;
+  }
+
+  .page-sub {
+    margin-top: 22px;
+    font-size: 14px;
+    letter-spacing: 0.16em;
+    text-indent: 0.16em;
+    color: var(--muted);
+    opacity: 0;
+    animation: fadeIn 1.4s ease 0.4s forwards;
+  }
+
+  /* ========== 公告编辑面板 ========== */
+  .notice-box {
+    margin-top: 60px;
+    width: min(720px, 92vw);
+    background: rgba(8, 9, 8, 0.5);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    border-radius: 16px;
+    backdrop-filter: blur(10px);
+    padding: 24px;
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+    text-align: left;
+    opacity: 0;
+    animation: fadeIn 1.4s ease 0.6s forwards;
+  }
+  .notice-label {
+    font-size: 12px;
+    letter-spacing: 0.1em;
+    color: var(--muted);
+    border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+    padding-bottom: 14px;
+    line-height: 1.7;
+  }
+  #noticeTextArea {
+    width: 100%;
+    min-height: 260px;
+    background: rgba(255, 255, 255, 0.07);
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    border-radius: 10px;
+    color: var(--fg);
+    font-size: 15px;
+    font-family: inherit;
+    line-height: 1.8;
+    padding: 14px 16px;
+    outline: none;
+    resize: vertical;
+    transition: border-color 0.3s ease;
+  }
+  #noticeTextArea::placeholder { color: rgba(247, 244, 238, 0.35); }
+  #noticeTextArea:focus { border-color: rgba(200, 169, 110, 0.6); }
+  .notice-foot {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    flex-wrap: wrap;
+  }
+  .save-btn {
+    padding: 10px 34px;
+    border-radius: 999px;
+    border: 1px solid rgba(200, 169, 110, 0.55);
+    background: rgba(200, 169, 110, 0.18);
+    color: var(--fg);
+    font-size: 13px;
+    letter-spacing: 0.1em;
+    cursor: pointer;
+    transition: background 0.3s ease, transform 0.2s ease;
+  }
+  .save-btn:hover { background: rgba(200, 169, 110, 0.34); transform: translateY(-1px); }
+  .save-msg {
+    font-size: 13px;
+    letter-spacing: 0.06em;
+    color: var(--muted);
+    opacity: 0;
+    transition: opacity 0.3s ease;
+  }
+  .save-msg.ok { color: var(--gold); }
+  .save-msg.err { color: #e8a08c; }
+  .char-count {
+    margin-left: auto;
+    font-size: 12px;
+    letter-spacing: 0.08em;
+    color: var(--muted);
+  }
+
+  @keyframes fadeIn { to { opacity: 1; } }
+</style>
+</head>
+<body>
+
+  <!-- 油画背景 -->
+  <div class="art-bg"></div>
+
+  <div class="glow"></div>
+  <div class="grain"></div>
+
+  <!-- 顶部导航 -->
+  <header class="topbar">
+    <a class="logo" href="index.html">Cealin</a>
+    <div class="nav-right">
+      <ul class="menu">
+        <li><a href="index.html">首页</a></li>
+        <li><a href="project.html">项目</a></li>
+        <li><a href="platform.html">平台</a></li>
+        <li><a href="chat.html">聊天室</a></li>
+        <li><a href="cloud.html">云储存</a></li>
+        <li><a href="notice-admin.html" class="active">公告</a></li>
+      </ul>
+      <a class="avatar" href="settings.html" title="设置"></a>
+    </div>
+  </header>
+
+  <!-- 页面主体 -->
+  <main class="hero">
+    <h1 class="title">公告管理</h1>
+    <p class="page-sub">在线编辑 · 保存后即时生效</p>
+
+    <!-- 公告编辑面板 -->
+    <section class="notice-box">
+      <p class="notice-label">公告内容（2000 字以内，留空保存将恢复默认公告）</p>
+      <textarea id="noticeTextArea" placeholder="在此输入公告内容……"></textarea>
+      <div class="notice-foot">
+        <button class="save-btn" onclick="saveNotice()">保存公告</button>
+        <span class="save-msg" id="saveMsg"></span>
+        <span class="char-count" id="charCount"></span>
+      </div>
+    </section>
+  </main>
+
+  <script>
+    (function () {
+      var textarea = document.getElementById('noticeTextArea');
+      var msg = document.getElementById('saveMsg');
+      var charCount = document.getElementById('charCount');
+
+      function showMsg(text, type) {
+        msg.textContent = text;
+        msg.className = 'save-msg' + (type ? ' ' + type : '');
+        msg.style.opacity = '1';
+      }
+
+      function refreshCount() {
+        charCount.textContent = textarea.value.length + ' / 2000';
+        if (textarea.value.length > 2000) {
+          charCount.style.color = '#e8a08c';
+        } else {
+          charCount.style.color = '';
+        }
+      }
+
+      textarea.addEventListener('input', function () {
+        refreshCount();
+        msg.style.opacity = '0';
+      });
+
+      // 进入页面预填当前公告
+      fetch('/api/notice')
+        .then(function (res) { return res.json(); })
+        .then(function (data) {
+          if (data && data.ok && typeof data.notice === 'string') textarea.value = data.notice;
+          refreshCount();
+        })
+        .catch(function () {
+          showMsg('部署后可在线更新公告', 'err');
+          refreshCount();
+        });
+
+      window.saveNotice = function () {
+        var notice = textarea.value;
+        if (notice.length > 2000) {
+          showMsg('公告内容不能超过2000字', 'err');
+          return;
+        }
+        fetch('/api/notice', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ notice: notice })
+        })
+          .then(function (res) { return res.json(); })
+          .then(function (data) {
+            if (data && data.ok) {
+              showMsg('公告已保存', 'ok');
+            } else {
+              showMsg((data && data.error) || '保存失败', 'err');
+            }
+          })
+          .catch(function () {
+            showMsg('部署后可在线更新公告', 'err');
+          });
+      };
+    })();
+  </script>
+
+</body>
+</html>

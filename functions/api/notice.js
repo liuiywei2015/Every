@@ -23,5 +23,32 @@ export async function onRequest(context) {
     }
   }
 
+  if (request.method === 'POST') {
+    let body;
+    try {
+      body = await request.json();
+    } catch (err) {
+      return json({ ok: false, error: '公告内容不能超过2000字' }, 400);
+    }
+
+    let notice = '';
+    if (body && typeof body.notice === 'string') notice = body.notice.trim();
+    if (notice.length > 2000) {
+      return json({ ok: false, error: '公告内容不能超过2000字' }, 400);
+    }
+
+    try {
+      if (notice) {
+        await env.GUESTBOOK.put(KEY, notice);
+      } else {
+        // 空公告：删除 KV key，恢复默认公告
+        await env.GUESTBOOK.delete(KEY);
+      }
+      return json({ ok: true });
+    } catch (err) {
+      return json({ ok: false, error: '保存公告失败' }, 500);
+    }
+  }
+
   return json({ ok: false, error: '不支持的请求方法' }, 405);
 }
