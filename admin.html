@@ -352,7 +352,9 @@
       // 编辑公告：读取当前公告预填 → 字数计数 → 保存（POST /api/notice）
       var fallback = '欢迎来到 Cealin，请文明交流。';
       var pwd = '';
+      var adminFlag = false;
       try { pwd = sessionStorage.getItem('cealin_admin_pwd') || ''; } catch (e) {}
+      try { adminFlag = sessionStorage.getItem('cealin_admin') === '1'; } catch (e) {}
 
       var input = document.getElementById('noticeInput');
       var msgEl = document.getElementById('noticeMsg');
@@ -370,7 +372,7 @@
       }
 
       // 未登录 / 旧会话：提示重新登录并禁用编辑（不加载公告内容，避免未授权观看公告）
-      if (!pwd) {
+      if (!pwd || !adminFlag) {
         tipEl.style.display = 'block';
         input.disabled = true;
         saveBtn.disabled = true;
@@ -395,7 +397,7 @@
       });
 
       window.saveNotice = function () {
-        if (!pwd) {
+        if (!pwd || !adminFlag) {
           showMsg('请返回首页重新登录后使用', false);
           return;
         }

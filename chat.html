@@ -530,7 +530,7 @@
       var currentRole = 'guest';
       // 管理员会话标记由首页登录时写入 sessionStorage，进入聊天室时恢复身份
       try {
-        if (sessionStorage.getItem('cealin_admin') === '1') { currentRole = 'admin'; }
+        if (sessionStorage.getItem('cealin_admin') === '1' && sessionStorage.getItem('cealin_admin_pwd')) { currentRole = 'admin'; }
       } catch (e) {}
 
       function esc(s) {

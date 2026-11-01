@@ -416,6 +416,9 @@
 
       // ===== 登录分流：游客 / 管理员 =====
       window.loginAsGuest = function () {
+        // 游客登录前清除管理员会话标记，防止残留身份让游客进入公告编辑区
+        try { sessionStorage.removeItem('cealin_admin'); } catch (e) {}
+        try { sessionStorage.removeItem('cealin_admin_pwd'); } catch (e) {}
         window.location.href = 'guest.html';
       };
 

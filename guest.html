@@ -269,7 +269,7 @@
         <li><a href="platform.html">平台</a></li>
         <li><a href="chat.html">聊天室</a></li>
         <li><a href="cloud.html">云储存</a></li>
-        <li><a href="notice-admin.html">公告</a></li>
+        <li><a href="index.html">公告</a></li>
       </ul>
       <a class="avatar" href="settings.html" title="设置"></a>
     </div>
@@ -296,6 +296,9 @@
 
   <script>
     (function () {
+      // 游客身份兜底清除管理员会话标记，杜绝残留身份导致误入公告编辑态
+      try { sessionStorage.removeItem('cealin_admin'); } catch (e) {}
+      try { sessionStorage.removeItem('cealin_admin_pwd'); } catch (e) {}
       // 加载公告（游客只读展示）
       var fallback = '欢迎来到 Cealin，公告内容加载中，请稍后再试。';
       fetch('/api/notice')
