@@ -63,12 +63,18 @@ const readStatus = async (env, code) => {
 const writeStatus = (env, code, status) =>
   env.GUESTBOOK.put(PREFIX + code + ':status', JSON.stringify(status));
 
-// 删除房间全部 KV 数据（消息/名单/在线状态/状态标记）
+// 删除房间全部 KV 数据，一个不剩：
+// 先按前缀 room:{code}: 分页 list 删除全部派生键（names/presence/status 及未来新增派生键），再删除主键 room:{code}。
 async function deleteRoomData(env, code) {
+  let cursor;
+  do {
+    const listResult = await env.GUESTBOOK.list({ prefix: PREFIX + code + ':', cursor });
+    for (const item of listResult.keys || []) {
+      await env.GUESTBOOK.delete(item.name);
+    }
+    cursor = listResult.cursor;
+  } while (cursor);
   await env.GUESTBOOK.delete(PREFIX + code);
-  await env.GUESTBOOK.delete(PREFIX + code + ':names');
-  await env.GUESTBOOK.delete(PREFIX + code + ':presence');
-  await env.GUESTBOOK.delete(PREFIX + code + ':status');
 }
 
 // 封禁到期自动清除：读取房间时检查，若封禁超过 10 天则删除该房间全部 KV 数据
@@ -255,7 +261,7 @@ async function handleChange(env, body) {
     return json({ ok: false, error: '该代码已被其他房间使用，请换一个' });
   }
 
-  // 迁移消息、成员名单、在线状态与状态标记（封禁/举报），删除旧 key
+  // 迁移消息、成员名单、在线状态与状态标记（封禁/举报），删除旧 key（全部派生键 + 主键，一个不剩）
   await writeRoom(env, newCode, room);
   await writeRoomNames(env, newCode, names);
   const presence = await readPresence(env, code);
@@ -264,10 +270,7 @@ async function handleChange(env, body) {
   if (Object.keys(status).length) {
     await writeStatus(env, newCode, status);
   }
-  await env.GUESTBOOK.delete(PREFIX + code);
-  await env.GUESTBOOK.delete(PREFIX + code + ':names');
-  await env.GUESTBOOK.delete(PREFIX + code + ':presence');
-  await env.GUESTBOOK.delete(PREFIX + code + ':status');
+  await deleteRoomData(env, code);
   return json({ ok: true, code: newCode });
 }
 

@@ -356,6 +356,14 @@
   }
   .op-btn:disabled { opacity: 0.45; cursor: not-allowed; }
 
+  /* 删除时行淡出移除 */
+  .room-item.removing {
+    animation: none;
+    opacity: 0;
+    transform: translateY(-6px);
+    transition: opacity 0.25s ease, transform 0.25s ease;
+  }
+
   /* ========== 入口区 ========== */
   .entries {
     margin-top: 40px;
@@ -556,7 +564,7 @@
               var metaHtml = ''
                 + (r.banned ? '<span class="room-banned-tag">已封禁 · ' + fmtRoomTime(r.bannedAt) + '</span>' : '')
                 + '消息 ' + r.messageCount + ' 条 · 在线 ' + (r.onlineNames ? r.onlineNames.length : 0) + ' 人 · 最近活跃 ' + fmtRoomTime(r.lastActive);
-              html += '<div class="room-item">'
+              html += '<div class="room-item" data-code="' + r.code + '">'
                 + '<div class="room-item-head">'
                 + '<span class="room-code-wrap">' + (r.reported ? '<span class="room-warn" title="该房间被举报过">&#9888;</span>' : '') + '<span class="room-code">' + escHtml(r.code) + '</span></span>'
                 + '<span class="room-meta">' + metaHtml + '</span>'
@@ -572,6 +580,30 @@
             roomMsgEl.textContent = '网络异常，查询失败';
           });
       }
+      // 删除成功后即时从列表中移除该房间行（带淡出动画），并同步房间计数；行不在列表中时兜底全量刷新
+      function removeRoomRow(code) {
+        var items = roomList.querySelectorAll('.room-item');
+        var found = false;
+        for (var i = 0; i < items.length; i++) {
+          if (items[i].getAttribute('data-code') === code) {
+            found = true;
+            (function (row) {
+              row.classList.add('removing');
+              setTimeout(function () {
+                if (row.parentNode) row.parentNode.removeChild(row);
+                var left = roomList.querySelectorAll('.room-item').length;
+                if (!left) {
+                  roomList.innerHTML = '<div class="room-empty">暂无已注册房间</div>';
+                }
+                roomCount.textContent = '已注册房间 ' + left + ' 个';
+              }, 260);
+            })(items[i]);
+            break;
+          }
+        }
+        if (!found) loadRoomsList();
+      }
+
       // 封禁 / 删除聊天室（需管理员密码校验，POST /api/admin-rooms）
       function adminRoomOp(action, code, confirmText) {
         if (!pwd || !adminFlag) {
@@ -580,6 +612,7 @@
         }
         if (!window.confirm(confirmText)) return;
         roomMsgEl.textContent = '';
+        roomMsgEl.classList.remove('ok');
         fetch('/api/admin-rooms', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -591,8 +624,15 @@
           .then(function (res) {
             var data = res.data || {};
             if (data.ok) {
-              roomMsgEl.textContent = (action === 'ban' ? '已封禁 ' : '已删除 ') + code;
               roomMsgEl.classList.add('ok');
+              if (action === 'delete') {
+                // 删除：即时移除该行并保留成功提示（不再全量刷新，避免列表闪烁与提示被清空）
+                roomMsgEl.textContent = '已删除 ' + code + '，云端数据已全部清除';
+                removeRoomRow(code);
+              } else {
+                roomMsgEl.textContent = '已封禁 ' + code;
+                loadRoomsList();
+              }
             } else if (res.status === 401 || data.error === '密码错误') {
               roomMsgEl.textContent = '密码错误或登录已过期，请返回首页重新登录';
               roomMsgEl.classList.remove('ok');
@@ -600,12 +640,10 @@
               roomMsgEl.textContent = data.error || '操作失败，请稍后重试';
               roomMsgEl.classList.remove('ok');
             }
-            loadRoomsList();
           })
           .catch(function () {
             roomMsgEl.textContent = '网络异常，操作失败';
             roomMsgEl.classList.remove('ok');
-            loadRoomsList();
           });
       }
       window.banRoom = function (code) {

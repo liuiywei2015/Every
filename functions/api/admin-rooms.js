@@ -67,16 +67,22 @@ export async function onRequest(context) {
     }
   }
 
-  // 删除聊天室：立即清除该房间全部 KV 数据（消息/名单/在线状态/状态标记）
+  // 删除聊天室：立即清除该房间全部 KV 数据，一个不剩。
+  // 先按前缀 room:{code}: 分页 list 删除全部派生键（names/presence/status 及未来新增派生键），再删除主键 room:{code}。
   if (action === 'delete') {
     if (!/^[A-Z0-9]{4}$/.test(code)) {
       return json({ ok: false, error: '房间代码格式不正确' }, 400);
     }
     try {
+      let cursor;
+      do {
+        const listResult = await env.GUESTBOOK.list({ prefix: PREFIX + code + ':', cursor });
+        for (const item of listResult.keys || []) {
+          await env.GUESTBOOK.delete(item.name);
+        }
+        cursor = listResult.cursor;
+      } while (cursor);
       await env.GUESTBOOK.delete(PREFIX + code);
-      await env.GUESTBOOK.delete(PREFIX + code + ':names');
-      await env.GUESTBOOK.delete(PREFIX + code + ':presence');
-      await env.GUESTBOOK.delete(PREFIX + code + ':status');
       return json({ ok: true, code, deleted: true });
     } catch (err) {
       return json({ ok: false, error: '服务异常，请稍后重试' }, 500);
