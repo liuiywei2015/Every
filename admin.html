@@ -57,18 +57,26 @@
   }
 
   /* ========== 顶部导航栏 ========== */
+    /* ========== 顶部导航栏（苹果液态玻璃） ========== */
   .topbar {
     position: fixed;
-    top: 0;
-    left: 0;
-    right: 0;
+    top: 14px;
+    left: 20px;
+    right: 20px;
     z-index: 10;
     display: flex;
     justify-content: space-between;
     align-items: center;
-    padding: 16px 36px;
-    background: linear-gradient(180deg, rgba(8, 9, 8, 0.72), rgba(8, 9, 8, 0));
-    backdrop-filter: blur(2px);
+    padding: 12px 26px;
+    border-radius: 22px;
+    background: linear-gradient(135deg, rgba(255, 255, 255, 0.16), rgba(255, 255, 255, 0.06) 48%, rgba(200, 169, 110, 0.08));
+    -webkit-backdrop-filter: blur(20px) saturate(170%);
+    backdrop-filter: blur(20px) saturate(170%);
+    border: 1px solid rgba(255, 255, 255, 0.18);
+    box-shadow:
+      0 12px 36px rgba(0, 0, 0, 0.30),
+      inset 0 1px 0 rgba(255, 255, 255, 0.25),
+      inset 0 -1px 0 rgba(255, 255, 255, 0.05);
   }
 
   .logo {
@@ -82,14 +90,14 @@
   .nav-right {
     display: flex;
     align-items: center;
-    gap: 34px;
-  }
+    gap: 26px;
+    }
 
   .menu {
     display: flex;
-    gap: 30px;
+    gap: 22px;
     list-style: none;
-  }
+    }
   .menu a {
     font-size: 15px;
     font-weight: 500;
@@ -431,6 +439,7 @@
         <li><a href="platform.html">平台</a></li>
         <li><a href="chat.html">聊天室</a></li>
         <li><a href="cloud.html">云储存</a></li>
+        <li><a href="suggestion.html">建议</a></li>
         <li><a href="notice-admin.html">公告</a></li>
       </ul>
       <a class="avatar" href="settings.html" title="设置"></a>
@@ -464,6 +473,18 @@
       </div>
       <div id="roomList" class="room-list"></div>
       <p class="notice-msg" id="roomMsg"></p>
+    </section>
+
+    <!-- 建议管理区 -->
+    <section class="notice-card" id="sugAdminCard" style="display:none;">
+      <h2 class="notice-title">建议管理</h2>
+      <p class="notice-tip">查看访客提交的建议，可删除单条。</p>
+      <div class="notice-meta">
+        <span class="notice-count" id="sugCount">加载中…</span>
+        <button type="button" class="save-btn" id="refreshSugsBtn" onclick="loadSuggestions()">刷新列表</button>
+      </div>
+      <div id="sugList" class="room-list"></div>
+      <p class="notice-msg" id="sugMsg"></p>
     </section>
 
     <!-- 入口 -->
@@ -654,6 +675,120 @@
       };
       window.loadRooms = loadRoomsList;
 
+      // 建议管理：查看 / 删除建议（POST /api/suggestions，需管理员密码校验）
+      var sugCard = document.getElementById('sugAdminCard');
+      var sugList = document.getElementById('sugList');
+      var sugCount = document.getElementById('sugCount');
+      var sugMsgEl = document.getElementById('sugMsg');
+
+      function loadSuggestionsList() {
+        if (!pwd || !adminFlag) {
+          sugMsgEl.textContent = '请返回首页重新登录后使用';
+          return;
+        }
+        sugCount.textContent = '查询中…';
+        sugList.innerHTML = '';
+        sugMsgEl.textContent = '';
+        fetch('/api/suggestions', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ action: 'list', password: pwd })
+        })
+          .then(function (resp) {
+            return resp.json().then(function (data) { return { status: resp.status, data: data }; });
+          })
+          .then(function (res) {
+            var data = res.data || {};
+            if (!data.ok) {
+              sugMsgEl.textContent = (res.status === 401 || data.error === '密码错误')
+                ? '密码错误或登录已过期，请返回首页重新登录'
+                : (data.error || '查询失败，请稍后重试');
+              sugCount.textContent = '';
+              return;
+            }
+            var items = data.suggestions || [];
+            sugCount.textContent = '共 ' + items.length + ' 条建议';
+            if (!items.length) {
+              sugList.innerHTML = '<div class="room-empty">暂无建议</div>';
+              return;
+            }
+            var html = '';
+            items.forEach(function (it) {
+              var email = it.email ? escHtml(it.email) : '<span class="off">未留邮箱</span>';
+              var name = escHtml(it.name || '匿名');
+              html += '<div class="room-item" data-id="' + escHtml(it.id) + '">'
+                + '<div class="room-item-head">'
+                + '<span class="room-code" style="font-size:14px;letter-spacing:0.02em;color:var(--fg);">' + name + '</span>'
+                + '<span class="room-meta">' + fmtRoomTime(it.ts) + ' · ' + email + '</span>'
+                + '<span class="room-ops"><button type="button" class="op-btn del" onclick="deleteSuggestion(\'' + escHtml(it.id) + '\')">删除</button></span>'
+                + '</div>'
+                + '<div class="room-names" style="white-space:pre-wrap;">' + escHtml(it.content) + '</div>'
+                + '</div>';
+            });
+            sugList.innerHTML = html;
+          })
+          .catch(function () {
+            sugCount.textContent = '';
+            sugMsgEl.textContent = '网络异常，查询失败';
+          });
+      }
+
+      function removeSuggestionRow(id) {
+        var items = sugList.querySelectorAll('.room-item');
+        for (var i = 0; i < items.length; i++) {
+          if (items[i].getAttribute('data-id') === id) {
+            (function (row) {
+              row.classList.add('removing');
+              setTimeout(function () {
+                if (row.parentNode) row.parentNode.removeChild(row);
+                var left = sugList.querySelectorAll('.room-item').length;
+                if (!left) sugList.innerHTML = '<div class="room-empty">暂无建议</div>';
+                sugCount.textContent = '共 ' + left + ' 条建议';
+              }, 130);
+            })(items[i]);
+            return;
+          }
+        }
+        loadSuggestionsList();
+      }
+
+      window.deleteSuggestion = function (id) {
+        if (!pwd || !adminFlag) {
+          sugMsgEl.textContent = '请返回首页重新登录后使用';
+          return;
+        }
+        if (!window.confirm('确认删除这条建议？删除后不可恢复。')) return;
+        sugMsgEl.textContent = '';
+        sugMsgEl.classList.remove('ok');
+        fetch('/api/suggestions', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ action: 'delete', id: id, password: pwd })
+        })
+          .then(function (resp) {
+            return resp.json().then(function (data) { return { status: resp.status, data: data }; });
+          })
+          .then(function (res) {
+            var data = res.data || {};
+            if (data.ok) {
+              sugMsgEl.classList.add('ok');
+              sugMsgEl.textContent = '建议已删除';
+              removeSuggestionRow(id);
+            } else if (res.status === 401 || data.error === '密码错误') {
+              sugMsgEl.textContent = '密码错误或登录已过期，请返回首页重新登录';
+              sugMsgEl.classList.remove('ok');
+            } else {
+              sugMsgEl.textContent = data.error || '操作失败，请稍后重试';
+              sugMsgEl.classList.remove('ok');
+            }
+          })
+          .catch(function () {
+            sugMsgEl.textContent = '网络异常，操作失败';
+            sugMsgEl.classList.remove('ok');
+          });
+      };
+      window.loadSuggestions = loadSuggestionsList;
+
       // 未登录 / 旧会话：提示重新登录并禁用编辑（不加载公告内容，避免未授权观看公告）
       if (!pwd || !adminFlag) {
         tipEl.style.display = 'block';
@@ -664,6 +799,8 @@
         // 仅管理员会话有效时读取当前公告并预填（供编辑使用）
         roomCard.style.display = 'block';
         loadRoomsList();
+        sugCard.style.display = 'block';
+        loadSuggestionsList();
         fetch('/api/notice')
           .then(function (resp) { return resp.json(); })
           .then(function (data) {

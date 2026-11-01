@@ -57,18 +57,26 @@
   }
 
   /* ========== 顶部导航栏 ========== */
+    /* ========== 顶部导航栏（苹果液态玻璃） ========== */
   .topbar {
     position: fixed;
-    top: 0;
-    left: 0;
-    right: 0;
+    top: 14px;
+    left: 20px;
+    right: 20px;
     z-index: 10;
     display: flex;
     justify-content: space-between;
     align-items: center;
-    padding: 16px 36px;
-    background: linear-gradient(180deg, rgba(8, 9, 8, 0.72), rgba(8, 9, 8, 0));
-    backdrop-filter: blur(2px);
+    padding: 12px 26px;
+    border-radius: 22px;
+    background: linear-gradient(135deg, rgba(255, 255, 255, 0.16), rgba(255, 255, 255, 0.06) 48%, rgba(200, 169, 110, 0.08));
+    -webkit-backdrop-filter: blur(20px) saturate(170%);
+    backdrop-filter: blur(20px) saturate(170%);
+    border: 1px solid rgba(255, 255, 255, 0.18);
+    box-shadow:
+      0 12px 36px rgba(0, 0, 0, 0.30),
+      inset 0 1px 0 rgba(255, 255, 255, 0.25),
+      inset 0 -1px 0 rgba(255, 255, 255, 0.05);
   }
 
   .logo {
@@ -82,14 +90,14 @@
   .nav-right {
     display: flex;
     align-items: center;
-    gap: 34px;
-  }
+    gap: 26px;
+    }
 
   .menu {
     display: flex;
-    gap: 30px;
+    gap: 22px;
     list-style: none;
-  }
+    }
   .menu a {
     font-size: 15px;
     font-weight: 500;
@@ -273,6 +281,7 @@
         <li><a href="platform.html">平台</a></li>
         <li><a href="chat.html">聊天室</a></li>
         <li><a href="cloud.html">云储存</a></li>
+        <li><a href="suggestion.html">建议</a></li>
       </ul>
       <a class="avatar" href="settings.html" title="设置"></a>
     </div>
