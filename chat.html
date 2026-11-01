@@ -254,6 +254,21 @@
     color: var(--fg);
   }
 
+  /* ========== 封禁横幅 ========== */
+  .banned-banner {
+    width: 100%;
+    padding: 14px 18px;
+    border-radius: 10px;
+    border: 1px solid rgba(224, 82, 82, 0.55);
+    background: rgba(224, 82, 82, 0.14);
+    color: #ff6b5e;
+    font-size: 22px;
+    font-weight: 800;
+    letter-spacing: 0.18em;
+    text-indent: 0.18em;
+    text-align: center;
+  }
+
   .edit-entry {
     display: none;
     margin-top: 16px;
@@ -493,11 +508,13 @@
 
     <!-- 聊天阶段 -->
     <section id="chatBox" class="chat-panel" style="display:none;">
+      <div id="bannedBanner" class="banned-banner" style="display:none;">聊天室已被封禁</div>
       <div class="chat-head">
         <div class="chat-head-left">
           <span class="chat-room-code" id="roomCodeText"></span>
           <span class="chat-my-name" id="myNameText"></span>
         </div>
+        <button class="room-btn plain" id="reportBtn" onclick="reportRoom()">举报房间</button>
         <button class="room-btn plain" onclick="toggleChangeBox()">更改代码</button>
         <button class="room-btn plain" onclick="leaveRoom()">退出房间</button>
       </div>
@@ -595,12 +612,19 @@
         if (adminEntry) adminEntry.style.display = 'block';
       }
 
-      function enterChat(code, name) {
+      function enterChat(code, name, state) {
         currentCode = code;
         currentName = name;
+        state = state || {};
         try { localStorage.setItem(NAME_KEY, name); } catch (e) {}
         el('roomCodeText').textContent = code;
         el('myNameText').textContent = '昵称：' + name;
+        // 封禁状态：用户仍可进入，但聊天室内显示红色大字
+        el('bannedBanner').style.display = state.banned ? 'block' : 'none';
+        // 举报按钮：进入房间后恢复为可用状态
+        var reportBtn = el('reportBtn');
+        reportBtn.disabled = false;
+        reportBtn.textContent = '举报房间';
         el('enterBox').style.display = 'none';
         el('chatBox').style.display = 'flex';
         // 管理员显示"编辑公告"入口，游客不显示
@@ -620,7 +644,7 @@
         try {
           var data = await post('/create', { name: name });
           if (data && data.ok && data.code) {
-            enterChat(String(data.code).toUpperCase(), name);
+            enterChat(String(data.code).toUpperCase(), name, { banned: false, reported: false });
           } else {
             setErr(data && data.error ? data.error : '创建房间失败');
           }
@@ -643,7 +667,7 @@
         try {
           var data = await post('/join', { code: code, name: name });
           if (data && data.ok) {
-            enterChat(code, name);
+            enterChat(code, name, { banned: !!data.banned, reported: !!data.reported });
           } else {
             setErr(data && data.error ? data.error : '加入房间失败');
           }
@@ -682,6 +706,28 @@
         tip.textContent = msg;
         tip.classList.toggle('ok', !!ok);
       }
+
+      // 举报当前聊天室：POST /api/rooms/report，举报后后台记录为被举报状态
+      window.reportRoom = function () {
+        if (!currentCode) return;
+        var btn = el('reportBtn');
+        if (btn.disabled) return;
+        btn.disabled = true;
+        post('/report', { code: currentCode })
+          .then(function (data) {
+            if (data && data.ok) {
+              btn.textContent = '已举报';
+              showTip('已举报该聊天室，感谢反馈', true);
+            } else {
+              btn.disabled = false;
+              showTip((data && data.error) || '举报失败，请稍后重试', false);
+            }
+          })
+          .catch(function (err) {
+            btn.disabled = false;
+            showTip(err && err.status ? err.message : '举报失败，请稍后重试', false);
+          });
+      };
 
       window.toggleChangeBox = function () {
         var box = el('changeBox');
@@ -736,6 +782,11 @@
         el('offlineTip').classList.remove('ok');
         el('changeBox').style.display = 'none';
         el('newCodeInput').value = '';
+        // 退出后隐藏封禁横幅并恢复举报按钮
+        el('bannedBanner').style.display = 'none';
+        var reportBtn = el('reportBtn');
+        reportBtn.disabled = false;
+        reportBtn.textContent = '举报房间';
         // 退出后隐藏管理员编辑入口
         var editEntry = el('adminEditEntry');
         if (editEntry) editEntry.style.display = 'none';

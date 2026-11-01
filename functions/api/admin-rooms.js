@@ -9,6 +9,7 @@
 const DEFAULT_ADMIN_PWD = 'liuyiwei150314';
 const PREFIX = 'room:';
 const ONLINE_TTL = 30000;
+const BAN_TTL = 10 * 24 * 60 * 60 * 1000; // 封禁 10 天后自动清除
 
 export async function onRequest(context) {
   const { env, request } = context;
@@ -30,6 +31,8 @@ export async function onRequest(context) {
     return json({ ok: false, error: '请求体不是合法的 JSON' }, 400);
   }
 
+  const action = body && typeof body.action === 'string' ? body.action : 'list';
+  const code = body && typeof body.code === 'string' ? String(body.code).trim().toUpperCase() : '';
   const password = body && typeof body.password === 'string' ? body.password : '';
 
   let adminPwd = DEFAULT_ADMIN_PWD;
@@ -41,6 +44,43 @@ export async function onRequest(context) {
 
   if (password !== adminPwd) {
     return json({ ok: false, error: '密码错误' }, 401);
+  }
+
+  // 封禁聊天室：标记封禁状态与封禁时间（用户仍可进入，前端显示封禁红字）
+  if (action === 'ban') {
+    if (!/^[A-Z0-9]{4}$/.test(code)) {
+      return json({ ok: false, error: '房间代码格式不正确' }, 400);
+    }
+    try {
+      const room = await env.GUESTBOOK.get(PREFIX + code);
+      if (room === null) {
+        return json({ ok: false, error: '房间不存在' });
+      }
+      const statusRaw = await env.GUESTBOOK.get(PREFIX + code + ':status', 'json');
+      const status = statusRaw && typeof statusRaw === 'object' ? statusRaw : {};
+      status.banned = true;
+      status.bannedAt = Date.now();
+      await env.GUESTBOOK.put(PREFIX + code + ':status', JSON.stringify(status));
+      return json({ ok: true, code, banned: true, bannedAt: status.bannedAt });
+    } catch (err) {
+      return json({ ok: false, error: '服务异常，请稍后重试' }, 500);
+    }
+  }
+
+  // 删除聊天室：立即清除该房间全部 KV 数据（消息/名单/在线状态/状态标记）
+  if (action === 'delete') {
+    if (!/^[A-Z0-9]{4}$/.test(code)) {
+      return json({ ok: false, error: '房间代码格式不正确' }, 400);
+    }
+    try {
+      await env.GUESTBOOK.delete(PREFIX + code);
+      await env.GUESTBOOK.delete(PREFIX + code + ':names');
+      await env.GUESTBOOK.delete(PREFIX + code + ':presence');
+      await env.GUESTBOOK.delete(PREFIX + code + ':status');
+      return json({ ok: true, code, deleted: true });
+    } catch (err) {
+      return json({ ok: false, error: '服务异常，请稍后重试' }, 500);
+    }
   }
 
   try {
@@ -56,6 +96,17 @@ export async function onRequest(context) {
         const code = name.slice(PREFIX.length);
         // 仅处理主键 room:{code}（4 位大写字母或数字），跳过 :names / :presence 派生键
         if (!/^[A-Z0-9]{4}$/.test(code)) continue;
+
+        // 封禁到期自动清除：封禁超过 10 天删除该房间全部 KV 数据
+        const statusRaw = await env.GUESTBOOK.get(name + ':status', 'json');
+        const status = statusRaw && typeof statusRaw === 'object' ? statusRaw : {};
+        if (status.banned && typeof status.bannedAt === 'number' && now - status.bannedAt >= BAN_TTL) {
+          await env.GUESTBOOK.delete(name);
+          await env.GUESTBOOK.delete(name + ':names');
+          await env.GUESTBOOK.delete(name + ':presence');
+          await env.GUESTBOOK.delete(name + ':status');
+          continue;
+        }
 
         const raw = await env.GUESTBOOK.get(name, 'json');
         const messages = Array.isArray(raw) ? raw : [];
@@ -79,7 +130,11 @@ export async function onRequest(context) {
           messageCount: messages.length,
           names,
           onlineNames,
-          lastActive: lastActive || null
+          lastActive: lastActive || null,
+          banned: !!status.banned,
+          bannedAt: status.bannedAt || null,
+          reported: !!status.reported,
+          reportedAt: status.reportedAt || null
         });
       }
       cursor = listResult.cursor;

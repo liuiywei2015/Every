@@ -50,6 +50,37 @@ const writePresence = (env, code, presence) =>
 // 30 秒内活跃视为在线
 const ONLINE_TTL = 30000;
 
+// 封禁时长：10 天，到期后读取时自动清除该房间全部 KV 数据
+const BAN_TTL = 10 * 24 * 60 * 60 * 1000;
+
+// 房间状态：key 为 `room:{code}:status`，值为 JSON 对象
+//   { banned: Boolean, bannedAt: Number(ms) | null, reported: Boolean, reportedAt: Number(ms) | null }
+const readStatus = async (env, code) => {
+  const raw = await env.GUESTBOOK.get(PREFIX + code + ':status', 'json');
+  return raw && typeof raw === 'object' ? raw : {};
+};
+
+const writeStatus = (env, code, status) =>
+  env.GUESTBOOK.put(PREFIX + code + ':status', JSON.stringify(status));
+
+// 删除房间全部 KV 数据（消息/名单/在线状态/状态标记）
+async function deleteRoomData(env, code) {
+  await env.GUESTBOOK.delete(PREFIX + code);
+  await env.GUESTBOOK.delete(PREFIX + code + ':names');
+  await env.GUESTBOOK.delete(PREFIX + code + ':presence');
+  await env.GUESTBOOK.delete(PREFIX + code + ':status');
+}
+
+// 封禁到期自动清除：读取房间时检查，若封禁超过 10 天则删除该房间全部 KV 数据
+async function cleanupExpiredBan(env, code) {
+  const status = await readStatus(env, code);
+  if (status.banned && typeof status.bannedAt === 'number' && Date.now() - status.bannedAt >= BAN_TTL) {
+    await deleteRoomData(env, code);
+    return true;
+  }
+  return false;
+}
+
 const normalizeCode = (code) =>
   String(code || '').trim().toUpperCase();
 
@@ -93,6 +124,11 @@ async function handleJoin(env, body) {
   if (room === null) {
     return json({ ok: false, error: '房间不存在' });
   }
+  // 封禁到期自动清除
+  if (await cleanupExpiredBan(env, code)) {
+    return json({ ok: false, error: '房间不存在' });
+  }
+  const status = await readStatus(env, code);
 
   const name = String(body.name || '').trim().slice(0, 20) || '访客';
   const names = await readRoomNames(env, code);
@@ -110,7 +146,7 @@ async function handleJoin(env, body) {
     names.push(name);
     await writeRoomNames(env, code, names);
   }
-  return json({ ok: true, code, name });
+  return json({ ok: true, code, name, banned: !!status.banned, bannedAt: status.bannedAt || null, reported: !!status.reported });
 }
 
 async function handleMessagesGet(env, url) {
@@ -120,6 +156,10 @@ async function handleMessagesGet(env, url) {
   }
   const room = await readRoom(env, code);
   if (room === null) {
+    return json({ ok: false, error: '房间不存在' });
+  }
+  // 封禁到期自动清除
+  if (await cleanupExpiredBan(env, code)) {
     return json({ ok: false, error: '房间不存在' });
   }
   // 心跳：轮询拉消息时更新该成员在线状态（前端每 3 秒轮询自动续期）
@@ -139,6 +179,10 @@ async function handleMessagesPost(env, body) {
   }
   const room = await readRoom(env, code);
   if (room === null) {
+    return json({ ok: false, error: '房间不存在' });
+  }
+  // 封禁到期自动清除
+  if (await cleanupExpiredBan(env, code)) {
     return json({ ok: false, error: '房间不存在' });
   }
 
@@ -179,6 +223,10 @@ async function handleChange(env, body) {
   if (room === null) {
     return json({ ok: false, error: '房间不存在' });
   }
+  // 封禁到期自动清除
+  if (await cleanupExpiredBan(env, code)) {
+    return json({ ok: false, error: '房间不存在' });
+  }
 
   const name = String(body.name || '').trim().slice(0, 20) || '访客';
   const names = await readRoomNames(env, code);
@@ -201,14 +249,19 @@ async function handleChange(env, body) {
     return json({ ok: false, error: '该代码已被其他房间使用，请换一个' });
   }
 
-  // 迁移消息、成员名单与在线状态，删除旧 key
+  // 迁移消息、成员名单、在线状态与状态标记（封禁/举报），删除旧 key
   await writeRoom(env, newCode, room);
   await writeRoomNames(env, newCode, names);
   const presence = await readPresence(env, code);
   await writePresence(env, newCode, presence);
+  const status = await readStatus(env, code);
+  if (Object.keys(status).length) {
+    await writeStatus(env, newCode, status);
+  }
   await env.GUESTBOOK.delete(PREFIX + code);
   await env.GUESTBOOK.delete(PREFIX + code + ':names');
   await env.GUESTBOOK.delete(PREFIX + code + ':presence');
+  await env.GUESTBOOK.delete(PREFIX + code + ':status');
   return json({ ok: true, code: newCode });
 }
 
@@ -233,6 +286,27 @@ async function handleLeave(env, body) {
     await writeRoomNames(env, code, names);
   }
   return json({ ok: true });
+}
+
+// 举报房间：记录该房间为被举报状态（任一用户可举报，后台据此在管理员列表标记）
+async function handleReport(env, body) {
+  const code = normalizeCode(body.code);
+  if (!isValidCode(code)) {
+    return json({ ok: false, error: '房间代码格式不正确' }, 400);
+  }
+  const room = await readRoom(env, code);
+  if (room === null) {
+    return json({ ok: false, error: '房间不存在' });
+  }
+  // 封禁到期自动清除
+  if (await cleanupExpiredBan(env, code)) {
+    return json({ ok: false, error: '房间不存在' });
+  }
+  const status = await readStatus(env, code);
+  status.reported = true;
+  status.reportedAt = Date.now();
+  await writeStatus(env, code, status);
+  return json({ ok: true, code });
 }
 
 export async function onRequest(context) {
@@ -264,6 +338,10 @@ export async function onRequest(context) {
 
     if (action === 'change' && request.method === 'POST') {
       return await handleChange(env, body);
+    }
+
+    if (action === 'report' && request.method === 'POST') {
+      return await handleReport(env, body);
     }
 
     if (action === 'messages') {
