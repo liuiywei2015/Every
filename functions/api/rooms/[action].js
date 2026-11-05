@@ -1,15 +1,17 @@
 // Cloudflare Pages Function: /api/rooms/[action]
 // 动态路由：一个文件同时处理 create / join / leave / change / messages 等动作。
 //   POST /api/rooms/create  -> 创建房间（自动生成唯一四字代码）
-//   POST /api/rooms/join    -> 加入房间（校验代码是否存在，昵称仅在线占用）
+//   POST /api/rooms/join    -> 加入房间（校验代码是否存在，昵称仅在线占用；已登录账号回传校验后的 accId）
 //   POST /api/rooms/leave   -> 退出房间（清除在线状态与成员名单登记）
 //   POST /api/rooms/change  -> 更改房间代码（迁移消息/名单/在线状态/状态/元信息）
 //   POST /api/rooms/rename  -> 聊天室起名（保存显示名称到 room:{code}:meta 的 name 字段）
 //   GET  /api/rooms/messages -> 拉取房间消息（携带 name 时同时作为心跳）
-//   POST /api/rooms/messages -> 发送消息
-// 房间消息通过 KV（绑定名 GUESTBOOK）按房间存储：key 为 `room:{code}`，值为 JSON 数组 [{ name, text, time }]；
+//   POST /api/rooms/messages -> 发送消息（已登录账号的消息附带 accId）
+// 房间消息通过 KV（绑定名 GUESTBOOK）按房间存储：key 为 `room:{code}`，值为 JSON 数组 [{ name, text, time, accId? }]；
 // 成员名单 key 为 `room:{code}:names`；在线状态 key 为 `room:{code}:presence`（{ name: lastActiveTs }）；
 // 元信息 key 为 `room:{code}:meta`（{ verified, verifiedAt, name }，官方授权与聊天室起名共用）。
+// accId 为账号系统（/api/accounts）分配的 6 位编号，仅在「账号存在且账号名称 == 昵称」时写入，
+// 使登录用户的聊天记录与账号关联；无账号 / 临时改名 / 历史消息均不带该字段。
 
 const PREFIX = 'room:';
 const MAX_MESSAGES = 200;
@@ -51,6 +53,28 @@ const writePresence = (env, code, presence) =>
 
 // 30 秒内活跃视为在线
 const ONLINE_TTL = 30000;
+
+// 账号编号：6 位大写字母 / 数字（与 /api/accounts 的编号规则一致）
+const ACC_ID_RE = /^[A-Z0-9]{6}$/;
+
+const sanitizeAccId = (value) => {
+  const id = String(value || '').trim().toUpperCase();
+  return ACC_ID_RE.test(id) ? id : '';
+};
+
+// 校验 accId 与昵称的绑定关系：账号存在且账号名称与昵称一致才返回编号，
+// 避免客户端伪造他人编号把消息记到别人账号名下；未登录 / 校验失败返回空串（消息照常发送）
+async function resolveAccId(env, rawAccId, name) {
+  const id = sanitizeAccId(rawAccId);
+  if (!id || !name) return '';
+  try {
+    const acc = await env.GUESTBOOK.get('account:' + id, 'json');
+    if (acc && typeof acc.name === 'string' && acc.name === name) return id;
+  } catch (err) {
+    // 账号读取异常不影响聊天主流程，降级为无账号消息
+  }
+  return '';
+}
 
 // 封禁时长：10 天，到期后读取时自动清除该房间全部 KV 数据
 const BAN_TTL = 10 * 24 * 60 * 60 * 1000;
@@ -168,10 +192,13 @@ async function handleJoin(env, body) {
   }
   // 返回 meta：前端据此判断官方授权状态与房间显示名称
   const meta = await readMeta(env, code);
+  // 账号登录态：编号与昵称校验通过才回传，前端据此渲染"本人消息"
+  const accId = await resolveAccId(env, body.accId, name);
   return json({
     ok: true,
     code,
     name,
+    accId,
     banned: !!status.banned,
     bannedAt: status.bannedAt || null,
     reported: !!status.reported,
@@ -243,7 +270,11 @@ async function handleMessagesPost(env, body) {
 
   // 服务端补充时间，避免依赖客户端时钟
   const time = new Date().toISOString();
-  room.push({ name, text, time });
+  // 已登录账号：消息附带账号编号，便于刷新 / 重进房间后识别本人消息
+  const accId = await resolveAccId(env, body.accId, name);
+  const message = { name, text, time };
+  if (accId) message.accId = accId;
+  room.push(message);
 
   // 房间消息最多保留 200 条，超出截掉最旧的
   if (room.length > MAX_MESSAGES) {
@@ -260,7 +291,7 @@ async function handleMessagesPost(env, body) {
   const meta = await readMeta(env, code);
   return json({
     ok: true,
-    message: { name, text, time },
+    message,
     verified: !!meta.verified,
     roomName: typeof meta.name === 'string' ? meta.name : null
   });

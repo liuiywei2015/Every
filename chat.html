@@ -243,6 +243,25 @@
   .room-input::placeholder { letter-spacing: 0.12em; color: rgba(247, 244, 238, 0.62); }
   .room-input:focus { border-color: rgba(200, 169, 110, 0.6); }
 
+  /* 已登录账号：昵称自动填充并锁定，只读态保留可见性但不可误改 */
+  .room-input.locked {
+    color: rgba(247, 244, 238, 0.92);
+    background: rgba(255, 255, 255, 0.045);
+    border-color: rgba(200, 169, 110, 0.34);
+    cursor: default;
+  }
+  .room-input.locked:focus { border-color: rgba(200, 169, 110, 0.34); }
+
+  .acc-hint {
+    align-self: stretch;
+    text-align: left;
+    margin-top: -4px;
+    font-size: 12px;
+    line-height: 1.7;
+    letter-spacing: 0.05em;
+    color: rgba(200, 169, 110, 0.95);
+  }
+
   .room-actions {
     display: flex;
     gap: 12px;
@@ -458,6 +477,26 @@
     white-space: pre-wrap;
   }
 
+  /* 本人账号发送的消息：左侧金色描边 + 轻微暖金高光，与普通消息区分 */
+  .msg-item.mine {
+    background: linear-gradient(135deg, rgba(200, 169, 110, 0.16), rgba(255, 255, 255, 0.05));
+    border-color: rgba(200, 169, 110, 0.45);
+    box-shadow: inset 2px 0 0 rgba(200, 169, 110, 0.85), 0 6px 18px rgba(0, 0, 0, 0.18);
+  }
+  .msg-mine {
+    margin-left: 6px;
+    padding: 1px 6px;
+    border-radius: 6px;
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: 0.06em;
+    color: #e8c07a;
+    background: rgba(200, 169, 110, 0.18);
+    border: 1px solid rgba(200, 169, 110, 0.5);
+    vertical-align: 1px;
+    white-space: nowrap;
+  }
+
   .msg-empty {
     padding: 26px 0;
     text-align: center;
@@ -629,6 +668,7 @@
       <p class="room-tip" data-i18n="chat.roomTip">每个聊天室有唯一四字代码，分享代码即可邀请朋友加入</p>
       <label class="field-label" for="nickInput" data-i18n="chat.nick">昵称</label>
       <input id="nickInput" class="room-input" type="text" maxlength="20" autocomplete="off" placeholder="给自己起个名字" data-i18n-ph="chat.nickPh">
+      <p class="acc-hint" id="accHint" style="display:none;"></p>
       <label class="field-label" for="codeInput" data-i18n="chat.code">房间代码</label>
       <input id="codeInput" class="room-input" type="text" maxlength="4" autocomplete="off" placeholder="四字代码" data-i18n-ph="chat.codePh">
       <div class="room-actions">
@@ -698,6 +738,8 @@
   <script>
     (function () {
       var NAME_KEY = 'cealin_chat_name';
+      var SID_KEY = 'cealin_account_id';
+      var SNAME_KEY = 'cealin_account_name';
       var API = '/api/rooms';
       var pollTimer = null;
       var currentCode = '';
@@ -707,6 +749,24 @@
       var currentRoomName = '';
       var lastCount = 0;
       var currentRole = 'guest';
+      // 账号会话：account.html 登录成功后写入 sessionStorage；无账号的访客保持原手动输入流程
+      var accountId = '';
+      var accountName = '';
+      try {
+        var sid = String(sessionStorage.getItem(SID_KEY) || '').trim().toUpperCase();
+        var sname = String(sessionStorage.getItem(SNAME_KEY) || '').trim();
+        if (/^[A-Z0-9]{6}$/.test(sid) && sname) {
+          accountId = sid;
+          accountName = sname.slice(0, 20);
+        }
+      } catch (e) { accountId = ''; accountName = ''; }
+      var isAccount = !!accountId;
+      // 昵称是否锁定为账号名称（重名冲突时解锁，允许临时改用其他昵称）
+      var accountNickLocked = isAccount;
+      // 当前会话消息归属：账号编号（优先）或昵称（无账号 / 历史消息兜底）
+      var currentAccId = isAccount ? accountId : '';
+      // 账号昵称临时改用时本次会话使用的昵称（仅用于本次会话内兜底识别本人消息）
+      var currentNickAlias = '';
       // 管理员会话标记由首页登录时写入 sessionStorage，进入聊天室时恢复身份
       try {
         if (sessionStorage.getItem('cealin_admin') === '1' && sessionStorage.getItem('cealin_admin_pwd')) { currentRole = 'admin'; }
@@ -732,11 +792,56 @@
       }
       loadNotice();
 
-      // 恢复上次昵称
-      try {
-        var savedName = localStorage.getItem(NAME_KEY) || '';
-        if (savedName) el('nickInput').value = savedName;
-      } catch (e) {}
+      // 昵称初始化：已登录账号直接填入账号名称并锁定（无需重复输入）；未登录恢复上次昵称
+      function applyNickInit() {
+        var input = el('nickInput');
+        var hint = el('accHint');
+        if (isAccount && accountNickLocked) {
+          input.value = accountName;
+          input.readOnly = true;
+          input.classList.add('locked');
+          input.setAttribute('title', accountName);
+          if (hint) {
+            hint.textContent = cealinT('chat.accHint', { id: accountId });
+            hint.style.display = 'block';
+          }
+          return;
+        }
+        input.readOnly = false;
+        input.classList.remove('locked');
+        input.removeAttribute('title');
+        if (!isAccount && hint) { hint.textContent = ''; hint.style.display = 'none'; }
+        try {
+          var savedName = localStorage.getItem(NAME_KEY) || '';
+          if (savedName) input.value = savedName;
+        } catch (e) {}
+      }
+      applyNickInit();
+
+      // 进房昵称取值：账号昵称锁定期间固定用账号名称，否则用手动输入
+      function nickValue() {
+        if (isAccount && accountNickLocked) return accountName;
+        return el('nickInput').value.trim().slice(0, 20);
+      }
+
+      // 账号昵称与房内在线昵称冲突时解锁昵称输入框：允许临时换名进入，
+      // 此时消息不带账号编号（服务端要求编号与昵称一致才关联账号）
+      function unlockNick() {
+        if (!isAccount || !accountNickLocked) return;
+        accountNickLocked = false;
+        var input = el('nickInput');
+        input.readOnly = false;
+        input.classList.remove('locked');
+        input.removeAttribute('title');
+        input.value = accountName;
+        var hint = el('accHint');
+        if (hint) {
+          hint.textContent = cealinT('chat.accHintTaken', { name: accountName });
+          hint.style.display = 'block';
+        }
+        input.focus();
+        try { input.setSelectionRange(0, input.value.length); } catch (e) {}
+      }
 
       function setErr(msg) {
         var err = el('enterErr');
@@ -773,10 +878,20 @@
         if (adminEntry) adminEntry.style.display = 'block';
       }
 
+      // 聊天头部昵称文案：已登录账号附带编号，便于确认"当前使用的昵称"
+      function myNameLabel(name) {
+        if (currentAccId) return cealinT('chat.myNameAcc', { name: name, id: currentAccId });
+        return cealinT('chat.myName', { name: name });
+      }
+
       function enterChat(code, name, state) {
         currentCode = code;
         currentName = name;
         state = state || {};
+        // 消息归属标识：服务端校验通过的账号编号优先，其次本地登录态，无账号为空
+        currentAccId = state.accId ? String(state.accId).toUpperCase() : (isAccount && accountNickLocked ? accountId : '');
+        // 账号昵称被临时改用时，记录本次会话昵称：这些消息不携带编号，只能在本次会话内按昵称兜底识别
+        currentNickAlias = (isAccount && !currentAccId) ? name : '';
         try { localStorage.setItem(NAME_KEY, name); } catch (e) {}
         // 官方授权与房间显示名称：授权房间标题区显示金色 V 标，起名后标题区显示名称（未起名显示代码）
         currentVerified = !!state.verified;
@@ -789,7 +904,7 @@
         subEl.style.display = currentRoomName ? 'block' : 'none';
         el('verifyBadge').style.display = currentVerified ? 'inline-flex' : 'none';
         el('verifiedBanner').style.display = currentVerified ? 'block' : 'none';
-        el('myNameText').textContent = cealinT('chat.myName', { name: name });
+        el('myNameText').textContent = myNameLabel(name);
         // 封禁状态：用户仍可进入、可查看历史，但聊天室内显示红色大字并禁止发送新消息
         currentBanned = !!state.banned;
         el('bannedBanner').style.display = currentBanned ? 'block' : 'none';
@@ -818,10 +933,10 @@
 
       window.createRoom = async function () {
         setErr('');
-        var name = el('nickInput').value.trim().slice(0, 20);
+        var name = nickValue();
         if (!name) { setErr(cealinT('chat.needNick')); return; }
         try {
-          var data = await post('/create', { name: name });
+          var data = await post('/create', { name: name, accId: isAccount && accountNickLocked ? accountId : '' });
           if (data && data.ok && data.code) {
             enterChat(String(data.code).toUpperCase(), name, { banned: false, reported: false });
           } else {
@@ -839,20 +954,24 @@
 
       window.joinRoom = async function () {
         setErr('');
-        var name = el('nickInput').value.trim().slice(0, 20);
+        var name = nickValue();
         var code = el('codeInput').value.trim().toUpperCase();
         if (!name) { setErr(cealinT('chat.needNick')); return; }
         if (!/^[A-Za-z0-9]{4}$/.test(code)) { setErr(cealinT('chat.codeRule')); return; }
         try {
-          var data = await post('/join', { code: code, name: name });
+          var data = await post('/join', { code: code, name: name, accId: isAccount && accountNickLocked ? accountId : '' });
           if (data && data.ok) {
-            enterChat(code, name, { banned: !!data.banned, reported: !!data.reported, verified: !!data.verified, roomName: data.roomName || '' });
+            enterChat(code, name, { banned: !!data.banned, reported: !!data.reported, verified: !!data.verified, roomName: data.roomName || '', accId: data.accId || '' });
           } else {
-            setErr(data && data.error ? data.error : cealinT('chat.joinFailed'));
+            var msg = data && data.error ? data.error : cealinT('chat.joinFailed');
+            setErr(msg);
+            // 账号昵称与房内在线昵称冲突：按现有重名提示，同时解锁昵称输入，允许临时换名进入
+            if (isAccount && accountNickLocked && /重名|already|nickname/i.test(msg)) unlockNick();
           }
         } catch (err) {
           if (err && err.status) {
             setErr(err.message);
+            if (isAccount && accountNickLocked && /重名|already|nickname/i.test(err.message || '')) unlockNick();
           } else {
             setErr(cealinT('chat.joinFailed'));
             showOfflineTip();
@@ -866,7 +985,10 @@
         var text = el('msgInput').value.trim().slice(0, 500);
         if (!text || !currentCode) return;
         el('msgInput').value = '';
-        post('/messages', { code: currentCode, name: currentName, text: text })
+        var payload = { code: currentCode, name: currentName, text: text };
+        // 已登录账号：消息附带账号编号，供本人消息识别与账号关联
+        if (currentAccId) payload.accId = currentAccId;
+        post('/messages', payload)
           .then(function (data) {
             if (data && !data.ok) {
               el('msgInput').value = text;
@@ -1088,8 +1210,11 @@
               return;
             }
             wrap.innerHTML = list.map(function (m) {
-              return '<div class="msg-item">' +
-                '<div class="msg-meta"><span class="msg-name">' + esc(m.name) + '</span>' +
+              var mine = isMineMsg(m);
+              return '<div class="msg-item' + (mine ? ' mine' : '') + '">' +
+                '<div class="msg-meta"><span class="msg-name">' + esc(m.name) +
+                (mine ? '<span class="msg-mine">' + esc(cealinT('chat.mine')) + '</span>' : '') +
+                '</span>' +
                 '<span class="msg-time">' + esc(fmtTime(m.time)) + '</span></div>' +
                 '<div class="msg-text">' + esc(m.text) + '</div></div>';
             }).join('');
@@ -1101,6 +1226,20 @@
           .catch(function () { /* 轮询失败静默，等待下次 */ });
       };
 
+      // 本人消息判定：已登录账号一律以账号编号为准（刷新 / 重进房间 / 临时改名均有效），
+      // 同名但无编号的历史或匿名消息不会被误判；昵称被临时改用的本次会话回退到该昵称；
+      // 未登录用户回退为昵称相同即本人
+      function isMineMsg(m) {
+        if (!m) return false;
+        var aid = m.accId ? String(m.accId).toUpperCase() : '';
+        var myId = currentAccId || accountId;
+        if (myId) {
+          if (aid) return aid === myId;
+          return !!currentNickAlias && m.name === currentNickAlias;
+        }
+        return !!currentName && m.name === currentName;
+      }
+
       function fmtTime(iso) {
         if (!iso) return '';
         var d = new Date(iso);
@@ -1111,11 +1250,18 @@
       // 语言切换后刷新脚本生成的界面文案（消息、昵称、房间名等动态数据不翻译）
       if (window.cealinOnLangChange) {
         cealinOnLangChange(function () {
+          // 进入页账号提示（未进房时也需重绘）
+          var hint = el('accHint');
+          if (hint && hint.style.display !== 'none' && isAccount) {
+            hint.textContent = accountNickLocked
+              ? cealinT('chat.accHint', { id: accountId })
+              : cealinT('chat.accHintTaken', { name: accountName });
+          }
           if (!currentCode) return;
           var sub = el('roomCodeSub');
           if (sub) sub.textContent = currentRoomName ? cealinT('chat.roomCode', { code: currentCode }) : '';
           var mine = el('myNameText');
-          if (mine && currentName) mine.textContent = cealinT('chat.myName', { name: currentName });
+          if (mine && currentName) mine.textContent = myNameLabel(currentName);
           var box = el('msgInput');
           if (box) box.placeholder = currentBanned ? cealinT('chat.msgPhBanned') : cealinT('chat.msgPh');
           var rbtn = el('reportBtn');
