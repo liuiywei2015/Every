@@ -32,6 +32,7 @@
     'title.settings': { zh: '设置 - Cealin', en: 'Settings - Cealin', ja: '設定 - Cealin', ko: '설정 - Cealin', es: 'Ajustes - Cealin' },
     'title.notice': { zh: '公告管理 - Cealin', en: 'Manage notices - Cealin', ja: 'お知らせ管理 - Cealin', ko: '공지사항 관리 - Cealin', es: 'Gestionar anuncios - Cealin' },
     'title.suggestion': { zh: '建议 - Cealin', en: 'Feedback - Cealin', ja: 'ご意見 - Cealin', ko: '의견 - Cealin', es: 'Sugerencias - Cealin' },
+    'title.account': { zh: '账号 - Cealin', en: 'Account - Cealin', ja: 'アカウント - Cealin', ko: '계정 - Cealin', es: 'Cuenta - Cealin' },
 
     /* ---------- 导航与通用 ---------- */
     'nav.home': { zh: '首页', en: 'Home', ja: 'ホーム', ko: '홈', es: 'Inicio' },
@@ -41,6 +42,7 @@
     'nav.cloud': { zh: '云储存', en: 'Storage', ja: 'クラウドストレージ', ko: '클라우드 스토리지', es: 'Almacenamiento' },
     'nav.suggestion': { zh: '建议', en: 'Feedback', ja: 'ご意見', ko: '의견', es: 'Sugerencias' },
     'nav.notice': { zh: '公告', en: 'Notices', ja: 'お知らせ', ko: '공지사항', es: 'Anuncios' },
+    'nav.account': { zh: '账号', en: 'Account', ja: 'アカウント', ko: '계정', es: 'Cuenta' },
     'nav.settingsTitle': { zh: '设置', en: 'Settings', ja: '設定', ko: '설정', es: 'Ajustes' },
     'nav.settings': { zh: '设置', en: 'Settings', ja: '設定', ko: '설정', es: 'Ajustes' },
 
@@ -278,7 +280,46 @@
     'chat.saveFailedRetry': { zh: '保存失败，请稍后重试', en: 'Couldn’t save—please try again in a moment', ja: '保存できませんでした。しばらくしてから再度お試しください', ko: '저장하지 못했습니다. 잠시 후 다시 시도해 주세요', es: 'No se pudo guardar; inténtalo de nuevo en un momento' },
     'chat.changeFailed': { zh: '更改失败', en: 'Couldn’t change it', ja: '変更できませんでした', ko: '변경하지 못했습니다', es: 'No se pudo cambiar' },
     'chat.codeUpdated': { zh: '房间代码已更新为 {code}', en: 'Room code updated to {code}', ja: 'ルームコードを {code} に更新しました', ko: '방 코드를 {code}(으)로 변경했습니다', es: 'El código de la sala ahora es {code}' },
-    'chat.empty': { zh: '暂无消息，来发第一条吧', en: 'No messages yet—say hello', ja: 'まだメッセージはありません。最初のひとことを送ってみましょう', ko: '아직 메시지가 없습니다. 먼저 인사해 보세요', es: 'Aún no hay mensajes: sé el primero en escribir' }
+    'chat.empty': { zh: '暂无消息，来发第一条吧', en: 'No messages yet—say hello', ja: 'まだメッセージはありません。最初のひとことを送ってみましょう', ko: '아직 메시지가 없습니다. 먼저 인사해 보세요', es: 'Aún no hay mensajes: sé el primero en escribir' },
+
+    /* ---------- 账号（注册 / 编号登录） ---------- */
+    'acc.title': { zh: '账号', en: 'Account', ja: 'アカウント', ko: '계정', es: 'Cuenta' },
+    'acc.sub': { zh: '只用名称和密码注册，系统会自动分配一个唯一编号', en: 'Sign up with just a name and a password—we assign a unique ID for you', ja: '名前とパスワードだけで登録できます。専用のIDを自動で発行します', ko: '이름과 비밀번호만으로 가입할 수 있으며, 전용 ID를 자동으로 발급해 드립니다', es: 'Regístrate solo con un nombre y una contraseña: te asignamos un ID único' },
+    'acc.tabRegister': { zh: '注册', en: 'Sign up', ja: '新規登録', ko: '회원가입', es: 'Registrarse' },
+    'acc.tabLogin': { zh: '登录', en: 'Log in', ja: 'ログイン', ko: '로그인', es: 'Iniciar sesión' },
+    'acc.name': { zh: '名称', en: 'Name', ja: '名前', ko: '이름', es: 'Nombre' },
+    'acc.namePh': { zh: '给自己起个名称（可重名）', en: 'Pick a name (duplicates are fine)', ja: '好きな名前を入力（重複可）', ko: '사용할 이름을 입력하세요 (중복 가능)', es: 'Elige un nombre (puede repetirse)' },
+    'acc.pwd': { zh: '密码', en: 'Password', ja: 'パスワード', ko: '비밀번호', es: 'Contraseña' },
+    'acc.pwdPh': { zh: '至少 6 位', en: 'At least 6 characters', ja: '6文字以上', ko: '6자 이상', es: 'Mínimo 6 caracteres' },
+    'acc.pwdHint': { zh: '密码经 SHA-256 加盐哈希后存储，不会明文保存', en: 'Passwords are stored as salted SHA-256 hashes—never in plain text', ja: 'パスワードはソルト付きSHA-256でハッシュ化して保存され、平文では保持しません', ko: '비밀번호는 솔트를 더해 SHA-256으로 해시하여 저장되며 평문으로 보관하지 않습니다', es: 'La contraseña se guarda como hash SHA-256 con sal, nunca en texto plano' },
+    'acc.registerBtn': { zh: '注册并获取编号', en: 'Sign up and get my ID', ja: '登録してIDを取得', ko: '가입하고 ID 받기', es: 'Registrarme y obtener mi ID' },
+    'acc.registering': { zh: '正在注册…', en: 'Signing you up…', ja: '登録しています…', ko: '가입 처리 중…', es: 'Creando tu cuenta…' },
+    'acc.id': { zh: '编号', en: 'Account ID', ja: 'アカウントID', ko: '계정 ID', es: 'ID de cuenta' },
+    'acc.idPh': { zh: '6 位账号编号', en: '6-character account ID', ja: '6桁のアカウントID', ko: '6자리 계정 ID', es: 'ID de 6 caracteres' },
+    'acc.idHint': { zh: '登录只认编号，不认名称', en: 'Only the ID works for signing in—names are not accepted', ja: 'ログインに使えるのはIDのみで、名前ではログインできません', ko: '로그인은 ID로만 가능하며 이름으로는 로그인할 수 없습니다', es: 'Solo el ID sirve para entrar, el nombre no' },
+    'acc.loginBtn': { zh: '登录', en: 'Log in', ja: 'ログイン', ko: '로그인', es: 'Entrar' },
+    'acc.loggingIn': { zh: '正在登录…', en: 'Logging in…', ja: 'ログインしています…', ko: '로그인 중…', es: 'Entrando…' },
+    'acc.loginOk': { zh: '登录成功，正在进入游客界面…', en: 'Logged in—taking you to the guest area…', ja: 'ログインしました。ゲストページへ移動します…', ko: '로그인했습니다. 게스트 페이지로 이동합니다…', es: 'Sesión iniciada: te llevamos al área de invitado…' },
+    'acc.created': { zh: '注册成功，这是你的账号编号', en: 'You are all set—here is your account ID', ja: '登録が完了しました。これがあなたのアカウントIDです', ko: '가입이 완료되었습니다. 이것이 회원님의 계정 ID입니다', es: 'Registro completado: este es tu ID de cuenta' },
+    'acc.keepSafe': { zh: '请务必记住编号，它是登录的唯一凭证，遗失后无法找回', en: 'Be sure to remember this ID—it is the only way to log in and cannot be recovered', ja: 'このIDは必ず控えてください。ログインに必要な唯一の情報で、紛失すると復元できません', ko: '이 ID를 반드시 기억해 주세요. 로그인에 필요한 유일한 수단이며 분실하면 복구할 수 없습니다', es: 'Guarda bien este ID: es la única forma de entrar y no se puede recuperar' },
+    'acc.copy': { zh: '复制编号', en: 'Copy ID', ja: 'IDをコピー', ko: 'ID 복사', es: 'Copiar ID' },
+    'acc.copied': { zh: '已复制', en: 'Copied', ja: 'コピーしました', ko: '복사됨', es: 'Copiado' },
+    'acc.goLogin': { zh: '用这个编号登录', en: 'Log in with this ID', ja: 'このIDでログイン', ko: '이 ID로 로그인', es: 'Entrar con este ID' },
+
+    'acc.err.name_required': { zh: '请输入名称', en: 'Please enter a name', ja: '名前を入力してください', ko: '이름을 입력해 주세요', es: 'Escribe un nombre' },
+    'acc.err.name_long': { zh: '名称最多 20 个字符', en: 'Names can be up to 20 characters', ja: '名前は20文字以内で入力してください', ko: '이름은 최대 20자까지 가능합니다', es: 'El nombre admite hasta 20 caracteres' },
+    'acc.err.pwd_short': { zh: '密码至少需要 6 位', en: 'Password must be at least 6 characters', ja: 'パスワードは6文字以上で入力してください', ko: '비밀번호는 6자 이상이어야 합니다', es: 'La contraseña debe tener al menos 6 caracteres' },
+    'acc.err.pwd_long': { zh: '密码最长 64 位', en: 'Password must be 64 characters or less', ja: 'パスワードは64文字以内で入力してください', ko: '비밀번호는 64자 이하여야 합니다', es: 'La contraseña no puede superar los 64 caracteres' },
+    'acc.err.pwd_required': { zh: '请输入密码', en: 'Please enter your password', ja: 'パスワードを入力してください', ko: '비밀번호를 입력해 주세요', es: 'Escribe tu contraseña' },
+    'acc.err.id_short': { zh: '请输入 6 位账号编号', en: 'Enter your 6-character account ID', ja: '6桁のアカウントIDを入力してください', ko: '6자리 계정 ID를 입력해 주세요', es: 'Escribe tu ID de 6 caracteres' },
+    'acc.err.id_bad': { zh: '编号格式不正确', en: 'That ID format is not valid', ja: 'IDの形式が正しくありません', ko: 'ID 형식이 올바르지 않습니다', es: 'El formato del ID no es válido' },
+    'acc.err.bad_cred': { zh: '编号或密码错误', en: 'Wrong ID or password', ja: 'IDまたはパスワードが違います', ko: 'ID 또는 비밀번호가 올바르지 않습니다', es: 'ID o contraseña incorrectos' },
+    'acc.err.hash_bad': { zh: '密码哈希格式不正确', en: 'The password hash format is invalid', ja: 'パスワードハッシュの形式が正しくありません', ko: '비밀번호 해시 형식이 올바르지 않습니다', es: 'El formato del hash de contraseña no es válido' },
+    'acc.err.salt_bad': { zh: '盐格式不正确', en: 'The salt format is invalid', ja: 'ソルトの形式が正しくありません', ko: '솔트 형식이 올바르지 않습니다', es: 'El formato de la sal no es válido' },
+    'acc.err.id_exhausted': { zh: '编号分配失败，请稍后重试', en: 'Could not assign an ID—please try again', ja: 'IDを発行できませんでした。しばらくしてからお試しください', ko: 'ID를 발급하지 못했습니다. 잠시 후 다시 시도해 주세요', es: 'No se pudo asignar un ID: inténtalo de nuevo' },
+    'acc.err.no_crypto': { zh: '当前环境不支持安全哈希，请用 https 打开', en: 'Secure hashing is unavailable here—please open the site over https', ja: 'この環境では安全なハッシュ化を利用できません。https で開いてください', ko: '이 환경에서는 안전한 해시를 사용할 수 없습니다. https로 열어 주세요', es: 'Este entorno no admite hash seguro: abre la página con https' },
+    'acc.err.net': { zh: '网络异常，请稍后重试', en: 'Network problem—please try again', ja: '通信エラーです。しばらくしてからお試しください', ko: '네트워크 오류입니다. 잠시 후 다시 시도해 주세요', es: 'Error de red: inténtalo de nuevo' },
+    'acc.err.server': { zh: '服务异常，请稍后重试', en: 'Something went wrong—please try again', ja: 'サーバーエラーです。しばらくしてからお試しください', ko: '서버 오류입니다. 잠시 후 다시 시도해 주세요', es: 'Error del servidor: inténtalo de nuevo' }
   };
 
   var current = DEFAULT_LANG;
