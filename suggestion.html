@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>建议 - Cealin</title>
+<title data-i18n="title.suggestion">建议 - Cealin</title>
 <style>
   :root {
     --fg: #f7f4ee;
@@ -301,6 +301,7 @@
 
   button:hover:active:not(:disabled) { transform: translateY(0) scale(0.97); }
 </style>
+  <script src="i18n.js"></script>
 </head>
 <body>
 
@@ -315,46 +316,46 @@
     <a class="logo" href="index.html">Cealin</a>
     <div class="nav-right">
       <ul class="menu">
-        <li><a href="index.html">首页</a></li>
-        <li><a href="project.html">项目</a></li>
-        <li><a href="platform.html">平台</a></li>
-        <li><a href="chat.html">聊天室</a></li>
-        <li><a href="cloud.html">云储存</a></li>
-        <li><a href="suggestion.html" class="active">建议</a></li>
-        <li><a href="notice-admin.html">公告</a></li>
+        <li><a href="index.html" data-i18n="nav.home">首页</a></li>
+        <li><a href="project.html" data-i18n="nav.project">项目</a></li>
+        <li><a href="platform.html" data-i18n="nav.platform">平台</a></li>
+        <li><a href="chat.html" data-i18n="nav.chat">聊天室</a></li>
+        <li><a href="cloud.html" data-i18n="nav.cloud">云储存</a></li>
+        <li><a href="suggestion.html" class="active" data-i18n="nav.suggestion">建议</a></li>
+        <li><a href="notice-admin.html" data-i18n="nav.notice">公告</a></li>
       </ul>
-      <a class="avatar" href="settings.html" title="设置"></a>
+      <a class="avatar" href="settings.html" title="设置" data-i18n-title="nav.settings"></a>
     </div>
   </header>
 
   <!-- 页面主体 -->
   <main class="hero">
-    <h1 class="title">建议</h1>
-    <p class="page-sub">你的想法，让 Cealin 更好</p>
+    <h1 class="title" data-i18n="sug.title">建议</h1>
+    <p class="page-sub" data-i18n="sug.sub">你的想法，让 Cealin 更好</p>
 
     <section class="suggest-box">
-      <h2 class="suggest-title">提交建议</h2>
-      <p class="suggest-tip">可匿名提交，昵称留空将记为「匿名」；邮箱仅用于管理员回复，不会公开展示。</p>
+      <h2 class="suggest-title" data-i18n="sug.boxTitle">提交建议</h2>
+      <p class="suggest-tip" data-i18n="sug.tip">可匿名提交，昵称留空将记为「匿名」；邮箱仅用于管理员回复，不会公开展示。</p>
 
       <div class="field-row">
         <div class="field">
-          <label for="sugName">昵称（可选）</label>
-          <input id="sugName" type="text" maxlength="30" placeholder="留空则记为匿名" autocomplete="off">
+          <label for="sugName" data-i18n="sug.name">昵称（可选）</label>
+          <input id="sugName" type="text" maxlength="30" placeholder="留空则记为匿名" autocomplete="off" data-i18n-ph="sug.namePh">
         </div>
         <div class="field">
-          <label for="sugEmail">邮箱（可选）</label>
-          <input id="sugEmail" type="email" maxlength="120" placeholder="选填" autocomplete="off">
+          <label for="sugEmail" data-i18n="sug.email">邮箱（可选）</label>
+          <input id="sugEmail" type="email" maxlength="120" placeholder="选填" autocomplete="off" data-i18n-ph="sug.emailPh">
         </div>
       </div>
 
       <div class="field-textarea">
-        <label for="sugContent">建议内容</label>
-        <textarea id="sugContent" maxlength="1000" placeholder="写下你的建议、反馈或想法…"></textarea>
+        <label for="sugContent" data-i18n="sug.content">建议内容</label>
+        <textarea id="sugContent" maxlength="1000" placeholder="写下你的建议、反馈或想法…" data-i18n-ph="sug.contentPh"></textarea>
       </div>
 
       <div class="suggest-meta">
         <span class="suggest-count" id="sugCount">0 / 1000</span>
-        <button type="button" class="submit-btn" id="sugSubmit" onclick="submitSuggestion()">提交建议</button>
+        <button type="button" class="submit-btn" id="sugSubmit" onclick="submitSuggestion()" data-i18n="sug.submit">提交建议</button>
       </div>
       <p class="suggest-msg" id="sugMsg"></p>
     </section>
@@ -367,8 +368,10 @@
       var msgEl = document.getElementById('sugMsg');
       var btn = document.getElementById('sugSubmit');
 
+      countEl.textContent = cealinT('sug.count', { n: 0 });
+
       input.addEventListener('input', function () {
-        countEl.textContent = input.value.length + ' / 1000';
+        countEl.textContent = cealinT('sug.count', { n: input.value.length });
         msgEl.textContent = '';
         msgEl.classList.remove('ok');
       });
@@ -379,23 +382,23 @@
         var content = input.value.trim();
 
         if (!content) {
-          msgEl.textContent = '建议内容不能为空';
+          msgEl.textContent = cealinT('sug.msg.empty');
           msgEl.classList.remove('ok');
           return;
         }
         if (content.length > 1000) {
-          msgEl.textContent = '建议内容不能超过 1000 字';
+          msgEl.textContent = cealinT('sug.msg.tooLong');
           msgEl.classList.remove('ok');
           return;
         }
         if (email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
-          msgEl.textContent = '邮箱格式不正确';
+          msgEl.textContent = cealinT('sug.msg.emailBad');
           msgEl.classList.remove('ok');
           return;
         }
 
         btn.disabled = true;
-        msgEl.textContent = '提交中…';
+        msgEl.textContent = cealinT('sug.msg.sending');
         msgEl.classList.remove('ok');
 
         fetch('/api/suggestions', {
@@ -413,20 +416,27 @@
               document.getElementById('sugName').value = '';
               document.getElementById('sugEmail').value = '';
               input.value = '';
-              countEl.textContent = '0 / 1000';
-              msgEl.textContent = '建议已提交，感谢你的反馈！';
+              countEl.textContent = cealinT('sug.count', { n: 0 });
+              msgEl.textContent = cealinT('sug.msg.sent');
               msgEl.classList.add('ok');
             } else {
-              msgEl.textContent = data.error || '提交失败，请稍后重试';
+              msgEl.textContent = data.error || cealinT('sug.msg.failed');
               msgEl.classList.remove('ok');
             }
           })
           .catch(function () {
             btn.disabled = false;
-            msgEl.textContent = '网络异常，提交失败';
+            msgEl.textContent = cealinT('sug.msg.netErr');
             msgEl.classList.remove('ok');
           });
       };
+
+      // 语言切换后刷新字符计数（建议内容属用户数据，不翻译）
+      if (window.cealinOnLangChange) {
+        cealinOnLangChange(function () {
+          countEl.textContent = cealinT('sug.count', { n: input.value.length });
+        });
+      }
     })();
   </script>
 

@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>云储存 - Cealin</title>
+<title data-i18n="title.cloud">云储存 - Cealin</title>
 <style>
   :root {
     --fg: #f7f4ee;
@@ -389,6 +389,7 @@
   button:hover:active:not(:disabled) { transform: translateY(0) scale(0.97); }
 </style>
   <script src="notice-link.js"></script>
+  <script src="i18n.js"></script>
 </head>
 <body>
 
@@ -403,34 +404,34 @@
     <a class="logo" href="index.html">Cealin</a>
     <div class="nav-right">
       <ul class="menu">
-        <li><a href="index.html">首页</a></li>
-        <li><a href="project.html">项目</a></li>
-        <li><a href="platform.html">平台</a></li>
-        <li><a href="chat.html">聊天室</a></li>
-        <li><a href="cloud.html" class="active">云储存</a></li>
-        <li><a href="suggestion.html">建议</a></li>
-        <li><a href="notice-admin.html">公告</a></li>
+        <li><a href="index.html" data-i18n="nav.home">首页</a></li>
+        <li><a href="project.html" data-i18n="nav.project">项目</a></li>
+        <li><a href="platform.html" data-i18n="nav.platform">平台</a></li>
+        <li><a href="chat.html" data-i18n="nav.chat">聊天室</a></li>
+        <li><a href="cloud.html" class="active" data-i18n="nav.cloud">云储存</a></li>
+        <li><a href="suggestion.html" data-i18n="nav.suggestion">建议</a></li>
+        <li><a href="notice-admin.html" data-i18n="nav.notice">公告</a></li>
       </ul>
-      <a class="avatar" href="settings.html" title="设置"></a>
+      <a class="avatar" href="settings.html" title="设置" data-i18n-title="nav.settings"></a>
     </div>
   </header>
 
   <!-- 页面主体 -->
   <main class="hero">
-    <h1 class="title">云储存</h1>
-    <p class="page-sub">本机文件 · 随时取用</p>
+    <h1 class="title" data-i18n="cloud.title">云储存</h1>
+    <p class="page-sub" data-i18n="cloud.sub">本机文件 · 随时取用</p>
 
     <!-- 密码解锁 -->
     <section id="lockBox" class="lock-box" style="display:none;">
-      <p class="lock-tip">请输入访问密码</p>
+      <p class="lock-tip" data-i18n="cloud.lockTip">请输入访问密码</p>
       <input id="lockInput" class="lock-input" type="password" autocomplete="off" placeholder="••••••••">
-      <button class="lock-btn" onclick="unlock()">解锁</button>
+      <button class="lock-btn" onclick="unlock()" data-i18n="cloud.lockBtn">解锁</button>
       <p class="lock-err" id="lockErr"></p>
     </section>
 
     <!-- 文件浏览器 -->
     <section id="fileBox" class="file-box">
-      <p class="browser-note">文件清单由 cloud-files.js 维护，新增文件后更新该文件即可</p>
+      <p class="browser-note" data-i18n="cloud.note">文件清单由 cloud-files.js 维护，新增文件后更新该文件即可</p>
       <div id="fileList" class="file-list"></div>
       <p class="feed-count" id="fileCount"></p>
     </section>
@@ -440,7 +441,7 @@
       <div class="preview-card">
         <div class="preview-head">
           <span id="previewTitle" class="preview-title"></span>
-          <button class="mini-btn" onclick="closePreview()">关闭</button>
+          <button class="mini-btn" onclick="closePreview()" data-i18n="cloud.close">关闭</button>
         </div>
         <div id="previewBody" class="preview-body"></div>
       </div>
@@ -478,7 +479,7 @@
           err.style.opacity = '0';
           showBrowser();
         } else {
-          err.textContent = '密码错误';
+          err.textContent = cealinT('idx.gate.pwdWrong');
           err.style.opacity = '1';
           input.value = '';
           input.focus();
@@ -530,24 +531,27 @@
         var el = document.getElementById('fileList');
         var count = document.getElementById('fileCount');
         if (!files.length) {
-          el.innerHTML = '<div class="empty">暂无文件，找 Marvis 上传</div>';
-          count.textContent = '0 个文件';
+          el.innerHTML = '<div class="empty">' + cealinT('cloud.empty') + '</div>';
+          count.textContent = cealinT('cloud.count', { n: 0 });
           return;
         }
         el.innerHTML = files.map(function (f, i) {
           var kind = kindOf(f);
           var meta = [f.size, f.date].filter(function (v) { return v; }).join(' · ');
-          var previewBtn = kind === 'other' ? '' : '<button class="mini-btn" onclick="previewFile(' + i + ')">预览</button>';
+          var previewBtn = kind === 'other' ? '' : '<button class="mini-btn" onclick="previewFile(' + i + ')">' + cealinT('cloud.preview') + '</button>';
           return '<div class="file-row">' +
             '<div class="f-main"><span class="f-name">' + esc(f.name) + '</span>' +
             '<span class="f-meta">' + esc(meta) + '</span></div>' +
             '<div class="f-actions">' +
             previewBtn +
-            '<a class="mini-btn" href="' + attrEsc(f.path) + '" download="' + attrEsc(f.name) + '">下载</a>' +
+            '<a class="mini-btn" href="' + attrEsc(f.path) + '" download="' + attrEsc(f.name) + '">' + cealinT('cloud.download') + '</a>' +
             '</div></div>';
         }).join('');
-        count.textContent = files.length + ' 个文件';
+        count.textContent = cealinT('cloud.count', { n: files.length });
       }
+
+      // 语言切换后按当前语言重渲染文件列表文案（文件名等为动态数据，不翻译）
+      if (window.cealinOnLangChange) { cealinOnLangChange(function () { render(); }); }
 
       window.previewFile = function (i) {
         var f = files[i];

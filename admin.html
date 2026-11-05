@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>管理员界面 - Cealin</title>
+<title data-i18n="title.admin">管理员界面 - Cealin</title>
 <style>
   :root {
     --fg: #f7f4ee;
@@ -443,6 +443,7 @@
   button:hover:active:not(:disabled) { transform: translateY(0) scale(0.97); }
 </style>
   <script src="notice-link.js"></script>
+  <script src="i18n.js"></script>
 </head>
 <body>
 
@@ -457,42 +458,42 @@
     <a class="logo" href="index.html">Cealin</a>
     <div class="nav-right">
       <ul class="menu">
-        <li><a href="index.html">首页</a></li>
-        <li><a href="project.html">项目</a></li>
-        <li><a href="platform.html">平台</a></li>
-        <li><a href="chat.html">聊天室</a></li>
-        <li><a href="cloud.html">云储存</a></li>
-        <li><a href="suggestion.html">建议</a></li>
-        <li><a href="notice-admin.html">公告</a></li>
+        <li><a href="index.html" data-i18n="nav.home">首页</a></li>
+        <li><a href="project.html" data-i18n="nav.project">项目</a></li>
+        <li><a href="platform.html" data-i18n="nav.platform">平台</a></li>
+        <li><a href="chat.html" data-i18n="nav.chat">聊天室</a></li>
+        <li><a href="cloud.html" data-i18n="nav.cloud">云储存</a></li>
+        <li><a href="suggestion.html" data-i18n="nav.suggestion">建议</a></li>
+        <li><a href="notice-admin.html" data-i18n="nav.notice">公告</a></li>
       </ul>
-      <a class="avatar" href="settings.html" title="设置"></a>
+      <a class="avatar" href="settings.html" title="设置" data-i18n-title="nav.settings"></a>
     </div>
   </header>
 
   <!-- 页面主体 -->
   <main class="main">
-    <h1 class="page-title">管理员界面</h1>
-    <p class="page-sub">欢迎回来，管理员</p>
+    <h1 class="page-title" data-i18n="ad.title">管理员界面</h1>
+    <p class="page-sub" data-i18n="ad.sub">欢迎回来，管理员</p>
 
     <!-- 编辑公告区 -->
     <section class="notice-card">
-      <h2 class="notice-title">编辑公告</h2>
-      <p class="notice-tip" id="noticeAuthTip" style="display:none;">管理员会话已过期，请返回首页重新登录。</p>
-      <textarea id="noticeInput" class="notice-input" maxlength="2000" placeholder="输入公告内容…"></textarea>
+      <h2 class="notice-title" data-i18n="ad.noticeTitle">编辑公告</h2>
+      <p class="notice-tip" id="noticeAuthTip" style="display:none;" data-i18n="ad.authTip">管理员会话已过期，请返回首页重新登录。</p>
+      <textarea id="noticeInput" class="notice-input" maxlength="2000" placeholder="输入公告内容…" data-i18n-ph="ad.textPh"></textarea>
       <div class="notice-meta">
         <span class="notice-count" id="noticeCount">0 / 2000</span>
-        <button type="button" class="save-btn" id="saveNoticeBtn" onclick="saveNotice()">保存公告</button>
+        <button type="button" class="save-btn" id="saveNoticeBtn" onclick="saveNotice()" data-i18n="na.save">保存公告</button>
       </div>
       <p class="notice-msg" id="noticeMsg"></p>
     </section>
 
     <!-- 聊天室管理区 -->
     <section class="notice-card" id="roomAdminCard" style="display:none;">
-      <h2 class="notice-title">聊天室管理</h2>
-      <p class="notice-tip">查看已注册房间代码、消息数量与昵称占用情况。</p>
+      <h2 class="notice-title" data-i18n="ad.roomsTitle">聊天室管理</h2>
+      <p class="notice-tip" data-i18n="ad.roomsTip">查看已注册房间代码、消息数量与昵称占用情况。</p>
       <div class="notice-meta">
-        <span class="notice-count" id="roomCount">加载中…</span>
-        <button type="button" class="save-btn" id="refreshRoomsBtn" onclick="loadRooms()">刷新列表</button>
+        <span class="notice-count" id="roomCount" data-i18n="common.loading">加载中…</span>
+        <button type="button" class="save-btn" id="refreshRoomsBtn" onclick="loadRooms()" data-i18n="ad.refresh">刷新列表</button>
       </div>
       <div id="roomList" class="room-list"></div>
       <p class="notice-msg" id="roomMsg"></p>
@@ -500,11 +501,11 @@
 
     <!-- 建议管理区 -->
     <section class="notice-card" id="sugAdminCard" style="display:none;">
-      <h2 class="notice-title">建议管理</h2>
-      <p class="notice-tip">查看访客提交的建议，可删除单条。</p>
+      <h2 class="notice-title" data-i18n="ad.sugTitle">建议管理</h2>
+      <p class="notice-tip" data-i18n="ad.sugTip">查看访客提交的建议，可删除单条。</p>
       <div class="notice-meta">
-        <span class="notice-count" id="sugCount">加载中…</span>
-        <button type="button" class="save-btn" id="refreshSugsBtn" onclick="loadSuggestions()">刷新列表</button>
+        <span class="notice-count" id="sugCount" data-i18n="common.loading">加载中…</span>
+        <button type="button" class="save-btn" id="refreshSugsBtn" onclick="loadSuggestions()" data-i18n="ad.refresh">刷新列表</button>
       </div>
       <div id="sugList" class="room-list"></div>
       <p class="notice-msg" id="sugMsg"></p>
@@ -512,16 +513,16 @@
 
     <!-- 入口 -->
     <div class="entries">
-      <a class="entry-btn" href="chat.html">进入聊天室</a>
+      <a class="entry-btn" href="chat.html" data-i18n="guest.enterChat">进入聊天室</a>
     </div>
 
-    <a class="back-home" href="index.html">返回首页</a>
+    <a class="back-home" href="index.html" data-i18n="common.backHome">返回首页</a>
   </main>
 
   <script>
     (function () {
       // 编辑公告：读取当前公告预填 → 字数计数 → 保存（POST /api/notice）
-      var fallback = '欢迎来到 Cealin，请文明交流。';
+      var fallback = cealinT('ad.noticeFallback');
       var pwd = '';
       var adminFlag = false;
       try { pwd = sessionStorage.getItem('cealin_admin_pwd') || ''; } catch (e) {}
@@ -539,7 +540,7 @@
       }
 
       function refreshCount() {
-        countEl.textContent = input.value.length + ' / 2000';
+        countEl.textContent = cealinT('ad.noticeCount', { n: input.value.length });
       }
 
       // 聊天室管理：查询房间注册情况（POST /api/admin-rooms，需管理员密码校验）
@@ -553,7 +554,7 @@
       }
 
       function fmtRoomTime(ts) {
-        if (!ts) return '从未活跃';
+        if (!ts) return cealinT('ad.neverActive');
         var d = new Date(ts);
         function p(n) { return n < 10 ? '0' + n : '' + n; }
         return p(d.getMonth() + 1) + '-' + p(d.getDate()) + ' ' + p(d.getHours()) + ':' + p(d.getMinutes());
@@ -561,10 +562,10 @@
 
       function loadRoomsList() {
         if (!pwd || !adminFlag) {
-          roomMsgEl.textContent = '请返回首页重新登录后使用';
+          roomMsgEl.textContent = cealinT('ad.relogin');
           return;
         }
-        roomCount.textContent = '查询中…';
+        roomCount.textContent = cealinT('ad.querying');
         roomList.innerHTML = '';
         roomMsgEl.textContent = '';
         fetch('/api/admin-rooms', {
@@ -579,40 +580,40 @@
             var data = res.data || {};
             if (!data.ok) {
               roomMsgEl.textContent = (res.status === 401 || data.error === '密码错误')
-                ? '密码错误或登录已过期，请返回首页重新登录'
-                : (data.error || '查询失败，请稍后重试');
+                ? cealinT('ad.pwdExpired')
+                : (data.error || cealinT('ad.queryFailed'));
               roomCount.textContent = '';
               return;
             }
             var rooms = data.rooms || [];
-            roomCount.textContent = '已注册房间 ' + rooms.length + ' 个';
+            roomCount.textContent = cealinT('ad.roomCount', { n: rooms.length });
             if (!rooms.length) {
-              roomList.innerHTML = '<div class="room-empty">暂无已注册房间</div>';
+              roomList.innerHTML = '<div class="room-empty">' + cealinT('ad.roomEmpty') + '</div>';
               return;
             }
             var html = '';
             rooms.forEach(function (r) {
               var namesHtml = '';
               if (r.names && r.names.length) {
-                namesHtml = '昵称：' + r.names.map(function (n) {
+                namesHtml = cealinT('ad.names') + r.names.map(function (n) {
                   var on = r.onlineNames && r.onlineNames.indexOf(n) !== -1;
-                  return '<span class="' + (on ? '' : 'off') + '">' + escHtml(n) + (on ? '（在线）' : '') + '</span>';
+                  return '<span class="' + (on ? '' : 'off') + '">' + escHtml(n) + (on ? cealinT('ad.online') : '') + '</span>';
                 }).join('、');
               } else {
-                namesHtml = '<span class="off">暂无昵称占用</span>';
+                namesHtml = '<span class="off">' + cealinT('ad.noNames') + '</span>';
               }
               var opsHtml = '<span class="room-ops">'
-                + '<button type="button" class="op-btn verify' + (r.verified ? ' on' : '') + '" onclick="verifyRoom(\'' + r.code + '\',' + (r.verified ? 'false' : 'true') + ')">' + (r.verified ? '取消授权' : '官方授权') + '</button>'
-                + '<button type="button" class="op-btn ban" onclick="banRoom(\'' + r.code + '\')"' + (r.banned ? ' disabled' : '') + '>' + (r.banned ? '已封禁' : '封禁') + '</button>'
-                + '<button type="button" class="op-btn del" onclick="deleteRoom(\'' + r.code + '\')">删除</button>'
+                + '<button type="button" class="op-btn verify' + (r.verified ? ' on' : '') + '" onclick="verifyRoom(\'' + r.code + '\',' + (r.verified ? 'false' : 'true') + ')">' + (r.verified ? cealinT('ad.revoke') : cealinT('ad.verify')) + '</button>'
+                + '<button type="button" class="op-btn ban" onclick="banRoom(\'' + r.code + '\')"' + (r.banned ? ' disabled' : '') + '>' + (r.banned ? cealinT('ad.bannedWord') : cealinT('ad.banWord')) + '</button>'
+                + '<button type="button" class="op-btn del" onclick="deleteRoom(\'' + r.code + '\')">' + cealinT('common.delete') + '</button>'
                 + '</span>';
               var metaHtml = ''
-                + (r.banned ? '<span class="room-banned-tag">已封禁 · ' + fmtRoomTime(r.bannedAt) + '</span>' : '')
-                + (r.verified ? '<span class="room-verified-tag">官方认证 · ' + fmtRoomTime(r.verifiedAt) + '</span>' : '')
-                + '消息 ' + r.messageCount + ' 条 · 在线 ' + (r.onlineNames ? r.onlineNames.length : 0) + ' 人 · 最近活跃 ' + fmtRoomTime(r.lastActive);
+                + (r.banned ? '<span class="room-banned-tag">' + cealinT('ad.bannedTag') + fmtRoomTime(r.bannedAt) + '</span>' : '')
+                + (r.verified ? '<span class="room-verified-tag">' + cealinT('ad.verifiedTag') + fmtRoomTime(r.verifiedAt) + '</span>' : '')
+                + cealinT('ad.roomMeta', { m: r.messageCount, o: (r.onlineNames ? r.onlineNames.length : 0), t: fmtRoomTime(r.lastActive) });
               html += '<div class="room-item" data-code="' + r.code + '">'
                 + '<div class="room-item-head">'
-                + '<span class="room-code-wrap">' + (r.reported ? '<span class="room-warn" title="该房间被举报过">&#9888;</span>' : '') + '<span class="room-code">' + escHtml(r.code) + '</span></span>'
+                + '<span class="room-code-wrap">' + (r.reported ? '<span class="room-warn" title="' + cealinT('ad.reported') + '">&#9888;</span>' : '') + '<span class="room-code">' + escHtml(r.code) + '</span></span>'
                 + '<span class="room-meta">' + metaHtml + '</span>'
                 + opsHtml
                 + '</div>'
@@ -623,7 +624,7 @@
           })
           .catch(function () {
             roomCount.textContent = '';
-            roomMsgEl.textContent = '网络异常，查询失败';
+            roomMsgEl.textContent = cealinT('ad.netQuery');
           });
       }
       // 删除成功后即时从列表中移除该房间行（带淡出动画），并同步房间计数；行不在列表中时兜底全量刷新
@@ -639,9 +640,9 @@
                 if (row.parentNode) row.parentNode.removeChild(row);
                 var left = roomList.querySelectorAll('.room-item').length;
                 if (!left) {
-                  roomList.innerHTML = '<div class="room-empty">暂无已注册房间</div>';
+                  roomList.innerHTML = '<div class="room-empty">' + cealinT('ad.roomEmpty') + '</div>';
                 }
-                roomCount.textContent = '已注册房间 ' + left + ' 个';
+                roomCount.textContent = cealinT('ad.roomCount', { n: left });
               }, 130);
             })(items[i]);
             break;
@@ -653,7 +654,7 @@
       // 封禁 / 删除 / 授权聊天室（需管理员密码校验，POST /api/admin-rooms）
       function adminRoomOp(action, code, confirmText, extra) {
         if (!pwd || !adminFlag) {
-          roomMsgEl.textContent = '请返回首页重新登录后使用';
+          roomMsgEl.textContent = cealinT('ad.relogin');
           return;
         }
         if (!window.confirm(confirmText)) return;
@@ -679,39 +680,39 @@
               roomMsgEl.classList.add('ok');
               if (action === 'delete') {
                 // 删除：即时移除该行并保留成功提示（不再全量刷新，避免列表闪烁与提示被清空）
-                roomMsgEl.textContent = '已删除 ' + code + '，云端数据已全部清除';
+                roomMsgEl.textContent = cealinT('ad.sugDeleted', { code: code });
                 removeRoomRow(code);
               } else if (action === 'verify') {
                 // 授权：提示授权状态变化并刷新列表
-                roomMsgEl.textContent = data.verified ? ('已授权 ' + code + ' 为官方认证房间') : ('已取消 ' + code + ' 的官方授权');
+                roomMsgEl.textContent = data.verified ? cealinT('ad.verifiedDone', { code: code }) : cealinT('ad.unverifiedDone', { code: code });
                 loadRoomsList();
               } else {
-                roomMsgEl.textContent = '已封禁 ' + code;
+                roomMsgEl.textContent = cealinT('ad.bannedDone', { code: code });
                 loadRoomsList();
               }
             } else if (res.status === 401 || data.error === '密码错误') {
-              roomMsgEl.textContent = '密码错误或登录已过期，请返回首页重新登录';
+              roomMsgEl.textContent = cealinT('ad.pwdExpired');
               roomMsgEl.classList.remove('ok');
             } else {
-              roomMsgEl.textContent = data.error || '操作失败，请稍后重试';
+              roomMsgEl.textContent = data.error || cealinT('ad.opFailed');
               roomMsgEl.classList.remove('ok');
             }
           })
           .catch(function () {
-            roomMsgEl.textContent = '网络异常，操作失败';
+            roomMsgEl.textContent = cealinT('ad.netOp');
             roomMsgEl.classList.remove('ok');
           });
       }
       window.banRoom = function (code) {
-        adminRoomOp('ban', code, '确认封禁聊天室 ' + code + ' ？封禁后该房间将被标记，10 天后自动清除。');
+        adminRoomOp('ban', code, cealinT('ad.confirmBan', { code: code }));
       };
       window.verifyRoom = function (code, verify) {
         adminRoomOp('verify', code, verify
-          ? '确认授权聊天室 ' + code + ' 为官方认证房间？授权后该房间将显示认证横幅与金色 V 标。'
-          : '确认取消聊天室 ' + code + ' 的官方授权？', { verify: verify });
+          ? cealinT('ad.confirmVerify', { code: code })
+          : cealinT('ad.confirmUnverify', { code: code }), { verify: verify });
       };
       window.deleteRoom = function (code) {
-        adminRoomOp('delete', code, '确认删除聊天室 ' + code + ' ？将立即清除该房间全部数据（消息、昵称、在线状态），不可恢复。');
+        adminRoomOp('delete', code, cealinT('ad.confirmDelete', { code: code }));
       };
       window.loadRooms = loadRoomsList;
 
@@ -723,10 +724,10 @@
 
       function loadSuggestionsList() {
         if (!pwd || !adminFlag) {
-          sugMsgEl.textContent = '请返回首页重新登录后使用';
+          sugMsgEl.textContent = cealinT('ad.relogin');
           return;
         }
-        sugCount.textContent = '查询中…';
+        sugCount.textContent = cealinT('ad.querying');
         sugList.innerHTML = '';
         sugMsgEl.textContent = '';
         fetch('/api/suggestions', {
@@ -741,26 +742,26 @@
             var data = res.data || {};
             if (!data.ok) {
               sugMsgEl.textContent = (res.status === 401 || data.error === '密码错误')
-                ? '密码错误或登录已过期，请返回首页重新登录'
-                : (data.error || '查询失败，请稍后重试');
+                ? cealinT('ad.pwdExpired')
+                : (data.error || cealinT('ad.queryFailed'));
               sugCount.textContent = '';
               return;
             }
             var items = data.suggestions || [];
-            sugCount.textContent = '共 ' + items.length + ' 条建议';
+            sugCount.textContent = cealinT('ad.sugCount', { n: items.length });
             if (!items.length) {
-              sugList.innerHTML = '<div class="room-empty">暂无建议</div>';
+              sugList.innerHTML = '<div class="room-empty">' + cealinT('ad.sugEmpty') + '</div>';
               return;
             }
             var html = '';
             items.forEach(function (it) {
-              var email = it.email ? escHtml(it.email) : '<span class="off">未留邮箱</span>';
-              var name = escHtml(it.name || '匿名');
+              var email = it.email ? escHtml(it.email) : '<span class="off">' + cealinT('ad.noEmail') + '</span>';
+              var name = escHtml(it.name || cealinT('common.anonymous'));
               html += '<div class="room-item" data-id="' + escHtml(it.id) + '">'
                 + '<div class="room-item-head">'
                 + '<span class="room-code" style="font-size:14px;letter-spacing:0.02em;color:var(--fg);">' + name + '</span>'
                 + '<span class="room-meta">' + fmtRoomTime(it.ts) + ' · ' + email + '</span>'
-                + '<span class="room-ops"><button type="button" class="op-btn del" onclick="deleteSuggestion(\'' + escHtml(it.id) + '\')">删除</button></span>'
+                + '<span class="room-ops"><button type="button" class="op-btn del" onclick="deleteSuggestion(\'' + escHtml(it.id) + '\')">' + cealinT('common.delete') + '</button></span>'
                 + '</div>'
                 + '<div class="room-names" style="white-space:pre-wrap;">' + escHtml(it.content) + '</div>'
                 + '</div>';
@@ -769,7 +770,7 @@
           })
           .catch(function () {
             sugCount.textContent = '';
-            sugMsgEl.textContent = '网络异常，查询失败';
+            sugMsgEl.textContent = cealinT('ad.netQuery');
           });
       }
 
@@ -782,8 +783,8 @@
               setTimeout(function () {
                 if (row.parentNode) row.parentNode.removeChild(row);
                 var left = sugList.querySelectorAll('.room-item').length;
-                if (!left) sugList.innerHTML = '<div class="room-empty">暂无建议</div>';
-                sugCount.textContent = '共 ' + left + ' 条建议';
+                if (!left) sugList.innerHTML = '<div class="room-empty">' + cealinT('ad.sugEmpty') + '</div>';
+                sugCount.textContent = cealinT('ad.sugCount', { n: left });
               }, 130);
             })(items[i]);
             return;
@@ -794,10 +795,10 @@
 
       window.deleteSuggestion = function (id) {
         if (!pwd || !adminFlag) {
-          sugMsgEl.textContent = '请返回首页重新登录后使用';
+          sugMsgEl.textContent = cealinT('ad.relogin');
           return;
         }
-        if (!window.confirm('确认删除这条建议？删除后不可恢复。')) return;
+        if (!window.confirm(cealinT('ad.confirmDelSug'))) return;
         sugMsgEl.textContent = '';
         sugMsgEl.classList.remove('ok');
         fetch('/api/suggestions', {
@@ -812,18 +813,18 @@
             var data = res.data || {};
             if (data.ok) {
               sugMsgEl.classList.add('ok');
-              sugMsgEl.textContent = '建议已删除';
+              sugMsgEl.textContent = cealinT('ad.sugDeleted');
               removeSuggestionRow(id);
             } else if (res.status === 401 || data.error === '密码错误') {
-              sugMsgEl.textContent = '密码错误或登录已过期，请返回首页重新登录';
+              sugMsgEl.textContent = cealinT('ad.pwdExpired');
               sugMsgEl.classList.remove('ok');
             } else {
-              sugMsgEl.textContent = data.error || '操作失败，请稍后重试';
+              sugMsgEl.textContent = data.error || cealinT('ad.opFailed');
               sugMsgEl.classList.remove('ok');
             }
           })
           .catch(function () {
-            sugMsgEl.textContent = '网络异常，操作失败';
+            sugMsgEl.textContent = cealinT('ad.netOp');
             sugMsgEl.classList.remove('ok');
           });
       };
@@ -834,7 +835,7 @@
         tipEl.style.display = 'block';
         input.disabled = true;
         saveBtn.disabled = true;
-        showMsg('请返回首页重新登录后使用', false);
+        showMsg(cealinT('ad.relogin'), false);
       } else {
         // 仅管理员会话有效时读取当前公告并预填（供编辑使用）
         roomCard.style.display = 'block';
@@ -860,16 +861,16 @@
 
       window.saveNotice = function () {
         if (!pwd || !adminFlag) {
-          showMsg('请返回首页重新登录后使用', false);
+          showMsg(cealinT('ad.relogin'), false);
           return;
         }
         var notice = input.value.trim();
         if (!notice) {
-          showMsg('公告内容不能为空', false);
+          showMsg(cealinT('ad.noticeEmpty'), false);
           return;
         }
         if (notice.length > 2000) {
-          showMsg('公告内容不能超过2000字', false);
+          showMsg(cealinT('na.msg.tooLong'), false);
           return;
         }
         saveBtn.disabled = true;
@@ -887,18 +888,27 @@
             saveBtn.disabled = false;
             var data = res.data || {};
             if (data.ok) {
-              showMsg('公告已保存', true);
+              showMsg(cealinT('na.msg.saved'), true);
             } else if (res.status === 401 || data.error === '密码错误') {
-              showMsg('密码错误或登录已过期，请返回首页重新登录', false);
+              showMsg(cealinT('ad.pwdExpired'), false);
             } else {
-              showMsg(data.error || '保存失败，请稍后重试', false);
+              showMsg(data.error || cealinT('ad.noticeSaveFailed'), false);
             }
           })
           .catch(function () {
             saveBtn.disabled = false;
-            showMsg('网络异常，保存失败', false);
+            showMsg(cealinT('ad.netSave'), false);
           });
       };
+
+      // 语言切换后重绘已加载的房间 / 建议列表（房间名、昵称、建议内容等动态数据不翻译）
+      if (window.cealinOnLangChange) {
+        cealinOnLangChange(function () {
+          if (!pwd || !adminFlag) return;
+          if (roomList && roomList.children.length) loadRoomsList();
+          if (sugList && sugList.children.length) loadSuggestionsList();
+        });
+      }
     })();
   </script>
 

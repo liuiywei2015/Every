@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>平台 - Cealin</title>
+<title data-i18n="title.platform">平台 - Cealin</title>
 <style>
   :root {
     --fg: #f7f4ee;
@@ -299,6 +299,7 @@
   button:hover:active:not(:disabled) { transform: translateY(0) scale(0.97); }
 </style>
   <script src="notice-link.js"></script>
+  <script src="i18n.js"></script>
 </head>
 <body>
 
@@ -313,36 +314,36 @@
     <a class="logo" href="index.html">Cealin</a>
     <div class="nav-right">
       <ul class="menu">
-        <li><a href="index.html">首页</a></li>
-        <li><a href="project.html">项目</a></li>
-        <li><a href="platform.html" class="active">平台</a></li>
-        <li><a href="chat.html">聊天室</a></li>
-        <li><a href="cloud.html">云储存</a></li>
-        <li><a href="suggestion.html">建议</a></li>
-        <li><a href="notice-admin.html">公告</a></li>
+        <li><a href="index.html" data-i18n="nav.home">首页</a></li>
+        <li><a href="project.html" data-i18n="nav.project">项目</a></li>
+        <li><a href="platform.html" class="active" data-i18n="nav.platform">平台</a></li>
+        <li><a href="chat.html" data-i18n="nav.chat">聊天室</a></li>
+        <li><a href="cloud.html" data-i18n="nav.cloud">云储存</a></li>
+        <li><a href="suggestion.html" data-i18n="nav.suggestion">建议</a></li>
+        <li><a href="notice-admin.html" data-i18n="nav.notice">公告</a></li>
       </ul>
-      <a class="avatar" href="settings.html" title="设置"></a>
+      <a class="avatar" href="settings.html" title="设置" data-i18n-title="nav.settings"></a>
     </div>
   </header>
 
   <!-- 页面主体 -->
   <main class="hero">
-    <h1 class="title">平台</h1>
-    <p class="page-sub">内容发布与互动空间</p>
+    <h1 class="title" data-i18n="platform.title">平台</h1>
+    <p class="page-sub" data-i18n="platform.sub">内容发布与互动空间</p>
 
     <!-- 发布框 -->
     <section class="publish-box">
-      <input class="pb-input pb-name" id="pName" type="text" placeholder="昵称（默认访客）" maxlength="20">
-      <textarea class="pb-input pb-text" id="pText" placeholder="分享此刻的想法或创作…"></textarea>
+      <input class="pb-input pb-name" id="pName" type="text" placeholder="昵称（默认访客）" maxlength="20" data-i18n-ph="project.namePh">
+      <textarea class="pb-input pb-text" id="pText" placeholder="分享此刻的想法或创作…" data-i18n-ph="platform.textPh"></textarea>
       <div class="pb-row">
-        <span style="font-size:12px;color:var(--muted);letter-spacing:0.08em;">发布后展示在下方动态流</span>
-        <button class="pb-btn" onclick="publishPost()">发布动态</button>
+        <span style="font-size:12px;color:var(--muted);letter-spacing:0.08em;" data-i18n="platform.hint">发布后展示在下方动态流</span>
+        <button class="pb-btn" onclick="publishPost()" data-i18n="platform.publish">发布动态</button>
       </div>
     </section>
 
     <!-- 动态流 -->
     <section class="feed">
-      <div class="feed-title">创作与动态</div>
+      <div class="feed-title" data-i18n="platform.feed">创作与动态</div>
       <div id="postList"></div>
       <p class="feed-count" id="postCount"></p>
     </section>
@@ -392,10 +393,10 @@
         var d = new Date(t);
         if (isNaN(d.getTime())) { return String(t || ''); }
         var diff = (Date.now() - d.getTime()) / 1000;
-        if (diff < 60) { return '刚刚'; }
-        if (diff < 3600) { return Math.floor(diff / 60) + '分钟前'; }
-        if (diff < 86400) { return Math.floor(diff / 3600) + '小时前'; }
-        if (diff < 604800) { return Math.floor(diff / 86400) + '天前'; }
+        if (diff < 60) { return cealinT('time.justNow'); }
+        if (diff < 3600) { return cealinT('time.minAgo', { n: Math.floor(diff / 60) }); }
+        if (diff < 86400) { return cealinT('time.hourAgo', { n: Math.floor(diff / 3600) }); }
+        if (diff < 604800) { return cealinT('time.dayAgo', { n: Math.floor(diff / 86400) }); }
         var m = d.getMonth() + 1;
         var day = d.getDate();
         return d.getFullYear() + '-' + (m < 10 ? '0' + m : m) + '-' + (day < 10 ? '0' + day : day);
@@ -409,7 +410,7 @@
           var likes = typeof st.likes === 'number' ? st.likes : (p.likes || 0);
           return '<div class="post-card"><div class="pc-head"><span class="pc-author">' + esc(p.author) + '</span><span class="pc-time">' + esc(fmtTime(p.time)) + '</span></div><p class="pc-text">' + esc(p.text) + '</p><button class="like-btn' + (liked ? ' on' : '') + '" onclick="toggleLike(\'' + key + '\')">♥ ' + likes + '</button></div>';
         }).join('');
-        document.getElementById('postCount').textContent = posts.length + ' 条动态';
+        document.getElementById('postCount').textContent = posts.length ? cealinT('platform.count', { n: posts.length }) : '';
       }
 
       window.publishPost = function () {
@@ -462,6 +463,9 @@
       loadLikes();
       loadLocal();
       render();
+
+      // 语言切换后重渲染时间与计数等界面文案（动态内容本身为动态数据，不翻译）
+      if (window.cealinOnLangChange) { cealinOnLangChange(function () { render(); }); }
 
       fetch('/api/messages').then(function (r) { return r.json(); }).then(function (res) {
         if (!res || !res.ok || !Array.isArray(res.messages)) { throw new Error('bad'); }

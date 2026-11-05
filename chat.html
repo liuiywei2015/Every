@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>聊天室 - Cealin</title>
+<title data-i18n="title.chat">聊天室 - Cealin</title>
 <style>
   :root {
     --fg: #f7f4ee;
@@ -580,6 +580,7 @@
   button:hover:active:not(:disabled) { transform: translateY(0) scale(0.97); }
 </style>
   <script src="notice-link.js"></script>
+  <script src="i18n.js"></script>
 </head>
 <body>
 
@@ -594,44 +595,44 @@
     <a class="logo" href="index.html">Cealin</a>
     <div class="nav-right">
       <ul class="menu">
-        <li><a href="index.html">首页</a></li>
-        <li><a href="project.html">项目</a></li>
-        <li><a href="platform.html">平台</a></li>
-        <li><a href="chat.html" class="active">聊天室</a></li>
-        <li><a href="cloud.html">云储存</a></li>
-        <li><a href="suggestion.html">建议</a></li>
-        <li><a href="notice-admin.html">公告</a></li>
+        <li><a href="index.html" data-i18n="nav.home">首页</a></li>
+        <li><a href="project.html" data-i18n="nav.project">项目</a></li>
+        <li><a href="platform.html" data-i18n="nav.platform">平台</a></li>
+        <li><a href="chat.html" class="active" data-i18n="nav.chat">聊天室</a></li>
+        <li><a href="cloud.html" data-i18n="nav.cloud">云储存</a></li>
+        <li><a href="suggestion.html" data-i18n="nav.suggestion">建议</a></li>
+        <li><a href="notice-admin.html" data-i18n="nav.notice">公告</a></li>
       </ul>
-      <a class="avatar" href="settings.html" title="设置"></a>
+      <a class="avatar" href="settings.html" title="设置" data-i18n-title="nav.settings"></a>
     </div>
   </header>
 
   <!-- 页面主体 -->
   <main class="hero">
-    <h1 class="title">聊天室</h1>
-    <p class="page-sub">四字代码 · 随时畅聊</p>
+    <h1 class="title" data-i18n="chat.title">聊天室</h1>
+    <p class="page-sub" data-i18n="chat.sub">四字代码 · 随时畅聊</p>
 
     <!-- 公告区 -->
     <section class="notice-card">
-      <h2 class="notice-title">公告</h2>
+      <h2 class="notice-title" data-i18n="nav.notice">公告</h2>
       <p class="notice-text" id="noticeText">加载中…</p>
     </section>
 
     <!-- 管理员编辑入口（仅管理员身份显示） -->
     <div class="edit-entry" id="adminEditEntry">
-      <a class="room-btn plain" href="notice-admin.html">编辑公告</a>
+      <a class="room-btn plain" href="notice-admin.html" data-i18n="chat.editEntry">编辑公告</a>
     </div>
 
     <!-- 进入阶段 -->
     <section id="enterBox" class="room-box">
-      <p class="room-tip">每个聊天室有唯一四字代码，分享代码即可邀请朋友加入</p>
-      <label class="field-label" for="nickInput">昵称</label>
-      <input id="nickInput" class="room-input" type="text" maxlength="20" autocomplete="off" placeholder="给自己起个名字">
-      <label class="field-label" for="codeInput">房间代码</label>
-      <input id="codeInput" class="room-input" type="text" maxlength="4" autocomplete="off" placeholder="四字代码">
+      <p class="room-tip" data-i18n="chat.roomTip">每个聊天室有唯一四字代码，分享代码即可邀请朋友加入</p>
+      <label class="field-label" for="nickInput" data-i18n="chat.nick">昵称</label>
+      <input id="nickInput" class="room-input" type="text" maxlength="20" autocomplete="off" placeholder="给自己起个名字" data-i18n-ph="chat.nickPh">
+      <label class="field-label" for="codeInput" data-i18n="chat.code">房间代码</label>
+      <input id="codeInput" class="room-input" type="text" maxlength="4" autocomplete="off" placeholder="四字代码" data-i18n-ph="chat.codePh">
       <div class="room-actions">
-        <button class="room-btn" onclick="joinRoom()">加入房间</button>
-        <button class="room-btn plain" onclick="createRoom()">创建房间</button>
+        <button class="room-btn" onclick="joinRoom()" data-i18n="chat.join">加入房间</button>
+        <button class="room-btn plain" onclick="createRoom()" data-i18n="chat.create">创建房间</button>
       </div>
       <p class="room-err" id="enterErr"></p>
     </section>
@@ -642,52 +643,52 @@
         <div class="chat-head-left">
           <div class="chat-head-title">
             <span class="chat-room-code" id="roomCodeText"></span>
-            <span id="verifyBadge" class="verify-badge" style="display:none;" title="官方认证聊天室">
+            <span id="verifyBadge" class="verify-badge" style="display:none;" title="官方认证聊天室" data-i18n-title="chat.verified">
               <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M6 13l4 4 8-9" stroke="#ffffff" stroke-width="3.4" stroke-linecap="round" stroke-linejoin="round"/></svg>
             </span>
           </div>
           <span class="chat-room-sub" id="roomCodeSub" style="display:none;"></span>
           <span class="chat-my-name" id="myNameText"></span>
         </div>
-        <button class="room-btn plain" onclick="openSettings()">设置</button>
-        <button class="room-btn plain" onclick="leaveRoom()">退出房间</button>
+        <button class="room-btn plain" onclick="openSettings()" data-i18n="chat.settings">设置</button>
+        <button class="room-btn plain" onclick="leaveRoom()" data-i18n="chat.leave">退出房间</button>
       </div>
       <div id="changeBox" class="change-box" style="display:none;">
         <div class="change-row">
-          <input id="newCodeInput" class="room-input change-input" type="text" maxlength="4" autocomplete="off" placeholder="新四字代码">
-          <button class="room-btn plain" onclick="genRandomCode()">随机生成</button>
+          <input id="newCodeInput" class="room-input change-input" type="text" maxlength="4" autocomplete="off" placeholder="新四字代码" data-i18n-ph="chat.newCodePh">
+          <button class="room-btn plain" onclick="genRandomCode()" data-i18n="chat.random">随机生成</button>
         </div>
         <div class="change-row">
-          <button class="room-btn" onclick="confirmChange()">确认更改</button>
-          <button class="room-btn plain" onclick="toggleChangeBox()">取消</button>
+          <button class="room-btn" onclick="confirmChange()" data-i18n="chat.confirmChange">确认更改</button>
+          <button class="room-btn plain" onclick="toggleChangeBox()" data-i18n="common.cancel">取消</button>
         </div>
       </div>
 
       <!-- 设置面板：收纳举报房间、聊天室起名与更改代码 -->
       <div id="settingsMask" class="settings-mask" style="display:none;" onclick="if (event.target === this) closeSettings()">
         <div class="settings-panel">
-          <div class="settings-title">聊天室设置</div>
-          <button type="button" class="settings-item" id="reportBtn" onclick="reportRoom()">举报房间</button>
-          <button type="button" class="settings-item" onclick="toggleRenameRow()">给聊天室起名</button>
+          <div class="settings-title" data-i18n="chat.settingsTitle">聊天室设置</div>
+          <button type="button" class="settings-item" id="reportBtn" onclick="reportRoom()" data-i18n="chat.report">举报房间</button>
+          <button type="button" class="settings-item" onclick="toggleRenameRow()" data-i18n="chat.rename">给聊天室起名</button>
           <div id="renameRow" style="display:none;margin-bottom:10px;">
-            <input id="roomNameInput" class="room-input" type="text" maxlength="20" autocomplete="off" placeholder="输入房间显示名称（留空则恢复显示代码）" style="letter-spacing:0.08em;margin-bottom:8px;">
+            <input id="roomNameInput" class="room-input" type="text" maxlength="20" autocomplete="off" placeholder="输入房间显示名称（留空则恢复显示代码）" style="letter-spacing:0.08em;margin-bottom:8px;" data-i18n-ph="chat.renamePh">
             <div class="change-row">
-              <button class="room-btn" onclick="saveRoomName()">保存名称</button>
-              <button class="room-btn plain" onclick="toggleRenameRow()">取消</button>
+              <button class="room-btn" onclick="saveRoomName()" data-i18n="chat.saveName">保存名称</button>
+              <button class="room-btn plain" onclick="toggleRenameRow()" data-i18n="common.cancel">取消</button>
             </div>
           </div>
-          <button type="button" class="settings-item" onclick="settingsChangeCode()">更改代码</button>
-          <button type="button" class="settings-item settings-close" onclick="closeSettings()">关闭</button>
+          <button type="button" class="settings-item" onclick="settingsChangeCode()" data-i18n="chat.changeCode">更改代码</button>
+          <button type="button" class="settings-item settings-close" onclick="closeSettings()" data-i18n="common.close">关闭</button>
         </div>
       </div>
       <!-- 官方认证横幅：显示在聊天消息显示区顶部，金色调 -->
-      <div id="verifiedBanner" class="verified-banner" style="display:none;">官方认证聊天室</div>
+      <div id="verifiedBanner" class="verified-banner" style="display:none;" data-i18n="chat.verified">官方认证聊天室</div>
       <!-- 封禁提示：显示在聊天消息显示区顶部，被封禁房间仍可进入查看历史消息 -->
-      <div id="bannedBanner" class="banned-banner" style="display:none;">聊天室已被封禁</div>
+      <div id="bannedBanner" class="banned-banner" style="display:none;" data-i18n="chat.banned">聊天室已被封禁</div>
       <div id="msgList" class="msg-list"></div>
       <div class="chat-input-row">
-        <input id="msgInput" class="chat-input" type="text" maxlength="500" autocomplete="off" placeholder="说点什么…">
-        <button class="room-btn" id="sendBtn" onclick="sendMsg()">发送</button>
+        <input id="msgInput" class="chat-input" type="text" maxlength="500" autocomplete="off" placeholder="说点什么…" data-i18n-ph="chat.msgPh">
+        <button class="room-btn" id="sendBtn" onclick="sendMsg()" data-i18n="chat.send">发送</button>
       </div>
       <p class="offline-tip" id="offlineTip"></p>
     </section>
@@ -720,7 +721,7 @@
       // 加载公告（每次进入页面自动展示；本地双击打开时静默降级为默认文案）
       function loadNotice() {
         var textEl = el('noticeText');
-        var fallback = '欢迎来到 Cealin 聊天室，请文明交流，聊天记录云端同步。';
+        var fallback = cealinT('chat.noticeFallback');
         fetch('/api/notice')
           .then(function (resp) { return resp.json(); })
           .then(function (data) {
@@ -743,7 +744,7 @@
       }
 
       function showOfflineTip() {
-        el('offlineTip').textContent = '部署后可跨设备聊天';
+        el('offlineTip').textContent = cealinT('chat.offline');
       }
       function clearOfflineTip() {
         el('offlineTip').textContent = '';
@@ -783,16 +784,16 @@
         var subEl = el('roomCodeSub');
         codeEl.textContent = currentRoomName || code;
         codeEl.classList.toggle('named', !!currentRoomName);
-        subEl.textContent = currentRoomName ? ('房间代码 ' + code) : '';
+        subEl.textContent = currentRoomName ? cealinT('chat.roomCode', { code: code }) : '';
         subEl.style.display = currentRoomName ? 'block' : 'none';
         el('verifyBadge').style.display = currentVerified ? 'inline-flex' : 'none';
         el('verifiedBanner').style.display = currentVerified ? 'block' : 'none';
-        el('myNameText').textContent = '昵称：' + name;
+        el('myNameText').textContent = cealinT('chat.myName', { name: name });
         // 封禁状态：用户仍可进入、可查看历史，但聊天室内显示红色大字并禁止发送新消息
         currentBanned = !!state.banned;
         el('bannedBanner').style.display = currentBanned ? 'block' : 'none';
         el('msgInput').disabled = currentBanned;
-        el('msgInput').placeholder = currentBanned ? '聊天室已被封禁，无法发送消息' : '说点什么…';
+        el('msgInput').placeholder = currentBanned ? cealinT('chat.msgPhBanned') : cealinT('chat.msgPh');
         el('sendBtn').disabled = currentBanned;
         // 进入房间时确保设置面板关闭
         el('settingsMask').style.display = 'none';
@@ -801,7 +802,7 @@
         // 举报按钮：进入房间后恢复为可用状态
         var reportBtn = el('reportBtn');
         reportBtn.disabled = false;
-        reportBtn.textContent = '举报房间';
+        reportBtn.textContent = cealinT('chat.report');
         el('enterBox').style.display = 'none';
         el('chatBox').style.display = 'flex';
         // 管理员显示"编辑公告"入口，游客不显示
@@ -817,19 +818,19 @@
       window.createRoom = async function () {
         setErr('');
         var name = el('nickInput').value.trim().slice(0, 20);
-        if (!name) { setErr('请先输入昵称'); return; }
+        if (!name) { setErr(cealinT('chat.needNick')); return; }
         try {
           var data = await post('/create', { name: name });
           if (data && data.ok && data.code) {
             enterChat(String(data.code).toUpperCase(), name, { banned: false, reported: false });
           } else {
-            setErr(data && data.error ? data.error : '创建房间失败');
+            setErr(data && data.error ? data.error : cealinT('chat.createFailed'));
           }
         } catch (err) {
           if (err && err.status) {
             setErr(err.message);
           } else {
-            setErr('创建房间失败');
+            setErr(cealinT('chat.createFailed'));
             showOfflineTip();
           }
         }
@@ -839,20 +840,20 @@
         setErr('');
         var name = el('nickInput').value.trim().slice(0, 20);
         var code = el('codeInput').value.trim().toUpperCase();
-        if (!name) { setErr('请先输入昵称'); return; }
-        if (!/^[A-Za-z0-9]{4}$/.test(code)) { setErr('房间代码为四字代码（字母或数字）'); return; }
+        if (!name) { setErr(cealinT('chat.needNick')); return; }
+        if (!/^[A-Za-z0-9]{4}$/.test(code)) { setErr(cealinT('chat.codeRule')); return; }
         try {
           var data = await post('/join', { code: code, name: name });
           if (data && data.ok) {
             enterChat(code, name, { banned: !!data.banned, reported: !!data.reported, verified: !!data.verified, roomName: data.roomName || '' });
           } else {
-            setErr(data && data.error ? data.error : '加入房间失败');
+            setErr(data && data.error ? data.error : cealinT('chat.joinFailed'));
           }
         } catch (err) {
           if (err && err.status) {
             setErr(err.message);
           } else {
-            setErr('加入房间失败');
+            setErr(cealinT('chat.joinFailed'));
             showOfflineTip();
           }
         }
@@ -895,16 +896,16 @@
         post('/report', { code: currentCode })
           .then(function (data) {
             if (data && data.ok) {
-              btn.textContent = '已举报';
-              showTip('已举报该聊天室，感谢反馈', true);
+              btn.textContent = cealinT('chat.reportDone');
+              showTip(cealinT('chat.reportOk'), true);
             } else {
               btn.disabled = false;
-              showTip((data && data.error) || '举报失败，请稍后重试', false);
+              showTip((data && data.error) || cealinT('chat.reportFailed'), false);
             }
           })
           .catch(function (err) {
             btn.disabled = false;
-            showTip(err && err.status ? err.message : '举报失败，请稍后重试', false);
+            showTip(err && err.status ? err.message : cealinT('chat.reportFailed'), false);
           });
       };
 
@@ -960,14 +961,14 @@
               el('verifyBadge').style.display = currentVerified ? 'inline-flex' : 'none';
               el('verifiedBanner').style.display = currentVerified ? 'block' : 'none';
               el('renameRow').style.display = 'none';
-              showTip(roomName ? ('房间名称已保存为「' + roomName + '」') : '已恢复显示房间代码', true);
+              showTip(roomName ? cealinT('chat.nameSaved', { name: roomName }) : cealinT('chat.nameCleared'), true);
               closeSettings();
             } else {
-              showTip(data && data.error ? data.error : '保存失败', false);
+              showTip(data && data.error ? data.error : cealinT('chat.saveFailed'), false);
             }
           })
           .catch(function (err) {
-            showTip(err && err.status ? err.message : '保存失败，请稍后重试', false);
+            showTip(err && err.status ? err.message : cealinT('chat.saveFailedRetry'), false);
           });
       };
 
@@ -990,7 +991,7 @@
       window.confirmChange = function () {
         var newCode = el('newCodeInput').value.trim().toUpperCase();
         if (!/^[A-Za-z0-9]{4}$/.test(newCode)) {
-          showTip('房间代码须为4位字母或数字', false);
+          showTip(cealinT('chat.codeRule4'), false);
           return;
         }
         post('/change', { code: currentCode, name: currentName, newCode: newCode })
@@ -1001,17 +1002,17 @@
               var codeEl = el('roomCodeText');
               codeEl.textContent = currentRoomName || currentCode;
               codeEl.classList.toggle('named', !!currentRoomName);
-              el('roomCodeSub').textContent = currentRoomName ? ('房间代码 ' + currentCode) : '';
+              el('roomCodeSub').textContent = currentRoomName ? cealinT('chat.roomCode', { code: currentCode }) : '';
               el('roomCodeSub').style.display = currentRoomName ? 'block' : 'none';
               toggleChangeBox();
-              showTip('房间代码已更新为 ' + currentCode, true);
+              showTip(cealinT('chat.codeUpdated', { code: currentCode }), true);
               loadMessages();
             } else {
-              showTip(data && data.error ? data.error : '更改失败', false);
+              showTip(data && data.error ? data.error : cealinT('chat.changeFailed'), false);
             }
           })
           .catch(function (err) {
-            showTip(err && err.status ? err.message : '更改失败', false);
+            showTip(err && err.status ? err.message : cealinT('chat.changeFailed'), false);
           });
       };
 
@@ -1044,9 +1045,9 @@
         el('bannedBanner').style.display = 'none';
         var reportBtn = el('reportBtn');
         reportBtn.disabled = false;
-        reportBtn.textContent = '举报房间';
+        reportBtn.textContent = cealinT('chat.report');
         el('msgInput').disabled = false;
-        el('msgInput').placeholder = '说点什么…';
+        el('msgInput').placeholder = cealinT('chat.msgPh');
         el('sendBtn').disabled = false;
         // 退出后关闭设置面板
         el('settingsMask').style.display = 'none';
@@ -1069,7 +1070,7 @@
               var codeEl2 = el('roomCodeText');
               codeEl2.textContent = currentRoomName || currentCode;
               codeEl2.classList.toggle('named', !!currentRoomName);
-              el('roomCodeSub').textContent = currentRoomName ? ('房间代码 ' + currentCode) : '';
+              el('roomCodeSub').textContent = currentRoomName ? cealinT('chat.roomCode', { code: currentCode }) : '';
               el('roomCodeSub').style.display = currentRoomName ? 'block' : 'none';
               el('verifyBadge').style.display = currentVerified ? 'inline-flex' : 'none';
               el('verifiedBanner').style.display = currentVerified ? 'block' : 'none';
@@ -1081,7 +1082,7 @@
             var list = data.messages;
             var wrap = el('msgList');
             if (!list.length) {
-              wrap.innerHTML = '<div class="msg-empty">暂无消息，来发第一条吧</div>';
+              wrap.innerHTML = '<div class="msg-empty">' + cealinT('chat.empty') + '</div>';
               lastCount = 0;
               return;
             }
@@ -1104,6 +1105,21 @@
         var d = new Date(iso);
         if (isNaN(d.getTime())) return '';
         return d.getHours() + ':' + String(d.getMinutes()).padStart(2, '0');
+      }
+
+      // 语言切换后刷新脚本生成的界面文案（消息、昵称、房间名等动态数据不翻译）
+      if (window.cealinOnLangChange) {
+        cealinOnLangChange(function () {
+          if (!currentCode) return;
+          var sub = el('roomCodeSub');
+          if (sub) sub.textContent = currentRoomName ? cealinT('chat.roomCode', { code: currentCode }) : '';
+          var mine = el('myNameText');
+          if (mine && currentName) mine.textContent = cealinT('chat.myName', { name: currentName });
+          var box = el('msgInput');
+          if (box) box.placeholder = currentBanned ? cealinT('chat.msgPhBanned') : cealinT('chat.msgPh');
+          var rbtn = el('reportBtn');
+          if (rbtn && rbtn.className.indexOf('done') < 0) rbtn.textContent = cealinT('chat.report');
+        });
       }
 
       // 回车快捷操作

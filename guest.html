@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>游客界面 - Cealin</title>
+<title data-i18n="title.guest">游客界面 - Cealin</title>
 <style>
   :root {
     --fg: #f7f4ee;
@@ -262,6 +262,7 @@
 }
   button:hover:active:not(:disabled) { transform: translateY(0) scale(0.97); }
 </style>
+  <script src="i18n.js"></script>
 </head>
 <body>
 
@@ -276,34 +277,34 @@
     <a class="logo" href="index.html">Cealin</a>
     <div class="nav-right">
       <ul class="menu">
-        <li><a href="index.html">首页</a></li>
-        <li><a href="project.html">项目</a></li>
-        <li><a href="platform.html">平台</a></li>
-        <li><a href="chat.html">聊天室</a></li>
-        <li><a href="cloud.html">云储存</a></li>
-        <li><a href="suggestion.html">建议</a></li>
+        <li><a href="index.html" data-i18n="nav.home">首页</a></li>
+        <li><a href="project.html" data-i18n="nav.project">项目</a></li>
+        <li><a href="platform.html" data-i18n="nav.platform">平台</a></li>
+        <li><a href="chat.html" data-i18n="nav.chat">聊天室</a></li>
+        <li><a href="cloud.html" data-i18n="nav.cloud">云储存</a></li>
+        <li><a href="suggestion.html" data-i18n="nav.suggestion">建议</a></li>
       </ul>
-      <a class="avatar" href="settings.html" title="设置"></a>
+      <a class="avatar" href="settings.html" title="设置" data-i18n-title="nav.settings"></a>
     </div>
   </header>
 
   <!-- 页面主体 -->
   <main class="main">
-    <h1 class="page-title">游客界面</h1>
-    <p class="page-sub">以游客身份浏览 Cealin</p>
+    <h1 class="page-title" data-i18n="guest.title">游客界面</h1>
+    <p class="page-sub" data-i18n="guest.sub">以游客身份浏览 Cealin</p>
 
     <!-- 公告区（游客只读） -->
     <section class="notice-card">
-      <h2 class="notice-title">公告<span class="readonly-badge">游客只读</span></h2>
+      <h2 class="notice-title"><span data-i18n="nav.notice">公告</span><span class="readonly-badge" data-i18n="guest.readonly">游客只读</span></h2>
       <p class="notice-text" id="noticeText">加载中…</p>
     </section>
 
     <!-- 入口 -->
     <div class="entries">
-      <a class="entry-btn" href="chat.html">进入聊天室</a>
+      <a class="entry-btn" href="chat.html" data-i18n="guest.enterChat">进入聊天室</a>
     </div>
 
-    <a class="back-home" href="index.html">返回首页</a>
+    <a class="back-home" href="index.html" data-i18n="common.backHome">返回首页</a>
   </main>
 
   <script>
@@ -312,7 +313,7 @@
       try { sessionStorage.removeItem('cealin_admin'); } catch (e) {}
       try { sessionStorage.removeItem('cealin_admin_pwd'); } catch (e) {}
       // 加载公告（游客只读展示）
-      var fallback = '欢迎来到 Cealin，公告内容加载中，请稍后再试。';
+      var fallback = cealinT('guest.noticeFallback');
       fetch('/api/notice')
         .then(function (resp) { return resp.json(); })
         .then(function (data) {

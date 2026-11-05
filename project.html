@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>项目 - Cealin</title>
+<title data-i18n="title.project">项目 - Cealin</title>
 <style>
   :root {
     --fg: #f7f4ee;
@@ -330,6 +330,7 @@
   button:hover:active:not(:disabled) { transform: translateY(0) scale(0.97); }
 </style>
   <script src="notice-link.js"></script>
+  <script src="i18n.js"></script>
 </head>
 <body>
 
@@ -344,58 +345,58 @@
     <a class="logo" href="index.html">Cealin</a>
     <div class="nav-right">
       <ul class="menu">
-        <li><a href="index.html">首页</a></li>
-        <li><a href="project.html" class="active">项目</a></li>
-        <li><a href="platform.html">平台</a></li>
-        <li><a href="chat.html">聊天室</a></li>
-        <li><a href="cloud.html">云储存</a></li>
-        <li><a href="suggestion.html">建议</a></li>
-        <li><a href="notice-admin.html">公告</a></li>
+        <li><a href="index.html" data-i18n="nav.home">首页</a></li>
+        <li><a href="project.html" class="active" data-i18n="nav.project">项目</a></li>
+        <li><a href="platform.html" data-i18n="nav.platform">平台</a></li>
+        <li><a href="chat.html" data-i18n="nav.chat">聊天室</a></li>
+        <li><a href="cloud.html" data-i18n="nav.cloud">云储存</a></li>
+        <li><a href="suggestion.html" data-i18n="nav.suggestion">建议</a></li>
+        <li><a href="notice-admin.html" data-i18n="nav.notice">公告</a></li>
       </ul>
-      <a class="avatar" href="settings.html" title="设置"></a>
+      <a class="avatar" href="settings.html" title="设置" data-i18n-title="nav.settings"></a>
     </div>
   </header>
 
   <!-- 页面主体 -->
   <main class="hero">
-    <h1 class="title">项目</h1>
-    <p class="page-sub">精选作品与创作实践</p>
+    <h1 class="title" data-i18n="project.title">项目</h1>
+    <p class="page-sub" data-i18n="project.sub">精选作品与创作实践</p>
 
     <!-- 项目卡片区 -->
     <section class="project-grid">
       <div class="project-card">
         <div class="pc-name">Aurora</div>
-        <span class="pc-tag">视觉 · WebGL</span>
-        <p class="pc-desc">极光视觉实验，基于 WebGL 的动态光影生成器，让色彩在夜幕中缓慢呼吸。</p>
+        <span class="pc-tag" data-i18n="project.aurora.tag">视觉 · WebGL</span>
+        <p class="pc-desc" data-i18n="project.aurora.desc">极光视觉实验，基于 WebGL 的动态光影生成器，让色彩在夜幕中缓慢呼吸。</p>
       </div>
       <div class="project-card">
         <div class="pc-name">Nimbus</div>
-        <span class="pc-tag">工具 · 笔记</span>
-        <p class="pc-desc">极简轻量的离线笔记工具，只保留记录本身，专注、安静、零打扰。</p>
+        <span class="pc-tag" data-i18n="project.nimbus.tag">工具 · 笔记</span>
+        <p class="pc-desc" data-i18n="project.nimbus.desc">极简轻量的离线笔记工具，只保留记录本身，专注、安静、零打扰。</p>
       </div>
       <div class="project-card">
         <div class="pc-name">Sable</div>
-        <span class="pc-tag">界面 · 主题</span>
-        <p class="pc-desc">为创作者打造的高质感暗色界面套件，克制、细腻、经得起长久凝视。</p>
+        <span class="pc-tag" data-i18n="project.sable.tag">界面 · 主题</span>
+        <p class="pc-desc" data-i18n="project.sable.desc">为创作者打造的高质感暗色界面套件，克制、细腻、经得起长久凝视。</p>
       </div>
       <div class="project-card">
         <div class="pc-name">Drift</div>
-        <span class="pc-tag">声音 · 氛围</span>
-        <p class="pc-desc">沉浸式声景漫游，用风声、水声与山谷的回响，把时间放慢下来。</p>
+        <span class="pc-tag" data-i18n="project.drift.tag">声音 · 氛围</span>
+        <p class="pc-desc" data-i18n="project.drift.desc">沉浸式声景漫游，用风声、水声与山谷的回响，把时间放慢下来。</p>
       </div>
     </section>
 
     <!-- 留言板 -->
     <section class="board">
-      <div class="board-title">访客留言</div>
+      <div class="board-title" data-i18n="project.board">访客留言</div>
       <div id="commentList"></div>
 
       <div class="comment-form">
         <div class="cf-row">
-          <input class="cf-input" id="cName" type="text" placeholder="昵称（默认访客）" maxlength="20">
+          <input class="cf-input" id="cName" type="text" placeholder="昵称（默认访客）" maxlength="20" data-i18n-ph="project.namePh">
         </div>
-        <textarea class="cf-text" id="cText" placeholder="留下你的想法…"></textarea>
-        <button class="cf-btn" onclick="submitComment()">发表留言</button>
+        <textarea class="cf-text" id="cText" placeholder="留下你的想法…" data-i18n-ph="project.textPh"></textarea>
+        <button class="cf-btn" onclick="submitComment()" data-i18n="project.submit">发表留言</button>
       </div>
       <p class="board-count" id="commentCount"></p>
     </section>
@@ -404,6 +405,7 @@
   <script>
     (function () {
       var API = '/api/messages';
+      var lastList = null;
 
       function esc(s) {
         return String(s || '').replace(/[&<>"']/g, function (c) {
@@ -417,30 +419,36 @@
         var d = new Date(t);
         if (isNaN(d.getTime())) return String(t);
         var diff = Date.now() - d.getTime();
-        if (diff < 60000) return '刚刚';
-        if (diff < 3600000) return Math.floor(diff / 60000) + ' 分钟前';
-        if (diff < 86400000) return Math.floor(diff / 3600000) + ' 小时前';
-        if (diff < 2592000000) return Math.floor(diff / 86400000) + ' 天前';
+        if (diff < 60000) return cealinT('time.justNow');
+        if (diff < 3600000) return cealinT('time.minAgo', { n: Math.floor(diff / 60000) });
+        if (diff < 86400000) return cealinT('time.hourAgo', { n: Math.floor(diff / 3600000) });
+        if (diff < 2592000000) return cealinT('time.dayAgo', { n: Math.floor(diff / 86400000) });
         return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
       }
 
       function render(list) {
         var html;
         if (!list.length) {
-          html = '<div class="comment-item"><div class="ci-head"><span class="ci-name">云端留言板</span></div><p>还没有留言，写下第一条吧。</p></div>';
+          html = '<div class="comment-item"><div class="ci-head"><span class="ci-name">' + cealinT('project.boardName') + '</span></div><p>' + cealinT('project.boardEmpty') + '</p></div>';
         } else {
           html = list.map(function (c) {
             return '<div class="comment-item"><div class="ci-head"><span class="ci-name">' + esc(c.name) + '</span><span class="ci-time">' + esc(fmtTime(c.time)) + '</span></div><p>' + esc(c.text) + '</p></div>';
           }).join('');
         }
         document.getElementById('commentList').innerHTML = html;
-        document.getElementById('commentCount').textContent = list.length + ' 条留言';
+        lastList = list;
+        document.getElementById('commentCount').textContent = list.length ? cealinT('project.count', { n: list.length }) : '';
       }
 
       // 接口不可用（如本地直接双击打开）时优雅降级
       function showOffline() {
-        document.getElementById('commentList').innerHTML = '<div class="comment-item"><div class="ci-head"><span class="ci-name">云端留言板</span><span class="ci-time">本地模式</span></div><p>部署后可跨设备同步</p></div>';
+        document.getElementById('commentList').innerHTML = '<div class="comment-item"><div class="ci-head"><span class="ci-name">' + cealinT('project.boardName') + '</span><span class="ci-time">' + cealinT('project.localMode') + '</span></div><p>' + cealinT('project.localHint') + '</p></div>';
         document.getElementById('commentCount').textContent = '';
+      }
+
+      // 语言切换后重渲染时间与计数等界面文案（留言内容本身为动态数据，不翻译）
+      if (window.cealinOnLangChange) {
+        cealinOnLangChange(function () { if (lastList) render(lastList); });
       }
 
       // 页面加载时拉取云端留言

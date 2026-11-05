@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>设置 - Cealin</title>
+<title data-i18n="title.settings">设置 - Cealin</title>
 <style>
   :root {
     --fg: #f7f4ee;
@@ -257,6 +257,7 @@
   button:hover:active:not(:disabled) { transform: translateY(0) scale(0.97); }
 </style>
   <script src="notice-link.js"></script>
+  <script src="i18n.js"></script>
 </head>
 <body>
 
@@ -271,43 +272,43 @@
     <a class="logo" href="index.html">Cealin</a>
     <div class="nav-right">
       <ul class="menu">
-        <li><a href="index.html">首页</a></li>
-        <li><a href="project.html">项目</a></li>
-        <li><a href="platform.html">平台</a></li>
-        <li><a href="chat.html">聊天室</a></li>
-        <li><a href="cloud.html">云储存</a></li>
-        <li><a href="suggestion.html">建议</a></li>
-        <li><a href="notice-admin.html">公告</a></li>
+        <li><a href="index.html" data-i18n="nav.home">首页</a></li>
+        <li><a href="project.html" data-i18n="nav.project">项目</a></li>
+        <li><a href="platform.html" data-i18n="nav.platform">平台</a></li>
+        <li><a href="chat.html" data-i18n="nav.chat">聊天室</a></li>
+        <li><a href="cloud.html" data-i18n="nav.cloud">云储存</a></li>
+        <li><a href="suggestion.html" data-i18n="nav.suggestion">建议</a></li>
+        <li><a href="notice-admin.html" data-i18n="nav.notice">公告</a></li>
       </ul>
-      <a class="avatar" href="settings.html" title="设置"></a>
+      <a class="avatar" href="settings.html" title="设置" data-i18n-title="nav.settings"></a>
     </div>
   </header>
 
   <!-- 中央设置面板 -->
   <main class="hero">
-    <h1 class="title">设置</h1>
+    <h1 class="title" data-i18n="settings.title">设置</h1>
 
     <div class="panel">
       <div class="panel-row">
-        <span>深色模式</span>
+        <span data-i18n="settings.dark">深色模式</span>
         <span class="switch on" id="swDark" onclick="toggleDark()"></span>
       </div>
       <div class="panel-row">
-        <span>通知提醒</span>
+        <span data-i18n="settings.notify">通知提醒</span>
         <span class="switch on" id="swNotify" onclick="toggleNotify()"></span>
       </div>
       <div class="panel-row">
-        <span>自动播放</span>
+        <span data-i18n="settings.autoplay">自动播放</span>
         <span class="switch" id="swAuto" onclick="toggleAuto()"></span>
       </div>
       <div class="panel-row">
-        <span>关于</span>
+        <span data-i18n="settings.about">关于</span>
         <span class="lbl">Cealin v1.0</span>
       </div>
     </div>
 
-    <p class="hint">设置会自动保存到本地，下次打开仍然生效</p>
-    <p class="version">CEALIN · 个人</p>
+    <p class="hint" data-i18n="settings.hint">设置会自动保存到本地，下次打开仍然生效</p>
+    <p class="version" data-i18n="settings.version">CEALIN · 个人</p>
   </main>
 
   <script>

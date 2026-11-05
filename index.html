@@ -336,6 +336,7 @@
   button:hover:active:not(:disabled) { transform: translateY(0) scale(0.97); }
 </style>
   <script src="notice-link.js"></script>
+  <script src="i18n.js"></script>
 </head>
 <body>
 
@@ -348,15 +349,15 @@
   <!-- 登录选择遮罩（打开页面第一时间显示） -->
   <div id="loginGate" class="login-gate">
     <div class="login-gate-card">
-      <h2 class="login-gate-title" id="loginGateTitle">欢迎来到Cealin生态系统</h2>
-      <p class="login-gate-sub">请选择登录身份</p>
+      <h2 class="login-gate-title" id="loginGateTitle" data-i18n="idx.gate.title">欢迎来到Cealin生态系统</h2>
+      <p class="login-gate-sub" data-i18n="idx.gate.sub">请选择登录身份</p>
       <div class="login-gate-actions">
-        <button type="button" class="login-btn login-gate-btn" onclick="loginAsGuest()">游客登录</button>
-        <button type="button" class="login-btn login-gate-btn" onclick="loginAsAdmin()">管理员登录</button>
+        <button type="button" class="login-btn login-gate-btn" onclick="loginAsGuest()" data-i18n="idx.gate.guest">游客登录</button>
+        <button type="button" class="login-btn login-gate-btn" onclick="loginAsAdmin()" data-i18n="idx.gate.admin">管理员登录</button>
       </div>
       <div class="login-gate-pwd-row" id="loginGatePwdRow">
-        <input id="loginGatePwd" class="login-pwd" type="password" maxlength="50" autocomplete="off" placeholder="管理员密码">
-        <button type="button" class="login-btn login-gate-btn" onclick="confirmAdminLogin()">验证并进入</button>
+        <input id="loginGatePwd" class="login-pwd" type="password" maxlength="50" autocomplete="off" placeholder="管理员密码" data-i18n-ph="idx.gate.pwd">
+        <button type="button" class="login-btn login-gate-btn" onclick="confirmAdminLogin()" data-i18n="idx.gate.confirm">验证并进入</button>
       </div>
       <p class="login-gate-err" id="loginGateErr"></p>
     </div>
@@ -367,28 +368,28 @@
     <a class="logo" href="index.html">Cealin</a>
     <div class="nav-right">
       <ul class="menu">
-        <li><a href="index.html" class="active">首页</a></li>
-        <li><a href="project.html">项目</a></li>
-        <li><a href="platform.html">平台</a></li>
-        <li><a href="chat.html">聊天室</a></li>
-        <li><a href="cloud.html">云储存</a></li>
-        <li><a href="suggestion.html">建议</a></li>
-        <li><a href="notice-admin.html">公告</a></li>
+        <li><a href="index.html" class="active" data-i18n="nav.home">首页</a></li>
+        <li><a href="project.html" data-i18n="nav.project">项目</a></li>
+        <li><a href="platform.html" data-i18n="nav.platform">平台</a></li>
+        <li><a href="chat.html" data-i18n="nav.chat">聊天室</a></li>
+        <li><a href="cloud.html" data-i18n="nav.cloud">云储存</a></li>
+        <li><a href="suggestion.html" data-i18n="nav.suggestion">建议</a></li>
+        <li><a href="notice-admin.html" data-i18n="nav.notice">公告</a></li>
       </ul>
-      <a class="avatar" href="settings.html" title="设置"></a>
+      <a class="avatar" href="settings.html" title="设置" data-i18n-title="nav.settings"></a>
     </div>
   </header>
 
   <!-- 中央英雄区 -->
   <main class="hero">
     <h1 class="title">Cealin</h1>
-    <p class="page-sub">设计与灵感</p>
+    <p class="page-sub" data-i18n="idx.sub">设计与灵感</p>
 
     <!-- 低调的最新动态区块 -->
     <section class="latest">
-      <div class="latest-title">最新动态</div>
+      <div class="latest-title" data-i18n="idx.latest">最新动态</div>
       <div id="latestList"></div>
-      <a class="guest-entry" href="project.html" id="guestCount">访客留言</a>
+      <a class="guest-entry" href="project.html" id="guestCount" data-i18n="idx.visitor">访客留言</a>
     </section>
   </main>
 
@@ -406,7 +407,7 @@
         }).join('');
       }
       function renderCount(n) {
-        document.getElementById('guestCount').textContent = n > 0 ? ('访客留言 ' + n + ' 条 →') : '访客留言 →';
+        document.getElementById('guestCount').textContent = n > 0 ? cealinT('idx.visitorCount', { n: n }) : cealinT('idx.visitor');
       }
 
       var fallbackPosts = [
@@ -423,6 +424,8 @@
         if (Array.isArray(cs)) count = cs.length;
       } catch (e) {}
       renderCount(count);
+      // 语言切换后刷新脚本生成的计数文案（留言内容本身为动态数据，不翻译）
+      if (window.cealinOnLangChange) { cealinOnLangChange(function () { renderCount(count); }); }
 
       fetch('/api/messages').then(function (r) { return r.json(); }).then(function (res) {
         if (!res || !res.ok || !Array.isArray(res.messages)) throw new Error('bad payload');
@@ -440,13 +443,13 @@
         try { sessionStorage.removeItem('cealin_admin'); } catch (e) {}
         try { sessionStorage.removeItem('cealin_admin_pwd'); } catch (e) {}
         var t = document.getElementById('loginGateTitle');
-        if (t) { t.textContent = '欢迎来到Cealin生态系统'; }
+        if (t) { t.textContent = cealinT('idx.gate.title'); }
         window.location.href = 'guest.html';
       };
 
       window.loginAsAdmin = function () {
         var t = document.getElementById('loginGateTitle');
-        if (t) { t.textContent = '欢迎来到Cealin管理员系统'; }
+        if (t) { t.textContent = cealinT('idx.gate.titleAdmin'); }
         document.getElementById('loginGatePwdRow').style.display = 'flex';
         document.getElementById('loginGateErr').textContent = '';
         document.getElementById('loginGatePwd').focus();
@@ -455,7 +458,7 @@
       window.confirmAdminLogin = async function () {
         var pwd = document.getElementById('loginGatePwd').value.trim();
         var err = document.getElementById('loginGateErr');
-        if (!pwd) { err.textContent = '请输入管理员密码'; return; }
+        if (!pwd) { err.textContent = cealinT('idx.gate.pwdEmpty'); return; }
         try {
           var resp = await fetch('/api/notice', {
             method: 'POST',
@@ -465,7 +468,7 @@
           var data = null;
           try { data = await resp.json(); } catch (e) {}
           if (!resp.ok || !data || !data.ok) {
-            throw new Error(data && data.error ? data.error : '密码错误');
+            throw new Error(data && data.error ? data.error : cealinT('idx.gate.pwdWrong'));
           }
           try {
             sessionStorage.setItem('cealin_admin', '1');
@@ -473,7 +476,7 @@
           } catch (e) {}
           window.location.href = 'admin.html';
         } catch (errObj) {
-          err.textContent = errObj.message || '密码错误';
+          err.textContent = errObj.message || cealinT('idx.gate.pwdWrong');
           document.getElementById('loginGatePwd').value = '';
           document.getElementById('loginGatePwd').focus();
         }
