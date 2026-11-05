@@ -28,7 +28,6 @@
     'title.chat': { zh: '聊天室 - Cealin', en: 'Chat room - Cealin', ja: 'チャットルーム - Cealin', ko: '채팅방 - Cealin', es: 'Sala de chat - Cealin' },
     'title.project': { zh: '项目 - Cealin', en: 'Projects - Cealin', ja: 'プロジェクト - Cealin', ko: '프로젝트 - Cealin', es: 'Proyectos - Cealin' },
     'title.platform': { zh: '平台 - Cealin', en: 'Platform - Cealin', ja: 'プラットフォーム - Cealin', ko: '플랫폼 - Cealin', es: 'Plataforma - Cealin' },
-    'title.cloud': { zh: '云储存 - Cealin', en: 'Storage - Cealin', ja: 'クラウドストレージ - Cealin', ko: '클라우드 스토리지 - Cealin', es: 'Almacenamiento - Cealin' },
     'title.settings': { zh: '设置 - Cealin', en: 'Settings - Cealin', ja: '設定 - Cealin', ko: '설정 - Cealin', es: 'Ajustes - Cealin' },
     'title.notice': { zh: '公告管理 - Cealin', en: 'Manage notices - Cealin', ja: 'お知らせ管理 - Cealin', ko: '공지사항 관리 - Cealin', es: 'Gestionar anuncios - Cealin' },
     'title.suggestion': { zh: '建议 - Cealin', en: 'Feedback - Cealin', ja: 'ご意見 - Cealin', ko: '의견 - Cealin', es: 'Sugerencias - Cealin' },
@@ -39,10 +38,8 @@
     'nav.project': { zh: '项目', en: 'Projects', ja: 'プロジェクト', ko: '프로젝트', es: 'Proyectos' },
     'nav.platform': { zh: '平台', en: 'Platform', ja: 'プラットフォーム', ko: '플랫폼', es: 'Plataforma' },
     'nav.chat': { zh: '聊天室', en: 'Chat', ja: 'チャット', ko: '채팅방', es: 'Chat' },
-    'nav.cloud': { zh: '云储存', en: 'Storage', ja: 'クラウドストレージ', ko: '클라우드 스토리지', es: 'Almacenamiento' },
     'nav.suggestion': { zh: '建议', en: 'Feedback', ja: 'ご意見', ko: '의견', es: 'Sugerencias' },
     'nav.notice': { zh: '公告', en: 'Notices', ja: 'お知らせ', ko: '공지사항', es: 'Anuncios' },
-    'nav.account': { zh: '账号', en: 'Account', ja: 'アカウント', ko: '계정', es: 'Cuenta' },
     'nav.settingsTitle': { zh: '设置', en: 'Settings', ja: '設定', ko: '설정', es: 'Ajustes' },
     'nav.settings': { zh: '设置', en: 'Settings', ja: '設定', ko: '설정', es: 'Ajustes' },
 
@@ -83,6 +80,9 @@
     'guest.sub': { zh: '以游客身份浏览 Cealin', en: 'Browsing Cealin as a guest', ja: 'ゲストとして Cealin を閲覧中', ko: '게스트로 Cealin 둘러보기', es: 'Explorando Cealin como invitado' },
     'guest.readonly': { zh: '游客只读', en: 'read-only', ja: '閲覧のみ', ko: '읽기 전용', es: 'solo lectura' },
     'guest.enterChat': { zh: '进入聊天室', en: 'Enter the chat', ja: 'チャットに参加', ko: '채팅방 들어가기', es: 'Entrar al chat' },
+    'guest.accountTitle': { zh: '已有账号', en: 'Already have an account', ja: 'アカウントをお持ちの方', ko: '이미 계정이 있으신가요', es: '¿Ya tienes cuenta?' },
+    'guest.accountSub': { zh: '登录后即可使用聊天室等全部功能', en: 'Sign in to unlock the chat room and the rest', ja: 'ログインするとチャットなどの全機能が使えます', ko: '로그인하면 채팅방 등 모든 기능을 사용할 수 있습니다', es: 'Inicia sesión para usar el chat y el resto de funciones' },
+    'guest.accountBtn': { zh: '进入登录界面', en: 'Go to sign-in', ja: 'ログイン画面へ', ko: '로그인 화면으로', es: 'Ir a iniciar sesión' },
     'guest.noticeFallback': { zh: '欢迎来到 Cealin，公告内容加载中，请稍后再试。', en: 'Welcome to Cealin. The notice is still loading—please try again in a moment.', ja: 'Cealin へようこそ。お知らせを読み込み中です。しばらくしてからもう一度お試しください。', ko: 'Cealin에 오신 것을 환영합니다. 공지사항을 불러오는 중이니 잠시 후 다시 확인해 주세요.', es: 'Bienvenido a Cealin. El anuncio se está cargando; inténtalo de nuevo en un momento.' },
 
     /* ---------- 项目页 ---------- */
@@ -115,19 +115,6 @@
     'platform.publish': { zh: '发布动态', en: 'Post', ja: '投稿する', ko: '게시하기', es: 'Publicar' },
     'platform.feed': { zh: '创作与动态', en: 'Posts', ja: '作品とつぶやき', ko: '작업과 소식', es: 'Publicaciones' },
     'platform.count': { zh: '{n} 条动态', en: '{n} posts', ja: '{n} 件の投稿', ko: '게시물 {n}개', es: '{n} publicaciones' },
-
-    /* ---------- 云储存 ---------- */
-    'cloud.title': { zh: '云储存', en: 'Cloud storage', ja: 'クラウドストレージ', ko: '클라우드 스토리지', es: 'Almacenamiento' },
-    'cloud.sub': { zh: '本机文件 · 随时取用', en: 'Files from this device, ready when you need them', ja: 'この端末のファイルを、いつでも', ko: '이 기기의 파일을 언제든', es: 'Archivos de este equipo, siempre a mano' },
-    'cloud.lockTip': { zh: '请输入访问密码', en: 'Enter the access password', ja: 'アクセスパスワードを入力してください', ko: '접근 비밀번호를 입력해 주세요', es: 'Introduce la contraseña de acceso' },
-    'cloud.lockBtn': { zh: '解锁', en: 'Unlock', ja: 'ロック解除', ko: '잠금 해제', es: 'Desbloquear' },
-    'cloud.lockErr': { zh: '密码错误', en: 'Incorrect password', ja: 'パスワードが違います', ko: '비밀번호가 올바르지 않습니다', es: 'Contraseña incorrecta' },
-    'cloud.note': { zh: '文件清单由 cloud-files.js 维护，新增文件后更新该文件即可', en: 'The file list lives in cloud-files.js—just update it when you add a file', ja: 'ファイル一覧は cloud-files.js で管理しています。ファイルを追加したらこのファイルを更新してください', ko: '파일 목록은 cloud-files.js에서 관리합니다. 파일을 추가하면 이 파일만 수정하면 됩니다', es: 'La lista de archivos se gestiona en cloud-files.js; basta con actualizarlo al añadir un archivo' },
-    'cloud.preview': { zh: '预览', en: 'Preview', ja: 'プレビュー', ko: '미리보기', es: 'Vista previa' },
-    'cloud.download': { zh: '下载', en: 'Download', ja: 'ダウンロード', ko: '다운로드', es: 'Descargar' },
-    'cloud.close': { zh: '关闭', en: 'Close', ja: '閉じる', ko: '닫기', es: 'Cerrar' },
-    'cloud.empty': { zh: '暂无文件，找 Marvis 上传', en: 'No files yet—ask Marvis to upload some', ja: 'ファイルがありません。Marvis にアップロードを依頼してください', ko: '파일이 없습니다. Marvis에게 업로드를 요청하세요', es: 'Aún no hay archivos: pídele a Marvis que suba alguno' },
-    'cloud.count': { zh: '{n} 个文件', en: '{n} files', ja: '{n} 個のファイル', ko: '파일 {n}개', es: '{n} archivos' },
 
     /* ---------- 设置页 ---------- */
     'settings.title': { zh: '设置', en: 'Settings', ja: '設定', ko: '설정', es: 'Ajustes' },
