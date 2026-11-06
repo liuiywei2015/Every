@@ -3,10 +3,16 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+<!-- 未登录守卫：必须在任何内容渲染前执行 -->
+<script src="guard.js"></script>
+<!-- 主题引导 + 全站共享主题样式（明亮模式在 <head> 最早应用，避免闪烁） -->
+<script src="theme.js"></script>
+<link rel="stylesheet" href="theme.css">
 <title data-i18n="title.chat">聊天室 - Cealin</title>
 <style>
-  :root {
-    --fg: #f7f4ee;
+  /* 仅暗色模式下的正文辅助色更实一些；明亮模式沿用 theme.css */
+  html:not(.light) {
     --muted: rgba(247, 244, 238, 0.85);
   }
 
@@ -19,7 +25,7 @@
     font-family: "Helvetica Neue", "PingFang SC", "Microsoft YaHei", Arial, sans-serif;
     -webkit-font-smoothing: antialiased;
     overflow-y: auto;
-    background: #14181a;
+    background: var(--page-bg);
   }
 
   /* ========== 全屏背景图 ========== */
@@ -41,7 +47,7 @@
     background:
       radial-gradient(ellipse 55% 42% at 50% 46%, rgba(255, 196, 120, 0.20), transparent 62%),
       radial-gradient(ellipse 40% 35% at 50% 60%, rgba(230, 170, 90, 0.10), transparent 70%),
-      linear-gradient(180deg, rgba(6, 8, 7, 0.30) 0%, rgba(6, 8, 7, 0) 30%, rgba(6, 8, 7, 0.20) 78%, rgba(4, 5, 4, 0.55) 100%);
+      linear-gradient(180deg, rgba(var(--veil-rgb), 0.30) 0%, rgba(var(--veil-rgb), 0) 30%, rgba(var(--veil-rgb), 0.20) 78%, rgba(var(--veil-rgb), 0.55) 100%);
   }
 
   /* 油画噪点颗粒 */
@@ -68,14 +74,14 @@
     align-items: center;
     padding: 12px 26px;
     border-radius: 22px;
-    background: linear-gradient(135deg, rgba(255, 255, 255, 0.16), rgba(255, 255, 255, 0.06) 48%, rgba(200, 169, 110, 0.08));
+    background: linear-gradient(135deg, rgba(var(--line-rgb), 0.16), rgba(var(--line-rgb), 0.06) 48%, rgba(200, 169, 110, 0.08));
     -webkit-backdrop-filter: blur(20px) saturate(170%);
     backdrop-filter: blur(20px) saturate(170%);
-    border: 1px solid rgba(255, 255, 255, 0.18);
+    border: 1px solid rgba(var(--line-rgb), 0.18);
     box-shadow:
-      0 12px 36px rgba(0, 0, 0, 0.30),
-      inset 0 1px 0 rgba(255, 255, 255, 0.25),
-      inset 0 -1px 0 rgba(255, 255, 255, 0.05);
+      0 12px 36px rgba(var(--shadow-rgb), 0.30),
+      inset 0 1px 0 rgba(var(--line-rgb), 0.25),
+      inset 0 -1px 0 rgba(var(--line-rgb), 0.05);
   }
 
   .logo {
@@ -111,16 +117,16 @@
     display: block;
     height: 1px;
     margin-top: 3px;
-    background: rgba(247, 244, 238, 0.45);
+    background: rgba(var(--fg-rgb), 0.45);
   }
 
   .avatar {
     width: 34px;
     height: 34px;
     border-radius: 50%;
-    border: 1.5px solid rgba(255, 255, 255, 0.35);
+    border: 1.5px solid rgba(var(--hl-rgb), 0.35);
     background:
-      radial-gradient(circle at 35% 30%, rgba(255, 255, 255, 0.35), transparent 40%),
+      radial-gradient(circle at 35% 30%, rgba(var(--hl-rgb), 0.35), transparent 40%),
       linear-gradient(135deg, #7d8a7a, #3a4038);
     cursor: pointer;
     position: relative;
@@ -131,7 +137,7 @@
     position: absolute;
     inset: 4px;
     border-radius: 50%;
-    border: 1px solid rgba(255, 255, 255, 0.15);
+    border: 1px solid rgba(var(--hl-rgb), 0.15);
   }
 
   /* ========== 页面主体 ========== */
@@ -153,7 +159,7 @@
     text-indent: 0.10em;
     line-height: 1;
     color: var(--fg);
-    text-shadow: 0 4px 60px rgba(0, 0, 0, 0.45);
+    text-shadow: 0 4px 60px rgba(var(--shadow-rgb), 0.45);
     user-select: none;
     animation: fadeIn 0.85s cubic-bezier(0.22, 1, 0.36, 1) both;
   }
@@ -172,8 +178,8 @@
   .notice-card {
     margin-top: 40px;
     width: min(560px, 92vw);
-    background: rgba(8, 9, 8, 0.45);
-    border: 1px solid rgba(255, 255, 255, 0.1);
+    background: rgba(var(--panel-rgb), 0.45);
+    border: 1px solid rgba(var(--line-rgb), 0.1);
     border-radius: 16px;
     backdrop-filter: blur(10px);
     padding: 18px 22px;
@@ -185,21 +191,21 @@
     margin: 0 0 8px;
     font-size: 13px;
     letter-spacing: 0.14em;
-    color: rgba(247, 244, 238, 0.85);
+    color: rgba(var(--fg-rgb), 0.85);
   }
   .notice-text {
     margin: 0;
     font-size: 13px;
     line-height: 1.8;
-    color: rgba(247, 244, 238, 0.75);
+    color: rgba(var(--fg-rgb), 0.75);
   }
 
   /* ========== 聊天面板 ========== */
   .room-box {
     margin-top: 56px;
     width: min(560px, 92vw);
-    background: rgba(8, 9, 8, 0.5);
-    border: 1px solid rgba(255, 255, 255, 0.1);
+    background: rgba(var(--panel-rgb), 0.5);
+    border: 1px solid rgba(var(--line-rgb), 0.1);
     border-radius: 16px;
     backdrop-filter: blur(10px);
     padding: 28px 24px;
@@ -228,8 +234,8 @@
 
   .room-input {
     width: 100%;
-    background: rgba(255, 255, 255, 0.07);
-    border: 1px solid rgba(255, 255, 255, 0.12);
+    background: rgba(var(--line-rgb), 0.07);
+    border: 1px solid rgba(var(--line-rgb), 0.12);
     border-radius: 9px;
     color: var(--fg);
     font-size: 15px;
@@ -240,17 +246,17 @@
     letter-spacing: 0.3em;
     transition: border-color 0.3s ease;
   }
-  .room-input::placeholder { letter-spacing: 0.12em; color: rgba(247, 244, 238, 0.62); }
-  .room-input:focus { border-color: rgba(200, 169, 110, 0.6); }
+  .room-input::placeholder { letter-spacing: 0.12em; color: rgba(var(--fg-rgb), 0.62); }
+  .room-input:focus { border-color: var(--gold); }
 
   /* 已登录账号：昵称自动填充并锁定，只读态保留可见性但不可误改 */
   .room-input.locked {
-    color: rgba(247, 244, 238, 0.92);
-    background: rgba(255, 255, 255, 0.045);
-    border-color: rgba(200, 169, 110, 0.34);
+    color: rgba(var(--fg-rgb), 0.92);
+    background: rgba(var(--line-rgb), 0.045);
+    border-color: var(--gold);
     cursor: default;
   }
-  .room-input.locked:focus { border-color: rgba(200, 169, 110, 0.34); }
+  .room-input.locked:focus { border-color: var(--gold); }
 
   .acc-hint {
     align-self: stretch;
@@ -259,7 +265,7 @@
     font-size: 12px;
     line-height: 1.7;
     letter-spacing: 0.05em;
-    color: rgba(200, 169, 110, 0.95);
+    color: var(--gold);
   }
 
   .room-actions {
@@ -277,7 +283,7 @@
   }
   .role-btn.on {
     background: rgba(200, 169, 110, 0.42);
-    border-color: rgba(200, 169, 110, 0.9);
+    border-color: var(--gold);
     color: var(--fg);
   }
 
@@ -288,7 +294,7 @@
     border-radius: 10px;
     border: 1px solid rgba(224, 82, 82, 0.55);
     background: rgba(224, 82, 82, 0.14);
-    color: #ff6b5e;
+    color: var(--danger);
     font-size: 22px;
     font-weight: 800;
     letter-spacing: 0.18em;
@@ -305,7 +311,7 @@
     border: 1px solid rgba(200, 169, 110, 0.65);
     background:
       linear-gradient(135deg, rgba(200, 169, 110, 0.22), rgba(200, 169, 110, 0.08));
-    color: #e8c07a;
+    color: var(--gold-light);
     font-size: 15px;
     font-weight: 700;
     letter-spacing: 0.14em;
@@ -342,7 +348,7 @@
     background: linear-gradient(145deg, #f0cf8f, #c8a96e 55%, #a8874f);
     box-shadow:
       0 2px 10px rgba(200, 169, 110, 0.55),
-      inset 0 1px 0 rgba(255, 255, 255, 0.5);
+      inset 0 1px 0 rgba(var(--line-rgb), 0.5);
     flex-shrink: 0;
     animation: badgePop 0.5s cubic-bezier(0.34, 1.56, 0.64, 1) both;
   }
@@ -378,16 +384,16 @@
   }
   .room-btn:hover { background: rgba(200, 169, 110, 0.34); transform: translateY(-1px); box-shadow: 0 6px 22px rgba(200, 169, 110, 0.18); }
   .room-btn.plain {
-    border-color: rgba(255, 255, 255, 0.2);
-    background: rgba(255, 255, 255, 0.06);
+    border-color: rgba(var(--line-rgb), 0.2);
+    background: rgba(var(--line-rgb), 0.06);
   }
-  .room-btn.plain:hover { background: rgba(255, 255, 255, 0.12); }
+  .room-btn.plain:hover { background: rgba(var(--line-rgb), 0.12); }
 
   .room-err {
     min-height: 18px;
     font-size: 12px;
     letter-spacing: 0.06em;
-    color: #f0b3a1;
+    color: var(--err);
     opacity: 0;
     transition: opacity 0.3s ease;
   }
@@ -397,8 +403,8 @@
   .chat-panel {
     margin-top: 56px;
     width: min(680px, 92vw);
-    background: rgba(8, 9, 8, 0.55);
-    border: 1px solid rgba(255, 255, 255, 0.1);
+    background: rgba(var(--panel-rgb), 0.55);
+    border: 1px solid rgba(var(--line-rgb), 0.1);
     border-radius: 16px;
     backdrop-filter: blur(10px);
     padding: 22px 24px;
@@ -415,7 +421,7 @@
     justify-content: space-between;
     align-items: center;
     gap: 14px;
-    border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+    border-bottom: 1px solid rgba(var(--line-rgb), 0.08);
     padding-bottom: 14px;
   }
   .chat-head-left {
@@ -447,8 +453,8 @@
   }
 
   .msg-item {
-    background: rgba(255, 255, 255, 0.05);
-    border: 1px solid rgba(255, 255, 255, 0.08);
+    background: rgba(var(--line-rgb), 0.05);
+    border: 1px solid rgba(var(--line-rgb), 0.08);
     border-radius: 10px;
     padding: 10px 14px;
   }
@@ -461,7 +467,7 @@
   .msg-name {
     font-size: 12px;
     font-weight: 600;
-    color: rgba(200, 169, 110, 0.95);
+    color: var(--gold);
     letter-spacing: 0.04em;
   }
   .msg-time {
@@ -479,9 +485,9 @@
 
   /* 本人账号发送的消息：左侧金色描边 + 轻微暖金高光，与普通消息区分 */
   .msg-item.mine {
-    background: linear-gradient(135deg, rgba(200, 169, 110, 0.16), rgba(255, 255, 255, 0.05));
-    border-color: rgba(200, 169, 110, 0.45);
-    box-shadow: inset 2px 0 0 rgba(200, 169, 110, 0.85), 0 6px 18px rgba(0, 0, 0, 0.18);
+    background: linear-gradient(135deg, rgba(200, 169, 110, 0.16), rgba(var(--line-rgb), 0.05));
+    border-color: var(--gold);
+    box-shadow: inset 2px 0 0 rgba(200, 169, 110, 0.85), 0 6px 18px rgba(var(--shadow-rgb), 0.18);
   }
   .msg-mine {
     margin-left: 6px;
@@ -490,7 +496,7 @@
     font-size: 10px;
     font-weight: 700;
     letter-spacing: 0.06em;
-    color: #e8c07a;
+    color: var(--gold-light);
     background: rgba(200, 169, 110, 0.18);
     border: 1px solid rgba(200, 169, 110, 0.5);
     vertical-align: 1px;
@@ -510,7 +516,7 @@
     letter-spacing: 0.06em;
     color: #2b2417;
     background: linear-gradient(145deg, #f0cf8f, #c8a96e 55%, #a8874f);
-    box-shadow: 0 1px 7px rgba(200, 169, 110, 0.5), inset 0 1px 0 rgba(255, 255, 255, 0.45);
+    box-shadow: 0 1px 7px rgba(200, 169, 110, 0.5), inset 0 1px 0 rgba(var(--line-rgb), 0.45);
     vertical-align: 1px;
     white-space: nowrap;
   }
@@ -535,8 +541,8 @@
   }
   .chat-input {
     flex: 1;
-    background: rgba(255, 255, 255, 0.07);
-    border: 1px solid rgba(255, 255, 255, 0.12);
+    background: rgba(var(--line-rgb), 0.07);
+    border: 1px solid rgba(var(--line-rgb), 0.12);
     border-radius: 9px;
     color: var(--fg);
     font-size: 14px;
@@ -546,24 +552,24 @@
     letter-spacing: 0.02em;
     transition: border-color 0.3s ease;
   }
-  .chat-input::placeholder { color: rgba(247, 244, 238, 0.62); }
-  .chat-input:focus { border-color: rgba(200, 169, 110, 0.6); }
+  .chat-input::placeholder { color: rgba(var(--fg-rgb), 0.62); }
+  .chat-input:focus { border-color: var(--gold); }
 
   .offline-tip {
     font-size: 12px;
     letter-spacing: 0.06em;
-    color: #f0b3a1;
+    color: var(--err);
     min-height: 16px;
     text-align: center;
   }
-  .offline-tip.ok { color: rgba(200, 169, 110, 0.95); }
+  .offline-tip.ok { color: var(--gold); }
 
   /* ========== 更改房间代码面板 ========== */
   .change-box {
     flex-direction: column;
     gap: 10px;
-    background: rgba(255, 255, 255, 0.05);
-    border: 1px solid rgba(255, 255, 255, 0.1);
+    background: rgba(var(--line-rgb), 0.05);
+    border: 1px solid rgba(var(--line-rgb), 0.1);
     border-radius: 10px;
     padding: 12px 14px;
      animation: fadeIn 0.4s cubic-bezier(0.22, 1, 0.36, 1) both;
@@ -583,7 +589,7 @@
   .settings-mask {
     position: fixed;
     inset: 0;
-    background: rgba(0, 0, 0, 0.55);
+    background: rgba(var(--shadow-rgb), 0.55);
     backdrop-filter: blur(4px);
     display: flex;
     align-items: center;
@@ -593,12 +599,12 @@
   }
   .settings-panel {
     width: min(360px, 84vw);
-    background: rgba(12, 13, 12, 0.92);
+    background: rgba(var(--panel-rgb), 0.92);
     border: 1px solid rgba(200, 169, 110, 0.4);
     border-radius: 16px;
     backdrop-filter: blur(14px);
     padding: 22px;
-    box-shadow: 0 18px 60px rgba(0, 0, 0, 0.5);
+    box-shadow: 0 18px 60px rgba(var(--shadow-rgb), 0.5);
     text-align: left;
     animation: panelIn 0.38s cubic-bezier(0.22, 1, 0.36, 1) forwards;
   }
@@ -606,7 +612,7 @@
     font-size: 16px;
     font-weight: 800;
     letter-spacing: 0.14em;
-    color: var(--gold);
+    color: var(--fg);
     margin-bottom: 16px;
     text-align: center;
   }
@@ -614,8 +620,8 @@
     width: 100%;
     padding: 12px 16px;
     border-radius: 10px;
-    border: 1px solid rgba(255, 255, 255, 0.12);
-    background: rgba(255, 255, 255, 0.05);
+    border: 1px solid rgba(var(--line-rgb), 0.12);
+    background: rgba(var(--line-rgb), 0.05);
     color: var(--fg);
     font-size: 14px;
     letter-spacing: 0.1em;
@@ -624,7 +630,7 @@
     transition: background 0.3s ease, border-color 0.3s ease;
     margin-bottom: 10px;
   }
-  .settings-item:hover:not(:disabled) { background: rgba(200, 169, 110, 0.16); border-color: rgba(200, 169, 110, 0.45); }
+  .settings-item:hover:not(:disabled) { background: rgba(200, 169, 110, 0.16); border-color: var(--gold); }
   .settings-item:disabled { opacity: 0.45; cursor: not-allowed; }
   .settings-close { margin-top: 4px; text-align: center; }
 

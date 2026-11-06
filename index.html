@@ -3,12 +3,13 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+<!-- 主题引导 + 全站共享主题样式（明亮模式在 <head> 最早应用，避免闪烁） -->
+<script src="theme.js"></script>
+<link rel="stylesheet" href="theme.css">
 <title>Cealin</title>
 <style>
-  :root {
-    --fg: #f7f4ee;
-    --muted: rgba(247, 244, 238, 0.55);
-  }
+  /* 主题变量统一由 theme.css 提供（含明亮模式），此处不再覆盖 */
 
   * { margin: 0; padding: 0; box-sizing: border-box; }
 
@@ -19,7 +20,7 @@
     font-family: "Helvetica Neue", "PingFang SC", "Microsoft YaHei", Arial, sans-serif;
     -webkit-font-smoothing: antialiased;
     overflow-y: auto;
-    background: #14181a;
+    background: var(--page-bg);
   }
 
   /* ========== 全屏背景图 ========== */
@@ -41,7 +42,7 @@
     background:
       radial-gradient(ellipse 55% 42% at 50% 46%, rgba(255, 196, 120, 0.20), transparent 62%),
       radial-gradient(ellipse 40% 35% at 50% 60%, rgba(230, 170, 90, 0.10), transparent 70%),
-      linear-gradient(180deg, rgba(6, 8, 7, 0.30) 0%, rgba(6, 8, 7, 0) 30%, rgba(6, 8, 7, 0.20) 78%, rgba(4, 5, 4, 0.55) 100%);
+      linear-gradient(180deg, rgba(var(--veil-rgb), 0.30) 0%, rgba(var(--veil-rgb), 0) 30%, rgba(var(--veil-rgb), 0.20) 78%, rgba(var(--veil-rgb), 0.55) 100%);
   }
 
   /* 油画噪点颗粒 */
@@ -68,14 +69,14 @@
     align-items: center;
     padding: 12px 26px;
     border-radius: 22px;
-    background: linear-gradient(135deg, rgba(255, 255, 255, 0.16), rgba(255, 255, 255, 0.06) 48%, rgba(200, 169, 110, 0.08));
+    background: linear-gradient(135deg, rgba(var(--line-rgb), 0.16), rgba(var(--line-rgb), 0.06) 48%, rgba(200, 169, 110, 0.08));
     -webkit-backdrop-filter: blur(20px) saturate(170%);
     backdrop-filter: blur(20px) saturate(170%);
-    border: 1px solid rgba(255, 255, 255, 0.18);
+    border: 1px solid rgba(var(--line-rgb), 0.18);
     box-shadow:
-      0 12px 36px rgba(0, 0, 0, 0.30),
-      inset 0 1px 0 rgba(255, 255, 255, 0.25),
-      inset 0 -1px 0 rgba(255, 255, 255, 0.05);
+      0 12px 36px rgba(var(--shadow-rgb), 0.30),
+      inset 0 1px 0 rgba(var(--line-rgb), 0.25),
+      inset 0 -1px 0 rgba(var(--line-rgb), 0.05);
   }
 
   .logo {
@@ -111,16 +112,16 @@
     display: block;
     height: 1px;
     margin-top: 3px;
-    background: rgba(247, 244, 238, 0.45);
+    background: rgba(var(--fg-rgb), 0.45);
   }
 
   .avatar {
     width: 34px;
     height: 34px;
     border-radius: 50%;
-    border: 1.5px solid rgba(255, 255, 255, 0.35);
+    border: 1.5px solid rgba(var(--hl-rgb), 0.35);
     background:
-      radial-gradient(circle at 35% 30%, rgba(255, 255, 255, 0.35), transparent 40%),
+      radial-gradient(circle at 35% 30%, rgba(var(--hl-rgb), 0.35), transparent 40%),
       linear-gradient(135deg, #7d8a7a, #3a4038);
     cursor: pointer;
     position: relative;
@@ -131,7 +132,7 @@
     position: absolute;
     inset: 4px;
     border-radius: 50%;
-    border: 1px solid rgba(255, 255, 255, 0.15);
+    border: 1px solid rgba(var(--hl-rgb), 0.15);
   }
 
   /* ========== 中央英雄区 ========== */
@@ -154,7 +155,7 @@
     text-indent: 0.10em;
     line-height: 1;
     color: var(--fg);
-    text-shadow: 0 4px 60px rgba(0, 0, 0, 0.45);
+    text-shadow: 0 4px 60px rgba(var(--shadow-rgb), 0.45);
     user-select: none;
     animation: fadeIn 0.85s cubic-bezier(0.22, 1, 0.36, 1) both;
   }
@@ -191,12 +192,12 @@
     content: "";
     flex: 1;
     height: 1px;
-    background: rgba(247, 244, 238, 0.14);
+    background: rgba(var(--fg-rgb), 0.14);
   }
 
   .latest-card {
-    background: rgba(8, 9, 8, 0.42);
-    border: 1px solid rgba(255, 255, 255, 0.08);
+    background: rgba(var(--panel-rgb), 0.42);
+    border: 1px solid rgba(var(--line-rgb), 0.08);
     border-radius: 12px;
     backdrop-filter: blur(8px);
     padding: 14px 18px;
@@ -229,7 +230,7 @@
     letter-spacing: 0.08em;
     color: var(--muted);
     text-decoration: none;
-    border-bottom: 1px solid rgba(247, 244, 238, 0.22);
+    border-bottom: 1px solid rgba(var(--fg-rgb), 0.22);
     padding-bottom: 3px;
     transition: color 0.3s ease, border-color 0.3s ease;
   }
@@ -254,17 +255,17 @@
     display: flex;
     align-items: center;
     justify-content: center;
-    background: rgba(12, 15, 14, 0.78);
+    background: rgba(var(--panel-rgb), 0.78);
     backdrop-filter: blur(14px);
     -webkit-backdrop-filter: blur(14px);
      animation: maskIn 0.5s cubic-bezier(0.22, 1, 0.36, 1) both;
   }
   .login-gate-card {
     width: min(440px, 90vw);
-    background: rgba(8, 9, 8, 0.6);
-    border: 1px solid rgba(255, 255, 255, 0.12);
+    background: rgba(var(--panel-rgb), 0.6);
+    border: 1px solid rgba(var(--line-rgb), 0.12);
     border-radius: 18px;
-    box-shadow: 0 24px 70px rgba(0, 0, 0, 0.5);
+    box-shadow: 0 24px 70px rgba(var(--shadow-rgb), 0.5);
     padding: 34px 28px;
     display: flex;
     flex-direction: column;
@@ -303,7 +304,7 @@
   .login-gate-err {
     min-height: 20px;
     font-size: 13px;
-    color: #e8a08c;
+    color: var(--err);
     letter-spacing: 0.05em;
   }
   .login-btn {
@@ -322,8 +323,8 @@
     width: 100%;
     padding: 10px 16px;
     border-radius: 999px;
-    border: 1px solid rgba(255, 255, 255, 0.18);
-    background: rgba(255, 255, 255, 0.05);
+    border: 1px solid rgba(var(--line-rgb), 0.18);
+    background: rgba(var(--line-rgb), 0.05);
     color: var(--fg);
     font-size: 13px;
     letter-spacing: 0.06em;
@@ -331,7 +332,7 @@
     text-align: center;
   }
   .login-pwd::placeholder { color: var(--muted); }
-  .login-pwd:focus { border-color: rgba(200, 169, 110, 0.65); }
+  .login-pwd:focus { border-color: var(--gold); }
 
   button:hover:active:not(:disabled) { transform: translateY(0) scale(0.97); }
 </style>
@@ -443,7 +444,10 @@
         try { sessionStorage.removeItem('cealin_admin_pwd'); } catch (e) {}
         var t = document.getElementById('loginGateTitle');
         if (t) { t.textContent = cealinT('idx.gate.title'); }
-        window.location.href = 'guest.html';
+        // 已登录账号：直接进入游客界面；未登录：必须先到账号登录页，不再跳过登录
+        var loggedId = '';
+        try { loggedId = String(sessionStorage.getItem('cealin_account_id') || '').replace(/^\s+|\s+$/g, ''); } catch (e) { loggedId = ''; }
+        window.location.href = loggedId ? 'guest.html' : 'account.html';
       };
 
       window.loginAsAdmin = function () {

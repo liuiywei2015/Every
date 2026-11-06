@@ -292,6 +292,7 @@
     /* ---------- 账号（注册 / 编号登录） ---------- */
     'acc.title': { zh: '账号', en: 'Account', ja: 'アカウント', ko: '계정', es: 'Cuenta' },
     'acc.sub': { zh: '只用名称和密码注册，系统会自动分配一个唯一编号', en: 'Sign up with just a name and a password—we assign a unique ID for you', ja: '名前とパスワードだけで登録できます。専用のIDを自動で発行します', ko: '이름과 비밀번호만으로 가입할 수 있으며, 전용 ID를 자동으로 발급해 드립니다', es: 'Regístrate solo con un nombre y una contraseña: te asignamos un ID único' },
+    'acc.needLogin': { zh: '未登录无法使用站内功能，请先注册或登录', en: 'You cannot use any feature of this site without signing in—please sign up or log in first', ja: 'ログインしないとサイト内の機能はご利用いただけません。先に登録またはログインしてください', ko: '로그인하지 않으면 사이트 기능을 사용할 수 없습니다. 먼저 가입하거나 로그인해 주세요', es: 'No puedes usar ninguna función del sitio sin iniciar sesión: regístrate o inicia sesión primero' },
     'acc.tabRegister': { zh: '注册', en: 'Sign up', ja: '新規登録', ko: '회원가입', es: 'Registrarse' },
     'acc.tabLogin': { zh: '登录', en: 'Log in', ja: 'ログイン', ko: '로그인', es: 'Iniciar sesión' },
     'acc.name': { zh: '名称', en: 'Name', ja: '名前', ko: '이름', es: 'Nombre' },

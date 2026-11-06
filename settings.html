@@ -3,29 +3,14 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+<!-- 未登录守卫：必须在任何内容渲染前执行 -->
+<script src="guard.js"></script>
+<!-- 主题引导 + 全站共享主题样式（明亮模式在 <head> 最早应用，避免闪烁） -->
+<script src="theme.js"></script>
+<link rel="stylesheet" href="theme.css">
 <title data-i18n="title.settings">设置 - Cealin</title>
 <style>
-  :root {
-    --fg: #f7f4ee;
-    --muted: rgba(247, 244, 238, 0.55);
-    --panel-bg: rgba(8, 9, 8, 0.58);
-    --panel-border: rgba(255, 255, 255, 0.12);
-    --input-bg: rgba(255, 255, 255, 0.07);
-  }
-
-  /* 亮色模式：深色模式开关真实生效时切换 */
-  body.light {
-    --fg: #26281f;
-    --muted: rgba(38, 40, 31, 0.6);
-    --panel-bg: rgba(248, 244, 233, 0.66);
-    --panel-border: rgba(38, 40, 31, 0.16);
-    --input-bg: rgba(38, 40, 31, 0.05);
-  }
-  body.light .art-bg { filter: brightness(1.65) saturate(0.72) contrast(0.92); }
-  body.light .grain { opacity: 0.04; }
-  body.light .menu a.active::after { background: rgba(38, 40, 31, 0.4); }
-  body.light .switch { border-color: rgba(38, 40, 31, 0.25); }
-  body.light .panel-row { border-bottom-color: rgba(38, 40, 31, 0.08); }
 
   * { margin: 0; padding: 0; box-sizing: border-box; }
 
@@ -36,7 +21,7 @@
     font-family: "Helvetica Neue", "PingFang SC", "Microsoft YaHei", Arial, sans-serif;
     -webkit-font-smoothing: antialiased;
     overflow-y: auto;
-    background: #14181a;
+    background: var(--page-bg);
     transition: color 0.4s ease;
   }
 
@@ -60,7 +45,7 @@
     background:
       radial-gradient(ellipse 55% 42% at 50% 46%, rgba(255, 196, 120, 0.20), transparent 62%),
       radial-gradient(ellipse 40% 35% at 50% 60%, rgba(230, 170, 90, 0.10), transparent 70%),
-      linear-gradient(180deg, rgba(6, 8, 7, 0.30) 0%, rgba(6, 8, 7, 0) 30%, rgba(6, 8, 7, 0.20) 78%, rgba(4, 5, 4, 0.55) 100%);
+      linear-gradient(180deg, rgba(var(--veil-rgb), 0.30) 0%, rgba(var(--veil-rgb), 0) 30%, rgba(var(--veil-rgb), 0.20) 78%, rgba(var(--veil-rgb), 0.55) 100%);
   }
 
   /* 油画噪点颗粒 */
@@ -87,14 +72,14 @@
     align-items: center;
     padding: 12px 26px;
     border-radius: 22px;
-    background: linear-gradient(135deg, rgba(255, 255, 255, 0.16), rgba(255, 255, 255, 0.06) 48%, rgba(200, 169, 110, 0.08));
+    background: linear-gradient(135deg, rgba(var(--line-rgb), 0.16), rgba(var(--line-rgb), 0.06) 48%, rgba(200, 169, 110, 0.08));
     -webkit-backdrop-filter: blur(20px) saturate(170%);
     backdrop-filter: blur(20px) saturate(170%);
-    border: 1px solid rgba(255, 255, 255, 0.18);
+    border: 1px solid rgba(var(--line-rgb), 0.18);
     box-shadow:
-      0 12px 36px rgba(0, 0, 0, 0.30),
-      inset 0 1px 0 rgba(255, 255, 255, 0.25),
-      inset 0 -1px 0 rgba(255, 255, 255, 0.05);
+      0 12px 36px rgba(var(--shadow-rgb), 0.30),
+      inset 0 1px 0 rgba(var(--line-rgb), 0.25),
+      inset 0 -1px 0 rgba(var(--line-rgb), 0.05);
   }
 
   .logo {
@@ -130,7 +115,7 @@
     display: block;
     height: 1px;
     margin-top: 3px;
-    background: rgba(247, 244, 238, 0.45);
+    background: rgba(var(--fg-rgb), 0.45);
     transition: background 0.4s ease;
   }
 
@@ -138,9 +123,9 @@
     width: 34px;
     height: 34px;
     border-radius: 50%;
-    border: 1.5px solid rgba(255, 255, 255, 0.35);
+    border: 1.5px solid rgba(var(--hl-rgb), 0.35);
     background:
-      radial-gradient(circle at 35% 30%, rgba(255, 255, 255, 0.35), transparent 40%),
+      radial-gradient(circle at 35% 30%, rgba(var(--hl-rgb), 0.35), transparent 40%),
       linear-gradient(135deg, #7d8a7a, #3a4038);
     cursor: pointer;
     position: relative;
@@ -151,7 +136,7 @@
     position: absolute;
     inset: 4px;
     border-radius: 50%;
-    border: 1px solid rgba(255, 255, 255, 0.15);
+    border: 1px solid rgba(var(--hl-rgb), 0.15);
   }
 
   /* ========== 中央设置面板 ========== */
@@ -174,7 +159,7 @@
     text-indent: 0.10em;
     line-height: 1;
     color: var(--fg);
-    text-shadow: 0 4px 60px rgba(0, 0, 0, 0.45);
+    text-shadow: 0 4px 60px rgba(var(--shadow-rgb), 0.45);
     user-select: none;
     animation: fadeIn 0.85s cubic-bezier(0.22, 1, 0.36, 1) both;
   }
@@ -188,7 +173,7 @@
     backdrop-filter: blur(10px);
     padding: 12px 0;
     text-align: left;
-    box-shadow: 0 24px 80px rgba(0, 0, 0, 0.45);
+    box-shadow: 0 24px 80px rgba(var(--shadow-rgb), 0.45);
     opacity: 0;
     animation: fadeIn 0.85s cubic-bezier(0.22, 1, 0.36, 1) 0.25s forwards;
   }
@@ -200,7 +185,7 @@
     padding: 16px 26px;
     font-size: 15px;
     color: var(--fg);
-    border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+    border-bottom: 1px solid rgba(var(--line-rgb), 0.06);
     transition: border-color 0.4s ease;
   }
   .panel-row:last-child { border-bottom: none; }
@@ -214,7 +199,7 @@
     position: relative;
     cursor: pointer;
     transition: background 0.3s ease, border-color 0.3s ease;
-    border: 1px solid rgba(255, 255, 255, 0.2);
+    border: 1px solid rgba(var(--line-rgb), 0.2);
   }
   .switch::after {
     content: "";
@@ -224,7 +209,7 @@
     width: 18px;
     height: 18px;
     border-radius: 50%;
-    background: #f7f4ee;
+    background: var(--fg);
     transition: left 0.3s cubic-bezier(0.22, 1, 0.36, 1), background 0.3s ease;
   }
   .switch.on { background: rgba(200, 169, 110, 0.75); }
@@ -302,7 +287,7 @@
       </div>
       <div class="panel-row">
         <span data-i18n="settings.about">关于</span>
-        <span class="lbl">Cealin v1.0</span>
+        <span class="lbl">Cealin v26.11.6</span>
       </div>
     </div>
 
@@ -313,7 +298,7 @@
   <script>
     (function () {
       var KEY = 'cealin_settings';
-      var def = { dark: true, notify: true, autoplay: false };
+      var def = { notify: true, autoplay: false };
       var s;
 
       function load() {
@@ -331,16 +316,20 @@
         if (el) el.classList.toggle('on', !!on);
       }
 
+      /* 主题状态由 theme.js 统一管理（localStorage 键 cealin_theme，全站共享） */
+      function themeIsDark() {
+        return window.cealinTheme ? window.cealinTheme.get() !== 'light' : true;
+      }
+
       function apply() {
-        document.body.classList.toggle('light', !s.dark);
-        setSwitch('swDark', s.dark);
+        setSwitch('swDark', themeIsDark());
         setSwitch('swNotify', s.notify);
         setSwitch('swAuto', s.autoplay);
       }
 
       window.toggleDark = function () {
-        s.dark = !s.dark;
-        save();
+        // 切换即写入存储并给 <html> 加/去 .light，所有页面（含本页）立即生效
+        if (window.cealinTheme) { window.cealinTheme.toggle(); }
         apply();
       };
       window.toggleNotify = function () {

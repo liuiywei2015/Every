@@ -3,12 +3,15 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+<!-- 未登录守卫：必须在任何内容渲染前执行 -->
+<script src="guard.js"></script>
+<!-- 主题引导 + 全站共享主题样式（明亮模式在 <head> 最早应用，避免闪烁） -->
+<script src="theme.js"></script>
+<link rel="stylesheet" href="theme.css">
 <title data-i18n="title.project">项目 - Cealin</title>
 <style>
-  :root {
-    --fg: #f7f4ee;
-    --muted: rgba(247, 244, 238, 0.55);
-  }
+  /* 主题变量统一由 theme.css 提供（含明亮模式），此处不再覆盖 */
 
   * { margin: 0; padding: 0; box-sizing: border-box; }
 
@@ -19,7 +22,7 @@
     font-family: "Helvetica Neue", "PingFang SC", "Microsoft YaHei", Arial, sans-serif;
     -webkit-font-smoothing: antialiased;
     overflow-y: auto;
-    background: #14181a;
+    background: var(--page-bg);
   }
 
   /* ========== 全屏背景图 ========== */
@@ -41,7 +44,7 @@
     background:
       radial-gradient(ellipse 55% 42% at 50% 46%, rgba(255, 196, 120, 0.20), transparent 62%),
       radial-gradient(ellipse 40% 35% at 50% 60%, rgba(230, 170, 90, 0.10), transparent 70%),
-      linear-gradient(180deg, rgba(6, 8, 7, 0.30) 0%, rgba(6, 8, 7, 0) 30%, rgba(6, 8, 7, 0.20) 78%, rgba(4, 5, 4, 0.55) 100%);
+      linear-gradient(180deg, rgba(var(--veil-rgb), 0.30) 0%, rgba(var(--veil-rgb), 0) 30%, rgba(var(--veil-rgb), 0.20) 78%, rgba(var(--veil-rgb), 0.55) 100%);
   }
 
   /* 油画噪点颗粒 */
@@ -68,14 +71,14 @@
     align-items: center;
     padding: 12px 26px;
     border-radius: 22px;
-    background: linear-gradient(135deg, rgba(255, 255, 255, 0.16), rgba(255, 255, 255, 0.06) 48%, rgba(200, 169, 110, 0.08));
+    background: linear-gradient(135deg, rgba(var(--line-rgb), 0.16), rgba(var(--line-rgb), 0.06) 48%, rgba(200, 169, 110, 0.08));
     -webkit-backdrop-filter: blur(20px) saturate(170%);
     backdrop-filter: blur(20px) saturate(170%);
-    border: 1px solid rgba(255, 255, 255, 0.18);
+    border: 1px solid rgba(var(--line-rgb), 0.18);
     box-shadow:
-      0 12px 36px rgba(0, 0, 0, 0.30),
-      inset 0 1px 0 rgba(255, 255, 255, 0.25),
-      inset 0 -1px 0 rgba(255, 255, 255, 0.05);
+      0 12px 36px rgba(var(--shadow-rgb), 0.30),
+      inset 0 1px 0 rgba(var(--line-rgb), 0.25),
+      inset 0 -1px 0 rgba(var(--line-rgb), 0.05);
   }
 
   .logo {
@@ -111,16 +114,16 @@
     display: block;
     height: 1px;
     margin-top: 3px;
-    background: rgba(247, 244, 238, 0.45);
+    background: rgba(var(--fg-rgb), 0.45);
   }
 
   .avatar {
     width: 34px;
     height: 34px;
     border-radius: 50%;
-    border: 1.5px solid rgba(255, 255, 255, 0.35);
+    border: 1.5px solid rgba(var(--hl-rgb), 0.35);
     background:
-      radial-gradient(circle at 35% 30%, rgba(255, 255, 255, 0.35), transparent 40%),
+      radial-gradient(circle at 35% 30%, rgba(var(--hl-rgb), 0.35), transparent 40%),
       linear-gradient(135deg, #7d8a7a, #3a4038);
     cursor: pointer;
     position: relative;
@@ -131,7 +134,7 @@
     position: absolute;
     inset: 4px;
     border-radius: 50%;
-    border: 1px solid rgba(255, 255, 255, 0.15);
+    border: 1px solid rgba(var(--hl-rgb), 0.15);
   }
 
   /* ========== 页面主体 ========== */
@@ -153,7 +156,7 @@
     text-indent: 0.10em;
     line-height: 1;
     color: var(--fg);
-    text-shadow: 0 4px 60px rgba(0, 0, 0, 0.45);
+    text-shadow: 0 4px 60px rgba(var(--shadow-rgb), 0.45);
     user-select: none;
     animation: fadeIn 0.85s cubic-bezier(0.22, 1, 0.36, 1) both;
   }
@@ -180,8 +183,8 @@
   }
 
   .project-card {
-    background: rgba(8, 9, 8, 0.48);
-    border: 1px solid rgba(255, 255, 255, 0.09);
+    background: rgba(var(--panel-rgb), 0.48);
+    border: 1px solid rgba(var(--line-rgb), 0.09);
     border-radius: 16px;
     backdrop-filter: blur(10px);
     padding: 26px 24px;
@@ -190,8 +193,8 @@
   }
   .project-card:hover {
     transform: translateY(-6px);
-    border-color: rgba(200, 169, 110, 0.5);
-    background: rgba(10, 11, 10, 0.62);
+    border-color: var(--gold);
+    background: rgba(var(--panel-rgb), 0.62);
   }
 
   .pc-name {
@@ -205,7 +208,7 @@
     margin-top: 8px;
     font-size: 11px;
     letter-spacing: 0.14em;
-    color: rgba(200, 169, 110, 0.85);
+    color: var(--gold);
   }
   .pc-desc {
     margin-top: 14px;
@@ -236,12 +239,12 @@
     content: "";
     flex: 1;
     height: 1px;
-    background: rgba(247, 244, 238, 0.14);
+    background: rgba(var(--fg-rgb), 0.14);
   }
 
   .comment-item {
-    background: rgba(8, 9, 8, 0.42);
-    border: 1px solid rgba(255, 255, 255, 0.08);
+    background: rgba(var(--panel-rgb), 0.42);
+    border: 1px solid rgba(var(--line-rgb), 0.08);
     border-radius: 12px;
     backdrop-filter: blur(8px);
     padding: 16px 20px;
@@ -266,14 +269,14 @@
   .comment-item p {
     font-size: 13.5px;
     line-height: 1.7;
-    color: rgba(247, 244, 238, 0.85);
+    color: rgba(var(--fg-rgb), 0.85);
   }
 
   /* 留言表单 */
   .comment-form {
     margin-top: 22px;
-    background: rgba(8, 9, 8, 0.5);
-    border: 1px solid rgba(255, 255, 255, 0.1);
+    background: rgba(var(--panel-rgb), 0.5);
+    border: 1px solid rgba(var(--line-rgb), 0.1);
     border-radius: 14px;
     backdrop-filter: blur(10px);
     padding: 18px;
@@ -288,8 +291,8 @@
   }
   .cf-input, .cf-text {
     width: 100%;
-    background: rgba(255, 255, 255, 0.07);
-    border: 1px solid rgba(255, 255, 255, 0.12);
+    background: rgba(var(--line-rgb), 0.07);
+    border: 1px solid rgba(var(--line-rgb), 0.12);
     border-radius: 9px;
     color: var(--fg);
     font-size: 13px;
@@ -298,7 +301,7 @@
     outline: none;
     transition: border-color 0.3s ease;
   }
-  .cf-input:focus, .cf-text:focus { border-color: rgba(200, 169, 110, 0.6); }
+  .cf-input:focus, .cf-text:focus { border-color: var(--gold); }
   .cf-input { max-width: 180px; }
   .cf-text { resize: vertical; min-height: 74px; }
   .cf-btn {

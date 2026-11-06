@@ -3,13 +3,15 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+<!-- 未登录守卫：必须在任何内容渲染前执行 -->
+<script src="guard.js"></script>
+<!-- 主题引导 + 全站共享主题样式（明亮模式在 <head> 最早应用，避免闪烁） -->
+<script src="theme.js"></script>
+<link rel="stylesheet" href="theme.css">
 <title data-i18n="title.suggestion">建议 - Cealin</title>
 <style>
-  :root {
-    --fg: #f7f4ee;
-    --muted: rgba(247, 244, 238, 0.55);
-    --gold: #c8a96e;
-  }
+  /* 主题变量统一由 theme.css 提供（含明亮模式），此处不再覆盖 */
 
   * { margin: 0; padding: 0; box-sizing: border-box; }
 
@@ -20,7 +22,7 @@
     font-family: "Helvetica Neue", "PingFang SC", "Microsoft YaHei", Arial, sans-serif;
     -webkit-font-smoothing: antialiased;
     overflow-y: auto;
-    background: #14181a;
+    background: var(--page-bg);
   }
 
   /* ========== 全屏背景图 ========== */
@@ -42,7 +44,7 @@
     background:
       radial-gradient(ellipse 55% 42% at 50% 46%, rgba(255, 196, 120, 0.20), transparent 62%),
       radial-gradient(ellipse 40% 35% at 50% 60%, rgba(230, 170, 90, 0.10), transparent 70%),
-      linear-gradient(180deg, rgba(6, 8, 7, 0.30) 0%, rgba(6, 8, 7, 0) 30%, rgba(6, 8, 7, 0.20) 78%, rgba(4, 5, 4, 0.55) 100%);
+      linear-gradient(180deg, rgba(var(--veil-rgb), 0.30) 0%, rgba(var(--veil-rgb), 0) 30%, rgba(var(--veil-rgb), 0.20) 78%, rgba(var(--veil-rgb), 0.55) 100%);
   }
 
   /* 油画噪点颗粒 */
@@ -68,14 +70,14 @@
     align-items: center;
     padding: 12px 26px;
     border-radius: 22px;
-    background: linear-gradient(135deg, rgba(255, 255, 255, 0.16), rgba(255, 255, 255, 0.06) 48%, rgba(200, 169, 110, 0.08));
+    background: linear-gradient(135deg, rgba(var(--line-rgb), 0.16), rgba(var(--line-rgb), 0.06) 48%, rgba(200, 169, 110, 0.08));
     -webkit-backdrop-filter: blur(20px) saturate(170%);
     backdrop-filter: blur(20px) saturate(170%);
-    border: 1px solid rgba(255, 255, 255, 0.18);
+    border: 1px solid rgba(var(--line-rgb), 0.18);
     box-shadow:
-      0 12px 36px rgba(0, 0, 0, 0.30),
-      inset 0 1px 0 rgba(255, 255, 255, 0.25),
-      inset 0 -1px 0 rgba(255, 255, 255, 0.05);
+      0 12px 36px rgba(var(--shadow-rgb), 0.30),
+      inset 0 1px 0 rgba(var(--line-rgb), 0.25),
+      inset 0 -1px 0 rgba(var(--line-rgb), 0.05);
   }
 
   .logo {
@@ -111,16 +113,16 @@
     display: block;
     height: 1px;
     margin-top: 3px;
-    background: rgba(247, 244, 238, 0.45);
+    background: rgba(var(--fg-rgb), 0.45);
   }
 
   .avatar {
     width: 34px;
     height: 34px;
     border-radius: 50%;
-    border: 1.5px solid rgba(255, 255, 255, 0.35);
+    border: 1.5px solid rgba(var(--hl-rgb), 0.35);
     background:
-      radial-gradient(circle at 35% 30%, rgba(255, 255, 255, 0.35), transparent 40%),
+      radial-gradient(circle at 35% 30%, rgba(var(--hl-rgb), 0.35), transparent 40%),
       linear-gradient(135deg, #7d8a7a, #3a4038);
     cursor: pointer;
     position: relative;
@@ -131,7 +133,7 @@
     position: absolute;
     inset: 4px;
     border-radius: 50%;
-    border: 1px solid rgba(255, 255, 255, 0.15);
+    border: 1px solid rgba(var(--hl-rgb), 0.15);
   }
 
   /* ========== 页面主体 ========== */
@@ -153,7 +155,7 @@
     text-indent: 0.10em;
     line-height: 1;
     color: var(--fg);
-    text-shadow: 0 4px 60px rgba(0, 0, 0, 0.45);
+    text-shadow: 0 4px 60px rgba(var(--shadow-rgb), 0.45);
     user-select: none;
     animation: fadeIn 0.85s cubic-bezier(0.22, 1, 0.36, 1) both;
   }
@@ -172,8 +174,8 @@
   .suggest-box {
     margin-top: 56px;
     width: min(640px, 92vw);
-    background: rgba(8, 9, 8, 0.5);
-    border: 1px solid rgba(255, 255, 255, 0.1);
+    background: rgba(var(--panel-rgb), 0.5);
+    border: 1px solid rgba(var(--line-rgb), 0.1);
     border-radius: 16px;
     backdrop-filter: blur(10px);
     padding: 26px 28px;
@@ -197,7 +199,7 @@
     content: "";
     flex: 1;
     height: 1px;
-    background: rgba(247, 244, 238, 0.14);
+    background: rgba(var(--fg-rgb), 0.14);
   }
   .suggest-tip {
     font-size: 13px;
@@ -225,15 +227,15 @@
     width: 100%;
     padding: 11px 14px;
     border-radius: 10px;
-    border: 1px solid rgba(255, 255, 255, 0.14);
-    background: rgba(255, 255, 255, 0.05);
+    border: 1px solid rgba(var(--line-rgb), 0.14);
+    background: rgba(var(--line-rgb), 0.05);
     color: var(--fg);
     font-size: 14px;
     outline: none;
     font-family: inherit;
     transition: border-color 0.3s ease;
   }
-  .field input:focus { border-color: rgba(200, 169, 110, 0.65); }
+  .field input:focus { border-color: var(--gold); }
   .field input::placeholder { color: var(--muted); }
   .field-textarea {
     display: flex;
@@ -250,8 +252,8 @@
     min-height: 150px;
     padding: 12px 14px;
     border-radius: 10px;
-    border: 1px solid rgba(255, 255, 255, 0.14);
-    background: rgba(255, 255, 255, 0.05);
+    border: 1px solid rgba(var(--line-rgb), 0.14);
+    background: rgba(var(--line-rgb), 0.05);
     color: var(--fg);
     font-size: 14px;
     line-height: 1.7;
@@ -260,7 +262,7 @@
     font-family: inherit;
     transition: border-color 0.3s ease;
   }
-  .field-textarea textarea:focus { border-color: rgba(200, 169, 110, 0.65); }
+  .field-textarea textarea:focus { border-color: var(--gold); }
   .field-textarea textarea::placeholder { color: var(--muted); }
   .suggest-meta {
     display: flex;
@@ -290,9 +292,9 @@
     min-height: 20px;
     font-size: 13px;
     letter-spacing: 0.05em;
-    color: #e8a08c;
+    color: var(--err);
   }
-  .suggest-msg.ok { color: #9fc69a; }
+  .suggest-msg.ok { color: var(--ok); }
 
   @keyframes fadeIn {
   from { opacity: 0; transform: translateY(14px); }
