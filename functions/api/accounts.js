@@ -359,8 +359,8 @@ export async function onRequest(context) {
       return fail(500, '服务异常，请稍后重试', 'server');
     }
 
-    // 只回编号与名称，哈希与盐不出服务端
-    return json({ ok: true, id: newId, name: name });
+    // 只回编号、名称与注册时间，哈希与盐不出服务端
+    return json({ ok: true, id: newId, name: name, createdAt: record.createdAt });
   }
 
   /* ---------------- 取盐：登录前拿到该编号的盐 ---------------- */
@@ -402,7 +402,13 @@ export async function onRequest(context) {
     if (!safeEqual(candidate, acc.pwdHash)) {
       return fail(401, '编号或密码错误', 'bad_cred');
     }
-    return json({ ok: true, id: acc.id || id, name: acc.name || '' });
+    return json({
+      ok: true,
+      id: acc.id || id,
+      name: acc.name || '',
+      official: !!acc.official,
+      createdAt: acc.createdAt || 0
+    });
   }
 
   /* ---------------- 更改自己的编号：旧编号 + 密码 + 新编号 ---------------- */

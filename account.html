@@ -678,7 +678,7 @@
           setBtnLabel(btnRegister, 'acc.registerBtn');
           if (data && data.ok && data.id) {
             regPwd.value = '';
-            showDone(data.id, data.name || name);
+            showDone(data.id, data.name || name, data.createdAt || 0);
             return;
           }
           showErr(regMsg, data);
@@ -697,10 +697,14 @@
       var doneMsg = d.getElementById('doneMsg');
       var lastId = '';
 
-      function showDone(id, name) {
+      function showDone(id, name, createdAt) {
         lastId = id;
         newIdEl.textContent = id;
         newNameEl.textContent = name || '';
+        // 注册时间供「我的」页展示
+        try {
+          if (createdAt) sessionStorage.setItem('cealin_account_created', String(createdAt));
+        } catch (e) {}
         setMsg(doneMsg, '');
         paneRegister.className = 'pane';
         paneLogin.className = 'pane';
@@ -782,6 +786,9 @@
             try {
               sessionStorage.setItem(SID_KEY, data.id || id);
               sessionStorage.setItem(SNAME_KEY, data.name || '');
+              // 供「我的」页展示：注册时间与官方认证状态（无则不展示对应行）
+              if (data.createdAt) sessionStorage.setItem('cealin_account_created', String(data.createdAt));
+              sessionStorage.setItem('cealin_account_official', data.official ? '1' : '');
             } catch (e) {}
             // 登录成功立即补一次在线心跳（失败静默），并开启 60 秒周期上报
             try {
