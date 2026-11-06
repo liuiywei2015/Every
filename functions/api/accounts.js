@@ -8,6 +8,8 @@
 //   { action: 'challenge', id }                   -> 返回该编号的盐（登录前取盐）
 //   { action: 'login', id, pwdHash }              或 { action: 'login', id, password }
 //   { action: 'changeId', id, newId, pwdHash }    或 { action: 'changeId', id, newId, password }
+//   { action: 'changePwd', id, pwdHash, newPwdHash, newSalt? }
+//                                 或 { action: 'changePwd', id, password, newPassword }
 //   { action: 'search', password, q }             管理员：按编号（完整 / 部分）搜索账号
 //   { action: 'official', password, id, official } 管理员：授予 / 取消官方认证
 // 响应：{ ok: true, id, name } / { ok: false, error, code }
@@ -325,6 +327,82 @@ export async function onRequest(context) {
       name: migrated.name || '',
       official: !!migrated.official
     });
+  }
+
+  /* ---------------- 更改自己的密码：编号 + 当前密码 + 新密码 ---------------- */
+  if (action === 'changePwd') {
+    if (!ID_RE.test(id)) return fail(400, '编号格式不正确', 'id_bad');
+
+    const newPwdHash = typeof body.newPwdHash === 'string' ? body.newPwdHash.trim().toLowerCase() : '';
+    const newSalt = typeof body.newSalt === 'string' ? body.newSalt.trim().toLowerCase() : '';
+    const newPassword = typeof body.newPassword === 'string' ? body.newPassword : '';
+
+    if (!newPwdHash && !newPassword) return fail(400, '请输入新密码', 'new_pwd_required');
+
+    let found = null;
+    try {
+      found = await readAccount(kv, id);
+    } catch (err) {
+      return fail(500, '服务异常，请稍后重试', 'server');
+    }
+    if (!found) return fail(401, '编号或密码错误', 'bad_cred');
+
+    const acc = found.acc;
+    if (!acc.pwdHash || !acc.salt) return fail(500, '服务异常，请稍后重试', 'server');
+
+    // 1) 校验当前密码（客户端哈希优先，也接受明文由服务端按原盐重算）
+    let current = '';
+    if (pwdHash) {
+      if (!HEX64.test(pwdHash)) return fail(400, '密码哈希格式不正确', 'hash_bad');
+      current = pwdHash;
+    } else {
+      if (!password) return fail(400, '请输入密码', 'pwd_required');
+      current = await hashPassword(acc.salt, password);
+    }
+    if (!safeEqual(current, acc.pwdHash)) {
+      return fail(401, '编号或密码错误', 'bad_cred');
+    }
+
+    // 2) 生成新密码的哈希与盐：前端已算好则复用前端盐，否则服务端重新加盐
+    let nextHash = '';
+    let nextSalt = acc.salt;
+    if (newPwdHash) {
+      if (!HEX64.test(newPwdHash)) return fail(400, '密码哈希格式不正确', 'hash_bad');
+      if (newSalt) {
+        if (!HEX32.test(newSalt)) return fail(400, '盐格式不正确', 'salt_bad');
+        nextSalt = newSalt;
+      }
+      nextHash = newPwdHash;
+    } else {
+      if (newPassword.length < PWD_MIN) return fail(400, '密码至少需要 6 位', 'pwd_short');
+      if (newPassword.length > PWD_MAX) return fail(400, '密码最长 64 位', 'pwd_long');
+      // 换盐后无法用哈希比对，先用原盐算一次，拦住「新密码与旧密码相同」
+      const sameAsOld = await hashPassword(acc.salt, newPassword);
+      if (safeEqual(sameAsOld, acc.pwdHash)) {
+        return fail(400, '新密码不能与当前密码相同', 'pwd_same');
+      }
+      nextSalt = randomHex(16);
+      nextHash = await hashPassword(nextSalt, newPassword);
+    }
+
+    // 3) 新旧密码不能相同：沿用原盐时可直接比对哈希，换盐时只能在客户端判断
+    if (nextSalt === acc.salt && safeEqual(nextHash, acc.pwdHash)) {
+      return fail(400, '新密码不能与当前密码相同', 'pwd_same');
+    }
+
+    const updated = Object.assign({}, acc, {
+      pwdHash: nextHash,
+      salt: nextSalt,
+      pwdChangedAt: Date.now()
+    });
+    try {
+      await kv.put(found.key, JSON.stringify(updated));
+    } catch (err) {
+      return fail(500, '服务异常，请稍后重试', 'server');
+    }
+
+    // 只回编号与名称，哈希与盐不出服务端；登录态不变，无需重新登录
+    return json({ ok: true, id: updated.id || id, name: updated.name || '' });
   }
 
   /* ---------------- 管理员：按编号搜索账号 ---------------- */
