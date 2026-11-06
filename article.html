@@ -1,0 +1,666 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+<!-- 主题引导 + 全站共享主题样式 -->
+<script src="theme.js"></script>
+<link rel="stylesheet" href="theme.css">
+<title data-i18n="title.article">文章详情 - Cealin</title>
+<style>
+  /* 主题变量统一由 theme.css 提供（含明亮模式），此处不再覆盖 */
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  html, body { height: 100%; }
+
+  body {
+    color: var(--fg);
+    font-family: "Helvetica Neue", "PingFang SC", "Microsoft YaHei", Arial, sans-serif;
+    -webkit-font-smoothing: antialiased;
+    overflow-y: auto;
+    background: var(--page-bg);
+  }
+
+  /* ========== 全屏背景图 ========== */
+  .art-bg {
+    position: fixed;
+    inset: 0;
+    z-index: 0;
+    background-image: url('assets/bg.jpg');
+    background-size: cover;
+    background-position: center;
+  }
+
+  .glow {
+    position: fixed;
+    inset: 0;
+    z-index: 1;
+    pointer-events: none;
+    background:
+      radial-gradient(ellipse 55% 42% at 50% 40%, rgba(255, 196, 120, 0.18), transparent 62%),
+      radial-gradient(ellipse 40% 35% at 50% 60%, rgba(230, 170, 90, 0.10), transparent 70%),
+      linear-gradient(180deg, rgba(var(--veil-rgb), 0.30) 0%, rgba(var(--veil-rgb), 0) 30%, rgba(var(--veil-rgb), 0.20) 78%, rgba(var(--veil-rgb), 0.55) 100%);
+  }
+
+  .grain {
+    position: fixed;
+    inset: 0;
+    z-index: 2;
+    pointer-events: none;
+    opacity: 0.07;
+    mix-blend-mode: overlay;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='180' height='180'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+  }
+
+  /* ========== 顶部导航栏 ========== */
+  .topbar {
+    position: fixed;
+    top: 14px;
+    left: 20px;
+    right: 20px;
+    z-index: 10;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 12px 26px;
+    border-radius: 22px;
+    background: linear-gradient(135deg, rgba(var(--line-rgb), 0.16), rgba(var(--line-rgb), 0.06) 48%, rgba(200, 169, 110, 0.08));
+    -webkit-backdrop-filter: blur(20px) saturate(170%);
+    backdrop-filter: blur(20px) saturate(170%);
+    border: 1px solid rgba(var(--line-rgb), 0.18);
+    box-shadow:
+      0 12px 36px rgba(var(--shadow-rgb), 0.30),
+      inset 0 1px 0 rgba(var(--line-rgb), 0.25),
+      inset 0 -1px 0 rgba(var(--line-rgb), 0.05);
+  }
+
+  .logo {
+    font-size: 22px;
+    font-weight: 800;
+    letter-spacing: 0.06em;
+    color: var(--fg);
+    text-decoration: none;
+  }
+
+  .nav-right { display: flex; align-items: center; gap: 26px; }
+
+  .menu { display: flex; gap: 22px; list-style: none; }
+  .menu a {
+    font-size: 15px;
+    font-weight: 500;
+    color: var(--muted);
+    text-decoration: none;
+    transition: color 0.3s ease;
+  }
+  .menu a:hover { color: var(--fg); }
+  .menu a.active { color: var(--fg); }
+  .menu a.active::after {
+    content: "";
+    display: block;
+    height: 1px;
+    margin-top: 3px;
+    background: rgba(var(--fg-rgb), 0.45);
+  }
+
+  .avatar {
+    width: 34px;
+    height: 34px;
+    border-radius: 50%;
+    border: 1.5px solid rgba(var(--hl-rgb), 0.35);
+    background:
+      radial-gradient(circle at 35% 30%, rgba(var(--hl-rgb), 0.35), transparent 40%),
+      linear-gradient(135deg, #7d8a7a, #3a4038);
+    cursor: pointer;
+    position: relative;
+    display: block;
+  }
+  .avatar::after {
+    content: "";
+    position: absolute;
+    inset: 4px;
+    border-radius: 50%;
+    border: 1px solid rgba(var(--hl-rgb), 0.15);
+  }
+
+  /* ========== 主体 ========== */
+  .hero {
+    position: relative;
+    z-index: 5;
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: 108px 24px 70px;
+  }
+
+  .article-box {
+    width: min(820px, 94vw);
+    padding: 34px 36px 38px;
+    border-radius: 20px;
+    background: rgba(var(--panel-rgb), 0.56);
+    border: 1px solid rgba(var(--line-rgb), 0.1);
+    -webkit-backdrop-filter: blur(14px) saturate(150%);
+    backdrop-filter: blur(14px) saturate(150%);
+    box-shadow: 0 24px 70px rgba(var(--shadow-rgb), 0.38);
+    opacity: 0;
+    animation: fadeIn 0.8s cubic-bezier(0.22, 1, 0.36, 1) 0.1s forwards;
+  }
+
+  .status-banner {
+    margin-bottom: 22px;
+    padding: 12px 16px;
+    border-radius: 12px;
+    font-size: 13px;
+    letter-spacing: 0.04em;
+    line-height: 1.7;
+    border: 1px solid;
+  }
+  .status-banner.pending {
+    border-color: rgba(200, 169, 110, 0.55);
+    background: rgba(200, 169, 110, 0.14);
+    color: var(--gold-light);
+  }
+  .status-banner.rejected {
+    border-color: rgba(214, 120, 110, 0.55);
+    background: rgba(214, 120, 110, 0.13);
+    color: #e8a79c;
+  }
+  html.light .status-banner.rejected { color: #9c4638; }
+  .status-banner strong { font-weight: 600; }
+
+  .art-title {
+    font-size: clamp(24px, 3.6vw, 34px);
+    font-weight: 700;
+    line-height: 1.45;
+    letter-spacing: 0.02em;
+    color: var(--fg);
+    word-break: break-word;
+  }
+
+  .art-meta {
+    margin-top: 16px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    flex-wrap: wrap;
+    font-size: 12px;
+    letter-spacing: 0.06em;
+    color: var(--muted);
+  }
+  .art-meta .dot { opacity: 0.4; }
+
+  .art-tags {
+    margin-top: 16px;
+    display: flex;
+    gap: 7px;
+    flex-wrap: wrap;
+  }
+  .art-tags .tag {
+    font-size: 11px;
+    letter-spacing: 0.05em;
+    color: var(--gold-light);
+    border: 1px solid rgba(200, 169, 110, 0.35);
+    border-radius: 999px;
+    padding: 2px 10px;
+  }
+
+  .divider {
+    margin: 26px 0;
+    height: 1px;
+    background: linear-gradient(90deg, transparent, rgba(var(--line-rgb), 0.18), transparent);
+  }
+
+  /* 正文：纯文本渲染，保留换行 */
+  .art-body {
+    font-size: 15px;
+    line-height: 2.05;
+    color: var(--fg-soft);
+    word-break: break-word;
+    white-space: normal;
+  }
+  .art-body a {
+    color: var(--gold-light);
+    text-decoration: underline;
+    text-underline-offset: 3px;
+    word-break: break-all;
+  }
+  .art-body a:hover { color: var(--gold); }
+
+  /* ========== 图片画廊 ========== */
+  .sec-title {
+    margin: 30px 0 14px;
+    font-size: 11px;
+    letter-spacing: 0.22em;
+    text-transform: uppercase;
+    color: var(--gold);
+  }
+
+  .gallery {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+    gap: 10px;
+  }
+  .gallery figure {
+    margin: 0;
+    border-radius: 12px;
+    overflow: hidden;
+    border: 1px solid rgba(var(--line-rgb), 0.12);
+    background: rgba(var(--line-rgb), 0.04);
+    cursor: zoom-in;
+    transition: border-color 0.25s ease, transform 0.25s cubic-bezier(0.22, 1, 0.36, 1);
+  }
+  .gallery figure:hover { border-color: rgba(200, 169, 110, 0.55); transform: translateY(-2px); }
+  .gallery img {
+    display: block;
+    width: 100%;
+    height: 150px;
+    object-fit: cover;
+  }
+
+  /* ========== 附件 / 链接 ========== */
+  .file-list, .link-list {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+  .file-item, .link-item {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 11px 14px;
+    border-radius: 10px;
+    border: 1px solid rgba(var(--line-rgb), 0.1);
+    background: rgba(var(--line-rgb), 0.04);
+    font-size: 13px;
+    color: var(--fg-soft);
+    text-decoration: none;
+    word-break: break-all;
+    transition: border-color 0.25s ease, background 0.25s ease, color 0.25s ease;
+  }
+  .file-item:hover, .link-item:hover {
+    border-color: rgba(200, 169, 110, 0.55);
+    background: rgba(200, 169, 110, 0.1);
+    color: var(--fg);
+  }
+  .file-item .size, .link-item .hint { color: var(--muted); font-size: 11px; margin-left: auto; white-space: nowrap; }
+
+  .action-row {
+    margin-top: 32px;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    flex-wrap: wrap;
+  }
+
+  .btn {
+    padding: 10px 22px;
+    border-radius: 999px;
+    border: 1px solid rgba(200, 169, 110, 0.55);
+    background: rgba(200, 169, 110, 0.18);
+    color: var(--fg);
+    font-size: 13px;
+    letter-spacing: 0.08em;
+    font-family: inherit;
+    cursor: pointer;
+    text-decoration: none;
+    display: inline-block;
+    transition: background 0.25s cubic-bezier(0.22, 1, 0.36, 1), transform 0.2s cubic-bezier(0.22, 1, 0.36, 1);
+  }
+  .btn:hover { background: rgba(200, 169, 110, 0.34); transform: translateY(-1px); }
+  .btn.ghost {
+    border-color: rgba(var(--line-rgb), 0.18);
+    background: rgba(var(--line-rgb), 0.05);
+    color: var(--muted);
+  }
+  .btn.ghost:hover { background: rgba(var(--line-rgb), 0.1); color: var(--fg); }
+
+  .tip-box {
+    width: min(820px, 94vw);
+    padding: 42px 20px;
+    text-align: center;
+    border-radius: 16px;
+    border: 1px dashed rgba(var(--line-rgb), 0.16);
+    background: rgba(var(--panel-rgb), 0.34);
+    color: var(--muted);
+    font-size: 13px;
+    letter-spacing: 0.08em;
+  }
+
+  /* ========== 灯箱 ========== */
+  .lightbox {
+    position: fixed;
+    inset: 0;
+    z-index: 100;
+    display: none;
+    align-items: center;
+    justify-content: center;
+    padding: 40px;
+    background: rgba(0, 0, 0, 0.86);
+    cursor: zoom-out;
+  }
+  .lightbox.open { display: flex; }
+  .lightbox img {
+    max-width: 94vw;
+    max-height: 90vh;
+    border-radius: 10px;
+    box-shadow: 0 30px 90px rgba(0, 0, 0, 0.6);
+  }
+
+  @keyframes fadeIn {
+    from { opacity: 0; transform: translateY(14px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+</style>
+  <script src="notice-link.js"></script>
+  <script src="i18n.js"></script>
+</head>
+<body>
+
+  <div class="art-bg"></div>
+  <div class="glow"></div>
+  <div class="grain"></div>
+
+  <header class="topbar">
+    <a class="logo" href="index.html">Cealin</a>
+    <div class="nav-right">
+      <ul class="menu">
+        <li><a href="index.html" data-i18n="nav.home">首页</a></li>
+        <li><a href="project.html" data-i18n="nav.project">项目</a></li>
+        <li><a href="platform.html" data-i18n="nav.platform">平台</a></li>
+        <li><a href="chat.html" data-i18n="nav.chat">聊天室</a></li>
+        <li><a href="articles.html" class="active" data-i18n="nav.articles">文章</a></li>
+        <li><a href="suggestion.html" data-i18n="nav.suggestion">建议</a></li>
+        <li><a href="notice-admin.html" data-i18n="nav.notice">公告</a></li>
+        <li><a href="mine.html" data-i18n="nav.mine">我的</a></li>
+      </ul>
+      <a class="avatar" href="settings.html" title="设置" data-i18n-title="nav.settings"></a>
+    </div>
+  </header>
+
+  <main class="hero">
+    <article class="article-box" id="articleBox" style="display:none;">
+      <div class="status-banner" id="statusBanner" style="display:none;"></div>
+
+      <h1 class="art-title" id="artTitle"></h1>
+
+      <div class="art-meta" id="artMeta"></div>
+      <div class="art-tags" id="artTags"></div>
+
+      <div class="divider"></div>
+
+      <div class="art-body" id="artBody"></div>
+
+      <div id="gallerySec" style="display:none;">
+        <div class="sec-title" data-i18n="artd.images">图片</div>
+        <div class="gallery" id="gallery"></div>
+      </div>
+
+      <div id="fileSec" style="display:none;">
+        <div class="sec-title" data-i18n="artd.files">附件</div>
+        <div class="file-list" id="fileList"></div>
+      </div>
+
+      <div id="linkSec" style="display:none;">
+        <div class="sec-title" data-i18n="artd.links">相关链接</div>
+        <div class="link-list" id="linkList"></div>
+      </div>
+
+      <div class="action-row">
+        <a class="btn ghost" href="articles.html" data-i18n="artd.back">返回文章区</a>
+        <a class="btn" href="#" id="editBtn" style="display:none;" data-i18n="artd.edit">编辑本文</a>
+      </div>
+    </article>
+
+    <div class="tip-box" id="tipBox" data-i18n="common.loading">加载中…</div>
+  </main>
+
+  <div class="lightbox" id="lightbox"><img id="lightboxImg" alt=""></div>
+
+  <script>
+    (function () {
+      var box = document.getElementById('articleBox');
+      var tipBox = document.getElementById('tipBox');
+      var artTitle = document.getElementById('artTitle');
+      var artMeta = document.getElementById('artMeta');
+      var artTags = document.getElementById('artTags');
+      var artBody = document.getElementById('artBody');
+      var statusBanner = document.getElementById('statusBanner');
+      var gallerySec = document.getElementById('gallerySec');
+      var gallery = document.getElementById('gallery');
+      var fileSec = document.getElementById('fileSec');
+      var fileList = document.getElementById('fileList');
+      var linkSec = document.getElementById('linkSec');
+      var linkList = document.getElementById('linkList');
+      var editBtn = document.getElementById('editBtn');
+      var lightbox = document.getElementById('lightbox');
+      var lightboxImg = document.getElementById('lightboxImg');
+
+      var params = new URLSearchParams(window.location.search);
+      var articleId = params.get('id') || '';
+      var authorId = '';
+      try { authorId = window.sessionStorage.getItem('cealin_account_id') || ''; } catch (e) { authorId = ''; }
+      var adminPwd = '';
+      try { adminPwd = window.sessionStorage.getItem('cealin_admin_pwd') || ''; } catch (e) { adminPwd = ''; }
+
+      var current = null;
+
+      function esc(s) {
+        return String(s === null || s === undefined ? '' : s)
+          .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+          .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+      }
+
+      function pad2(n) { return n < 10 ? '0' + n : '' + n; }
+
+      function fmtDate(ts) {
+        if (!ts) return '';
+        var d = new Date(ts);
+        return d.getFullYear() + '-' + pad2(d.getMonth() + 1) + '-' + pad2(d.getDate())
+          + ' ' + pad2(d.getHours()) + ':' + pad2(d.getMinutes());
+      }
+
+      function fmtSize(n) {
+        if (!n || n < 0) return '0 B';
+        if (n < 1024) return n + ' B';
+        if (n < 1024 * 1024) return (n / 1024).toFixed(1) + ' KB';
+        return (n / 1024 / 1024).toFixed(2) + ' MB';
+      }
+
+      // 正文渲染：先转义（防注入），再把 http(s) 链接转成可点击超链接，最后保留换行
+      function renderBody(text) {
+        var safe = esc(text);
+        safe = safe.replace(/https?:\/\/[^\s<"]+/gi, function (url) {
+          var tail = '';
+          var m = url.match(/[),.;:!?。，、；：！？）】」]+$/);
+          if (m) {
+            tail = m[0];
+            url = url.slice(0, url.length - tail.length);
+          }
+          if (!url) return tail;
+          return '<a href="' + url + '" target="_blank" rel="noopener noreferrer">' + url + '</a>' + tail;
+        });
+        return safe.replace(/\r\n/g, '\n').replace(/\n/g, '<br>');
+      }
+
+      // 附件地址：非公开文章需要带作者身份或管理员密码
+      function assetUrl(id, assetId) {
+        var url = '/api/articles?action=asset&id=' + encodeURIComponent(id) + '&assetId=' + encodeURIComponent(assetId);
+        if (current && current.status !== 'approved') {
+          if (adminPwd && !(authorId && authorId === current.authorId)) {
+            url += '&pwd=' + encodeURIComponent(adminPwd);
+          } else if (authorId) {
+            url += '&authorId=' + encodeURIComponent(authorId);
+          }
+        }
+        return url;
+      }
+
+      function render(article) {
+        current = article;
+        document.title = article.title + ' - Cealin';
+
+        // 状态横幅：仅作者本人或管理员看得到未公开文章
+        if (article.status === 'pending') {
+          statusBanner.className = 'status-banner pending';
+          statusBanner.innerHTML = '<strong>' + esc(cealinT('artd.pending')) + '</strong>';
+          statusBanner.style.display = 'block';
+        } else if (article.status === 'rejected') {
+          statusBanner.className = 'status-banner rejected';
+          statusBanner.innerHTML = '<strong>' + esc(cealinT('artd.rejected')) + '</strong>'
+            + (article.rejectReason ? ('<br>' + esc(cealinT('artd.reason', { r: article.rejectReason }))) : '');
+          statusBanner.style.display = 'block';
+        } else {
+          statusBanner.style.display = 'none';
+        }
+
+        artTitle.textContent = article.title;
+
+        var meta = '<span>' + esc(article.authorName || cealinT('common.anonymous')) + '</span>'
+          + '<span class="dot">·</span>'
+          + '<span>' + esc(fmtDate(article.createdAt)) + '</span>';
+        if (article.updatedAt && article.createdAt && article.updatedAt - article.createdAt > 60000) {
+          meta += '<span class="dot">·</span><span>' + esc(cealinT('artd.updated', { t: fmtDate(article.updatedAt) })) + '</span>';
+        }
+        meta += '<span class="dot">·</span><span>' + esc(cealinT('artd.views', { n: article.views || 0 })) + '</span>';
+        artMeta.innerHTML = meta;
+
+        var tags = Array.isArray(article.tags) ? article.tags : [];
+        var tagHtml = '';
+        for (var i = 0; i < tags.length; i++) {
+          tagHtml += '<span class="tag">' + esc(tags[i]) + '</span>';
+        }
+        artTags.innerHTML = tagHtml;
+        artTags.style.display = tagHtml ? 'flex' : 'none';
+
+        artBody.innerHTML = renderBody(article.body || '');
+
+        // 图片画廊
+        var images = Array.isArray(article.images) ? article.images : [];
+        if (images.length) {
+          var gHtml = '';
+          for (var k = 0; k < images.length; k++) {
+            var src = assetUrl(article.id, images[k].assetId);
+            gHtml += '<figure data-src="' + esc(src) + '"><img src="' + esc(src) + '" alt="' + esc(images[k].name || '') + '" loading="lazy"></figure>';
+          }
+          gallery.innerHTML = gHtml;
+          gallerySec.style.display = 'block';
+        } else {
+          gallerySec.style.display = 'none';
+        }
+
+        // 附件列表
+        var files = Array.isArray(article.files) ? article.files : [];
+        if (files.length) {
+          var fHtml = '';
+          for (var m = 0; m < files.length; m++) {
+            var furl = assetUrl(article.id, files[m].assetId);
+            fHtml += '<a class="file-item" href="' + esc(furl) + '" download>'
+              + '<span>' + esc(files[m].name || cealinT('artd.download')) + '</span>'
+              + '<span class="size">' + esc(fmtSize(files[m].size)) + '</span></a>';
+          }
+          fileList.innerHTML = fHtml;
+          fileSec.style.display = 'block';
+        } else {
+          fileSec.style.display = 'none';
+        }
+
+        // 相关链接
+        var links = Array.isArray(article.links) ? article.links : [];
+        if (links.length) {
+          var lHtml = '';
+          for (var n = 0; n < links.length; n++) {
+            lHtml += '<a class="link-item" href="' + esc(links[n]) + '" target="_blank" rel="noopener noreferrer">'
+              + '<span>' + esc(links[n]) + '</span>'
+              + '<span class="hint">↗</span></a>';
+          }
+          linkList.innerHTML = lHtml;
+          linkSec.style.display = 'block';
+        } else {
+          linkSec.style.display = 'none';
+        }
+
+        box.style.display = 'block';
+        tipBox.style.display = 'none';
+      }
+
+      function showError(msg) {
+        box.style.display = 'none';
+        tipBox.style.display = 'block';
+        tipBox.textContent = msg;
+      }
+
+      function load() {
+        if (!articleId) {
+          showError(cealinT('artd.notFound'));
+          return;
+        }
+        var payload = { action: 'detail', id: articleId, authorId: authorId };
+        if (adminPwd) payload.password = adminPwd;
+        fetch('/api/articles', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload)
+        })
+          .then(function (resp) {
+            return resp.json().then(function (data) { return { status: resp.status, data: data }; });
+          })
+          .then(function (res) {
+            var data = res.data || {};
+            if (!data.ok || !data.article) {
+              if (data.code === 'not_public') showError(cealinT('artd.notPublic'));
+              else if (data.code === 'not_found') showError(cealinT('artd.notFound'));
+              else showError(data.error || cealinT('artd.loadFail'));
+              return;
+            }
+            render(data.article);
+            if (data.canEdit) {
+              editBtn.style.display = 'inline-block';
+              editBtn.setAttribute('href', 'write.html?id=' + encodeURIComponent(data.article.id));
+            } else {
+              editBtn.style.display = 'none';
+            }
+          })
+          .catch(function () {
+            showError(cealinT('artd.loadFail'));
+          });
+      }
+
+      // ---------- 灯箱 ----------
+      gallery.addEventListener('click', function (ev) {
+        var node = ev.target;
+        while (node && node !== gallery && node.tagName !== 'FIGURE') node = node.parentNode;
+        if (!node || node === gallery) return;
+        var src = node.getAttribute('data-src');
+        if (!src) return;
+        lightboxImg.src = src;
+        lightbox.className = 'lightbox open';
+      });
+
+      lightbox.addEventListener('click', function () {
+        lightbox.className = 'lightbox';
+        lightboxImg.src = '';
+      });
+
+      document.addEventListener('keydown', function (ev) {
+        if (ev.key === 'Escape' || ev.keyCode === 27) {
+          lightbox.className = 'lightbox';
+          lightboxImg.src = '';
+        }
+      });
+
+      // ---------- 初始化 ----------
+      load();
+
+      // 语言切换：正文与用户内容不翻译，仅重新渲染横幅与元信息
+      if (window.cealinOnLangChange) {
+        cealinOnLangChange(function () {
+          if (current) render(current);
+        });
+      }
+    })();
+  </script>
+
+</body>
+</html>

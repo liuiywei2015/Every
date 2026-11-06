@@ -630,6 +630,193 @@
     flex-wrap: wrap;
     margin-top: 12px;
   }
+
+  /* ========== 文章审核 / 全部文章 ========== */
+  .art-toolbar {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    flex-wrap: wrap;
+    margin-top: 12px;
+  }
+  .art-input, .art-select {
+    padding: 9px 13px;
+    border-radius: 10px;
+    border: 1px solid rgba(var(--line-rgb), 0.16);
+    background: rgba(var(--line-rgb), 0.06);
+    color: var(--fg);
+    font-size: 13px;
+    font-family: inherit;
+    outline: none;
+    transition: border-color 0.25s ease, background 0.25s ease;
+  }
+  .art-input { flex: 1; min-width: 160px; }
+  .art-input:focus, .art-select:focus {
+    border-color: rgba(200, 169, 110, 0.65);
+    background: rgba(var(--line-rgb), 0.09);
+  }
+  .art-input::placeholder { color: var(--muted); }
+  .art-select option { background: #1c1f1d; color: var(--fg); }
+
+  .art-sub-title {
+    margin-top: 22px;
+    font-size: 11px;
+    letter-spacing: 0.2em;
+    text-transform: uppercase;
+    color: var(--gold);
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+  .art-sub-title .art-sub-count {
+    letter-spacing: 0.04em;
+    text-transform: none;
+    font-size: 11px;
+    color: var(--muted);
+  }
+
+  .art-list { display: flex; flex-direction: column; gap: 10px; margin-top: 12px; }
+
+  .art-item {
+    border-radius: 12px;
+    border: 1px solid rgba(var(--line-rgb), 0.1);
+    background: rgba(var(--line-rgb), 0.035);
+    padding: 14px 16px;
+    display: flex;
+    flex-direction: column;
+    gap: 9px;
+    transition: border-color 0.25s ease, background 0.25s ease, opacity 0.25s ease, transform 0.25s ease;
+  }
+  .art-item:hover { border-color: rgba(var(--line-rgb), 0.2); background: rgba(var(--line-rgb), 0.06); }
+  .art-item.removing { opacity: 0; transform: translateY(-6px); }
+
+  .art-head {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    flex-wrap: wrap;
+  }
+  .art-h-title {
+    flex: 1;
+    min-width: 150px;
+    font-size: 14px;
+    color: var(--fg);
+    word-break: break-word;
+    line-height: 1.5;
+  }
+  .art-h-meta {
+    font-size: 11.5px;
+    color: var(--muted);
+    letter-spacing: 0.02em;
+  }
+  .art-ops { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+
+  .art-badge {
+    font-size: 11px;
+    letter-spacing: 0.04em;
+    border-radius: 999px;
+    padding: 2px 10px;
+    white-space: nowrap;
+  }
+  .art-badge.pending { color: #e6c88f; border: 1px solid rgba(200, 169, 110, 0.5); background: rgba(200, 169, 110, 0.12); }
+  .art-badge.approved { color: #9ed3a8; border: 1px solid rgba(120, 195, 135, 0.5); background: rgba(120, 195, 135, 0.12); }
+  .art-badge.rejected { color: #e8948a; border: 1px solid rgba(214, 120, 110, 0.5); background: rgba(214, 120, 110, 0.12); }
+  html.light .art-badge.approved { color: #2f6c3d; }
+  html.light .art-badge.rejected { color: #b0453a; }
+
+  .art-preview {
+    display: none;
+    flex-direction: column;
+    gap: 10px;
+    padding: 14px 0 2px;
+    border-top: 1px dashed rgba(var(--line-rgb), 0.14);
+    margin-top: 4px;
+  }
+  .art-preview.open { display: flex; }
+
+  .art-tags { display: flex; gap: 6px; flex-wrap: wrap; }
+  .art-tag {
+    font-size: 11px;
+    padding: 2px 9px;
+    border-radius: 999px;
+    border: 1px solid rgba(200, 169, 110, 0.4);
+    background: rgba(200, 169, 110, 0.1);
+    color: var(--gold);
+  }
+
+  .art-body {
+    white-space: pre-wrap;
+    word-break: break-word;
+    font-size: 12.5px;
+    line-height: 1.85;
+    color: var(--fg-soft);
+    max-height: 420px;
+    overflow-y: auto;
+    padding: 12px 14px;
+    border-radius: 10px;
+    background: rgba(var(--shadow-rgb), 0.22);
+    border: 1px solid rgba(var(--line-rgb), 0.08);
+  }
+
+  .art-thumbs { display: flex; gap: 8px; flex-wrap: wrap; }
+  .art-thumb {
+    width: 82px;
+    height: 82px;
+    object-fit: cover;
+    border-radius: 8px;
+    border: 1px solid rgba(var(--line-rgb), 0.16);
+    background: rgba(var(--line-rgb), 0.05);
+    cursor: zoom-in;
+    display: block;
+  }
+
+  .art-atts { display: flex; flex-direction: column; gap: 6px; }
+  .art-att {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    font-size: 12.5px;
+    color: var(--fg-soft);
+    text-decoration: none;
+    border: 1px solid rgba(var(--line-rgb), 0.1);
+    border-radius: 9px;
+    padding: 8px 12px;
+    background: rgba(var(--line-rgb), 0.04);
+  }
+  .art-att:hover { border-color: rgba(200, 169, 110, 0.45); color: var(--fg); }
+  .art-att .att-name { flex: 1; word-break: break-all; }
+  .art-att .att-size { font-size: 11px; color: var(--muted); white-space: nowrap; }
+
+  .art-links { display: flex; flex-direction: column; gap: 5px; }
+  .art-link {
+    font-size: 12.5px;
+    color: var(--gold);
+    text-decoration: none;
+    word-break: break-all;
+    border-bottom: 1px solid rgba(200, 169, 110, 0.3);
+    align-self: flex-start;
+  }
+  .art-link:hover { color: var(--fg); }
+
+  .art-reason {
+    font-size: 12px;
+    line-height: 1.75;
+    color: #e8948a;
+    padding: 9px 12px;
+    border-radius: 9px;
+    background: rgba(214, 120, 110, 0.1);
+    border: 1px solid rgba(214, 120, 110, 0.22);
+  }
+  html.light .art-reason { color: #b0453a; }
+
+  .art-pager {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin-top: 14px;
+    font-size: 12px;
+    color: var(--muted);
+  }
 </style>
   <script src="notice-link.js"></script>
   <script src="i18n.js"></script>
@@ -770,6 +957,45 @@
       </div>
       <div id="offList" class="room-list"></div>
       <p class="notice-msg" id="offMsg"></p>
+    </section>
+
+    <!-- 文章审核区 -->
+    <section class="notice-card" id="artAdminCard" style="display:none;">
+      <h2 class="notice-title" data-i18n="ad.artTitle">文章审核</h2>
+      <p class="notice-tip" data-i18n="ad.artTip">待审文章需展开预览后通过或驳回；驳回须填写理由。删除文章会一并删除其全部图片与附件，不可恢复。</p>
+
+      <!-- 待审核 -->
+      <div class="art-sub-title">
+        <span data-i18n="ad.artPending">待审核</span>
+        <span class="art-sub-count" id="artPendCount"></span>
+        <span style="flex:1;"></span>
+        <button type="button" class="save-btn" id="artPendRefresh" onclick="loadArticlePending(true)" data-i18n="ad.artRefresh">刷新</button>
+      </div>
+      <div id="artPendList" class="art-list"></div>
+
+      <!-- 全部文章 -->
+      <div class="art-sub-title">
+        <span data-i18n="ad.artAll">全部文章</span>
+        <span class="art-sub-count" id="artAllCount"></span>
+      </div>
+      <div class="art-toolbar">
+        <input id="artQuery" class="art-input" type="text" maxlength="60" autocomplete="off" spellcheck="false" placeholder="搜索标题或作者" data-i18n-ph="ad.artSearchPh">
+        <select id="artStatus" class="art-select" onchange="loadArticleAll(1)">
+          <option value="" data-i18n="ad.artStatusAll">全部状态</option>
+          <option value="pending" data-i18n="ad.artStPending">待审核</option>
+          <option value="approved" data-i18n="ad.artStApproved">已通过</option>
+          <option value="rejected" data-i18n="ad.artStRejected">已驳回</option>
+        </select>
+        <button type="button" class="save-btn" id="artSearchBtn" onclick="loadArticleAll(1, true)" data-i18n="ad.artSearchBtn">搜索</button>
+      </div>
+      <div id="artAllList" class="art-list"></div>
+      <div class="art-pager">
+        <button type="button" class="op-btn" id="artPrevBtn" onclick="artPageGo(-1)" data-i18n="ad.artPrev">上一页</button>
+        <span id="artPageInfo"></span>
+        <button type="button" class="op-btn" id="artNextBtn" onclick="artPageGo(1)" data-i18n="ad.artNext">下一页</button>
+      </div>
+
+      <p class="notice-msg" id="artMsg"></p>
     </section>
 
     <!-- 入口 -->
@@ -941,7 +1167,7 @@
               roomMsgEl.classList.add('ok');
               if (action === 'delete') {
                 // 删除：即时移除该行并保留成功提示（不再全量刷新，避免列表闪烁与提示被清空）
-                roomMsgEl.textContent = cealinT('ad.sugDeleted', { code: code });
+                roomMsgEl.textContent = cealinT('ad.roomDeleted', { code: code });
                 removeRoomRow(code);
               } else if (action === 'verify') {
                 // 授权：提示授权状态变化并刷新列表
@@ -1428,6 +1654,416 @@
       window.setOfficial = setOfficial;
       window.listAllAccounts = listAllAccounts;
 
+      // ===== 文章审核：待审列表 / 全部文章 / 通过 / 驳回 / 撤销 / 删除（POST /api/articles，需管理员密码校验） =====
+      var artCard = document.getElementById('artAdminCard');
+      var artPendList = document.getElementById('artPendList');
+      var artPendCountEl = document.getElementById('artPendCount');
+      var artAllList = document.getElementById('artAllList');
+      var artAllCountEl = document.getElementById('artAllCount');
+      var artMsgEl = document.getElementById('artMsg');
+      var artQuery = document.getElementById('artQuery');
+      var artStatusSel = document.getElementById('artStatus');
+      var artPageInfo = document.getElementById('artPageInfo');
+      var artPrevBtn = document.getElementById('artPrevBtn');
+      var artNextBtn = document.getElementById('artNextBtn');
+
+      var ART_CACHE_MS = 30000;
+      var artPendCacheAt = 0;
+      var artPendData = null;
+      var artAllCacheAt = 0;
+      var artAllData = null;
+      var artPage = 1;
+      var artPageSize = 10;
+      var artTotalPages = 1;
+      var artDetails = {};
+
+      function artMsg(text, ok) {
+        artMsgEl.textContent = text || '';
+        artMsgEl.classList.toggle('ok', !!ok);
+      }
+
+      // 统一的文章接口调用（POST /api/articles，返回 { status, data }）
+      function artPost(payload) {
+        payload.password = pwd;
+        return fetch('/api/articles', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload)
+        }).then(function (resp) {
+          return resp.json().then(function (data) { return { status: resp.status, data: data }; });
+        });
+      }
+
+      function artErrText(res) {
+        var data = (res && res.data) || {};
+        if (res && res.status === 401) return cealinT('ad.pwdExpired');
+        if (data.code === 'bad_pwd') return cealinT('ad.pwdExpired');
+        return data.error || cealinT('ad.opFailed');
+      }
+
+      function artAssetUrl(id, assetId) {
+        return '/api/articles?action=asset&id=' + encodeURIComponent(id)
+          + '&assetId=' + encodeURIComponent(assetId)
+          + '&pwd=' + encodeURIComponent(pwd);
+      }
+
+      function artStatusText(st) {
+        if (st === 'approved') return cealinT('ad.artStApproved');
+        if (st === 'rejected') return cealinT('ad.artStRejected');
+        return cealinT('ad.artStPending');
+      }
+
+      function artFmtSize(n) {
+        var v = typeof n === 'number' ? n : 0;
+        if (v < 1024) return v + ' B';
+        if (v < 1024 * 1024) return (v / 1024).toFixed(1) + ' KB';
+        return (v / 1024 / 1024).toFixed(2) + ' MB';
+      }
+
+      // 展开后的全文预览：标签 / 正文 / 图片 / 附件 / 链接 / 驳回理由
+      function renderArtPreview(a) {
+        var h = '';
+        if (Array.isArray(a.tags) && a.tags.length) {
+          h += '<div class="art-tags">';
+          a.tags.forEach(function (t) {
+            h += '<span class="art-tag">' + escHtml(t) + '</span>';
+          });
+          h += '</div>';
+        }
+        h += '<div class="art-body">' + escHtml(a.body || '') + '</div>';
+
+        var imgs = Array.isArray(a.images) ? a.images : [];
+        if (imgs.length) {
+          h += '<div class="art-thumbs">';
+          imgs.forEach(function (it) {
+            if (!it || !it.assetId) return;
+            var url = artAssetUrl(a.id, it.assetId);
+            h += '<a href="' + escHtml(url) + '" target="_blank" rel="noopener">'
+              + '<img class="art-thumb" src="' + escHtml(url) + '" alt="' + escHtml(it.name || '') + '" loading="lazy">'
+              + '</a>';
+          });
+          h += '</div>';
+        }
+
+        var atts = Array.isArray(a.files) ? a.files : [];
+        if (atts.length) {
+          h += '<div class="art-atts">';
+          atts.forEach(function (it) {
+            if (!it || !it.assetId) return;
+            var url = artAssetUrl(a.id, it.assetId);
+            h += '<a class="art-att" href="' + escHtml(url) + '" target="_blank" rel="noopener" download>'
+              + '<span class="att-name">' + escHtml(it.name || '') + '</span>'
+              + '<span class="att-size">' + escHtml(artFmtSize(it.size)) + '</span>'
+              + '</a>';
+          });
+          h += '</div>';
+        }
+
+        var links = Array.isArray(a.links) ? a.links : [];
+        if (links.length) {
+          h += '<div class="art-links">';
+          links.forEach(function (u) {
+            var href = String(u || '');
+            if (!/^https?:\/\//i.test(href)) href = 'https://' + href.replace(/^\/+/, '');
+            h += '<a class="art-link" href="' + escHtml(href) + '" target="_blank" rel="noopener">' + escHtml(u) + '</a>';
+          });
+          h += '</div>';
+        }
+
+        if (a.status === 'rejected' && a.rejectReason) {
+          h += '<div class="art-reason">' + cealinT('ad.artReasonPrefix') + escHtml(a.rejectReason) + '</div>';
+        }
+        return h;
+      }
+
+      // 单条文章卡片：头部信息 + 操作按钮 + 可展开的预览容器
+      function artItemHtml(a, mode) {
+        var st = a.status || 'pending';
+        var meta = escHtml(a.authorName || a.authorId || cealinT('common.anonymous'))
+          + ' · ' + escHtml(fmtRoomTime(a.createdAt))
+          + ' · ' + cealinT('ad.artAttMeta', {
+            img: typeof a.imgCount === 'number' ? a.imgCount : (Array.isArray(a.images) ? a.images.length : 0),
+            file: typeof a.fileCount === 'number' ? a.fileCount : (Array.isArray(a.files) ? a.files.length : 0)
+          });
+        var ops = '<button type="button" class="op-btn" data-act="toggle" data-id="' + escHtml(a.id) + '">'
+          + cealinT('ad.artExpand') + '</button>';
+
+        if (st !== 'approved') {
+          ops += '<button type="button" class="op-btn verify" data-act="approve" data-id="' + escHtml(a.id) + '">'
+            + cealinT('ad.artApprove') + '</button>';
+        }
+        if (st !== 'rejected') {
+          ops += '<button type="button" class="op-btn" data-act="reject" data-id="' + escHtml(a.id) + '">'
+            + cealinT('ad.artReject') + '</button>';
+        }
+        if (st === 'approved' || st === 'rejected') {
+          ops += '<button type="button" class="op-btn" data-act="revoke" data-id="' + escHtml(a.id) + '">'
+            + cealinT('ad.artRevoke') + '</button>';
+        }
+        if (st === 'approved') {
+          ops += '<a class="op-btn" href="article.html?id=' + encodeURIComponent(a.id) + '" target="_blank" rel="noopener">'
+            + cealinT('ad.artView') + '</a>';
+        }
+        ops += '<button type="button" class="op-btn del" data-act="delete" data-id="' + escHtml(a.id) + '">'
+          + cealinT('common.delete') + '</button>';
+
+        return '<div class="art-item" data-id="' + escHtml(a.id) + '">'
+          + '<div class="art-head">'
+          + '<span class="art-h-title">' + escHtml(a.title || '') + '</span>'
+          + '<span class="art-badge ' + escHtml(st) + '">' + escHtml(artStatusText(st)) + '</span>'
+          + '<span class="art-h-meta">' + meta + '</span>'
+          + '</div>'
+          + '<div class="art-ops">' + ops + '</div>'
+          + '<div class="art-preview" id="artPv-' + escHtml(a.id) + '"></div>'
+          + '</div>';
+      }
+
+      // 事件委托：展开 / 通过 / 驳回 / 撤销 / 删除
+      function bindArtList(container) {
+        container.addEventListener('click', function (ev) {
+          var btn = ev.target.closest ? ev.target.closest('[data-act]') : null;
+          if (!btn) return;
+          var id = btn.getAttribute('data-id');
+          var act = btn.getAttribute('data-act');
+          if (act === 'toggle') artToggle(id);
+          else if (act === 'approve') artApprove(id);
+          else if (act === 'reject') artReject(id);
+          else if (act === 'revoke') artRevoke(id);
+          else if (act === 'delete') artDelete(id);
+        });
+      }
+
+      window.artToggle = function (id) {
+        var pv = document.getElementById('artPv-' + id);
+        if (!pv) return;
+        if (pv.classList.contains('open')) {
+          pv.classList.remove('open');
+          return;
+        }
+        pv.classList.add('open');
+        if (pv.getAttribute('data-loaded') === '1') return;
+        var cached = artDetails[id];
+        if (cached) {
+          pv.innerHTML = renderArtPreview(cached);
+          pv.setAttribute('data-loaded', '1');
+          return;
+        }
+        pv.innerHTML = '<div class="art-h-meta">' + cealinT('common.loading') + '</div>';
+        artPost({ action: 'detail', id: id })
+          .then(function (res) {
+            var data = res.data || {};
+            if (!data.ok || !data.article) {
+              pv.innerHTML = '<div class="art-h-meta">' + escHtml(artErrText(res)) + '</div>';
+              return;
+            }
+            artDetails[id] = data.article;
+            pv.innerHTML = renderArtPreview(data.article);
+            pv.setAttribute('data-loaded', '1');
+          })
+          .catch(function () {
+            pv.innerHTML = '<div class="art-h-meta">' + cealinT('ad.netQuery') + '</div>';
+          });
+      };
+
+      function renderArtPending(list) {
+        artPendCountEl.textContent = cealinT('ad.artPendCount', { n: list.length });
+        if (!list.length) {
+          artPendList.innerHTML = '<div class="room-empty">' + cealinT('ad.artEmptyPending') + '</div>';
+          return;
+        }
+        var html = '';
+        list.forEach(function (a) {
+          artDetails[a.id] = a;
+          html += artItemHtml(a, 'pending');
+        });
+        artPendList.innerHTML = html;
+      }
+
+      function loadArticlePending(force) {
+        if (!pwd || !adminFlag) {
+          artMsgEl.textContent = cealinT('ad.relogin');
+          return;
+        }
+        var now = Date.now();
+        if (!force && artPendData && (now - artPendCacheAt) < ART_CACHE_MS) {
+          renderArtPending(artPendData);
+          return;
+        }
+        artPendCountEl.textContent = cealinT('ad.querying');
+        artMsgEl.textContent = '';
+        artPost({ action: 'review', op: 'listing' })
+          .then(function (res) {
+            var data = res.data || {};
+            if (!data.ok) {
+              artPendCountEl.textContent = '';
+              artMsgEl.textContent = artErrText(res);
+              return;
+            }
+            artPendData = data.articles || [];
+            artPendCacheAt = Date.now();
+            renderArtPending(artPendData);
+          })
+          .catch(function () {
+            artPendCountEl.textContent = '';
+            artMsgEl.textContent = cealinT('ad.netQuery');
+          });
+      }
+      window.loadArticlePending = loadArticlePending;
+
+      function renderArtAll(bundle) {
+        var list = bundle.articles || [];
+        artPage = bundle.page || 1;
+        artTotalPages = bundle.totalPages || 1;
+        artAllCountEl.textContent = cealinT('ad.artAllCount', { n: bundle.total || 0 });
+        artPageInfo.textContent = cealinT('ad.artPageInfo', { page: artPage, total: artTotalPages });
+        artPrevBtn.disabled = artPage <= 1;
+        artNextBtn.disabled = artPage >= artTotalPages;
+        if (!list.length) {
+          artAllList.innerHTML = '<div class="room-empty">' + cealinT('ad.artEmptyAll') + '</div>';
+          return;
+        }
+        var html = '';
+        list.forEach(function (a) { html += artItemHtml(a, 'all'); });
+        artAllList.innerHTML = html;
+      }
+
+      function loadArticleAll(page, force) {
+        if (!pwd || !adminFlag) {
+          artMsgEl.textContent = cealinT('ad.relogin');
+          return;
+        }
+        var target = parseInt(page, 10) || 1;
+        var q = (artQuery.value || '').replace(/^\s+|\s+$/g, '');
+        var status = artStatusSel.value || '';
+        var key = status + '|' + q + '|' + target;
+        var now = Date.now();
+        if (!force && artAllData && artAllData.key === key && (now - artAllCacheAt) < ART_CACHE_MS) {
+          renderArtAll(artAllData);
+          return;
+        }
+        artAllCountEl.textContent = cealinT('ad.querying');
+        artMsgEl.textContent = '';
+        artPost({ action: 'review', op: 'all', status: status, q: q, page: target, pageSize: artPageSize })
+          .then(function (res) {
+            var data = res.data || {};
+            if (!data.ok) {
+              artAllCountEl.textContent = '';
+              artMsgEl.textContent = artErrText(res);
+              return;
+            }
+            // 页码越界（例如删掉最后一页的唯一一条）时回退到末页
+            if (target > (data.totalPages || 1) && (data.totalPages || 1) >= 1) {
+              loadArticleAll(data.totalPages, true);
+              return;
+            }
+            artAllData = {
+              key: key,
+              articles: data.articles || [],
+              total: data.total || 0,
+              page: data.page || 1,
+              totalPages: data.totalPages || 1
+            };
+            artAllCacheAt = Date.now();
+            renderArtAll(artAllData);
+          })
+          .catch(function () {
+            artAllCountEl.textContent = '';
+            artMsgEl.textContent = cealinT('ad.netQuery');
+          });
+      }
+      window.loadArticleAll = loadArticleAll;
+
+      window.artPageGo = function (delta) {
+        var next = artPage + (parseInt(delta, 10) || 0);
+        if (next < 1 || next > artTotalPages) return;
+        loadArticleAll(next);
+      };
+
+      // 审核操作后：清缓存并重拉两个列表
+      function refreshArtAfterOp() {
+        artPendCacheAt = 0;
+        artAllCacheAt = 0;
+        loadArticlePending(true);
+        loadArticleAll(artPage, true);
+      }
+
+      function artReview(op, id, reason) {
+        var payload = { action: 'review', op: op, id: id };
+        if (reason) payload.reason = reason;
+        return artPost(payload).then(function (res) {
+          var data = res.data || {};
+          if (!data.ok) {
+            artMsg(data.error || cealinT('ad.opFailed'), false);
+            return false;
+          }
+          return true;
+        });
+      }
+
+      window.artApprove = function (id) {
+        if (!pwd || !adminFlag) { artMsg(cealinT('ad.relogin'), false); return; }
+        artMsg('');
+        artReview('approve', id).then(function (ok) {
+          if (!ok) return;
+          artMsg(cealinT('ad.artApproveOk'), true);
+          refreshArtAfterOp();
+        }).catch(function () { artMsg(cealinT('ad.netOp'), false); });
+      };
+
+      window.artReject = function (id) {
+        if (!pwd || !adminFlag) { artMsg(cealinT('ad.relogin'), false); return; }
+        var reason = window.prompt(cealinT('ad.artRejectPrompt'), '');
+        if (reason === null) return;
+        reason = String(reason).replace(/^\s+|\s+$/g, '');
+        if (!reason) { artMsg(cealinT('ad.artRejectEmpty'), false); return; }
+        artMsg('');
+        artReview('reject', id, reason).then(function (ok) {
+          if (!ok) return;
+          artMsg(cealinT('ad.artRejectOk'), true);
+          refreshArtAfterOp();
+        }).catch(function () { artMsg(cealinT('ad.netOp'), false); });
+      };
+
+      window.artRevoke = function (id) {
+        if (!pwd || !adminFlag) { artMsg(cealinT('ad.relogin'), false); return; }
+        if (!window.confirm(cealinT('ad.artRevokeConfirm'))) return;
+        artMsg('');
+        artReview('revoke', id).then(function (ok) {
+          if (!ok) return;
+          artMsg(cealinT('ad.artRevokeOk'), true);
+          refreshArtAfterOp();
+        }).catch(function () { artMsg(cealinT('ad.netOp'), false); });
+      };
+
+      window.artDelete = function (id) {
+        if (!pwd || !adminFlag) { artMsg(cealinT('ad.relogin'), false); return; }
+        if (!window.confirm(cealinT('ad.artDelConfirm1'))) return;
+        if (!window.confirm(cealinT('ad.artDelConfirm2'))) return;
+        artMsg('');
+        artPost({ action: 'delete', id: id })
+          .then(function (res) {
+            var data = res.data || {};
+            if (!data.ok) {
+              artMsg(data.error || cealinT('ad.opFailed'), false);
+              return;
+            }
+            delete artDetails[id];
+            artMsg(cealinT('ad.artDeleted'), true);
+            refreshArtAfterOp();
+          })
+          .catch(function () { artMsg(cealinT('ad.netOp'), false); });
+      };
+
+      bindArtList(artPendList);
+      bindArtList(artAllList);
+
+      artQuery.addEventListener('keydown', function (ev) {
+        if (ev.key === 'Enter' || ev.keyCode === 13) {
+          ev.preventDefault();
+          loadArticleAll(1, true);
+        }
+      });
+
       // 未登录 / 旧会话：提示重新登录并禁用编辑（不加载公告内容，避免未授权观看公告）
       if (!pwd || !adminFlag) {
         tipEl.style.display = 'block';
@@ -1447,6 +2083,10 @@
         offCard.style.display = 'block';
         // 账号面板默认展示全部账号（在线优先），无需先输入查询词
         requestAccounts('');
+        // 文章审核面板：待审列表 + 全部文章首页（30 秒内重复进入复用缓存）
+        artCard.style.display = 'block';
+        loadArticlePending();
+        loadArticleAll(1);
         fetch('/api/notice')
           .then(function (resp) { return resp.json(); })
           .then(function (data) {
@@ -1512,6 +2152,9 @@
           if (!pwd || !adminFlag) return;
           if (roomList && roomList.children.length) loadRoomsList();
           if (sugList && sugList.children.length) loadSuggestionsList();
+          // 文章列表用最近一次数据重绘（不重复请求，避免浪费 KV 读配额）
+          if (artPendData && artPendList && artPendList.children.length) renderArtPending(artPendData);
+          if (artAllData && artAllList && artAllList.children.length) renderArtAll(artAllData);
           // 概览用最近一次数据重绘（不重复请求），账号列表按当前查询词重拉
           if (ovData) renderStats(ovData);
           renderQuota();

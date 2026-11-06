@@ -1,0 +1,1121 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+<!-- 登录守卫（未登录立即跳转登录页，页面保持隐藏） -->
+<script src="guard.js"></script>
+<script src="theme.js"></script>
+<link rel="stylesheet" href="theme.css">
+<title data-i18n="title.write">写文章 - Cealin</title>
+<style>
+  /* 主题变量统一由 theme.css 提供（含明亮模式），此处不再覆盖 */
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  html, body { height: 100%; }
+
+  body {
+    color: var(--fg);
+    font-family: "Helvetica Neue", "PingFang SC", "Microsoft YaHei", Arial, sans-serif;
+    -webkit-font-smoothing: antialiased;
+    overflow-y: auto;
+    background: var(--page-bg);
+  }
+
+  .art-bg {
+    position: fixed;
+    inset: 0;
+    z-index: 0;
+    background-image: url('assets/bg.jpg');
+    background-size: cover;
+    background-position: center;
+  }
+
+  .glow {
+    position: fixed;
+    inset: 0;
+    z-index: 1;
+    pointer-events: none;
+    background:
+      radial-gradient(ellipse 55% 42% at 50% 34%, rgba(255, 196, 120, 0.16), transparent 62%),
+      radial-gradient(ellipse 40% 35% at 50% 60%, rgba(230, 170, 90, 0.10), transparent 70%),
+      linear-gradient(180deg, rgba(var(--veil-rgb), 0.30) 0%, rgba(var(--veil-rgb), 0) 30%, rgba(var(--veil-rgb), 0.20) 78%, rgba(var(--veil-rgb), 0.55) 100%);
+  }
+
+  .grain {
+    position: fixed;
+    inset: 0;
+    z-index: 2;
+    pointer-events: none;
+    opacity: 0.07;
+    mix-blend-mode: overlay;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='180' height='180'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+  }
+
+  /* ========== 顶部导航栏 ========== */
+  .topbar {
+    position: fixed;
+    top: 14px;
+    left: 20px;
+    right: 20px;
+    z-index: 10;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 12px 26px;
+    border-radius: 22px;
+    background: linear-gradient(135deg, rgba(var(--line-rgb), 0.16), rgba(var(--line-rgb), 0.06) 48%, rgba(200, 169, 110, 0.08));
+    -webkit-backdrop-filter: blur(20px) saturate(170%);
+    backdrop-filter: blur(20px) saturate(170%);
+    border: 1px solid rgba(var(--line-rgb), 0.18);
+    box-shadow:
+      0 12px 36px rgba(var(--shadow-rgb), 0.30),
+      inset 0 1px 0 rgba(var(--line-rgb), 0.25),
+      inset 0 -1px 0 rgba(var(--line-rgb), 0.05);
+  }
+
+  .logo {
+    font-size: 22px;
+    font-weight: 800;
+    letter-spacing: 0.06em;
+    color: var(--fg);
+    text-decoration: none;
+  }
+
+  .nav-right { display: flex; align-items: center; gap: 26px; }
+
+  .menu { display: flex; gap: 22px; list-style: none; }
+  .menu a {
+    font-size: 15px;
+    font-weight: 500;
+    color: var(--muted);
+    text-decoration: none;
+    transition: color 0.3s ease;
+  }
+  .menu a:hover { color: var(--fg); }
+  .menu a.active { color: var(--fg); }
+  .menu a.active::after {
+    content: "";
+    display: block;
+    height: 1px;
+    margin-top: 3px;
+    background: rgba(var(--fg-rgb), 0.45);
+  }
+
+  .avatar {
+    width: 34px;
+    height: 34px;
+    border-radius: 50%;
+    border: 1.5px solid rgba(var(--hl-rgb), 0.35);
+    background:
+      radial-gradient(circle at 35% 30%, rgba(var(--hl-rgb), 0.35), transparent 40%),
+      linear-gradient(135deg, #7d8a7a, #3a4038);
+    cursor: pointer;
+    position: relative;
+    display: block;
+  }
+  .avatar::after {
+    content: "";
+    position: absolute;
+    inset: 4px;
+    border-radius: 50%;
+    border: 1px solid rgba(var(--hl-rgb), 0.15);
+  }
+
+  /* ========== 主体 ========== */
+  .hero {
+    position: relative;
+    z-index: 5;
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: 108px 24px 70px;
+  }
+
+  .title {
+    font-size: clamp(30px, 4.6vw, 48px);
+    font-weight: 800;
+    letter-spacing: 0.10em;
+    text-indent: 0.10em;
+    line-height: 1;
+    color: var(--fg);
+    text-shadow: 0 4px 60px rgba(var(--shadow-rgb), 0.45);
+    user-select: none;
+    animation: fadeIn 0.85s cubic-bezier(0.22, 1, 0.36, 1) both;
+  }
+
+  .page-sub {
+    margin-top: 16px;
+    font-size: 13px;
+    letter-spacing: 0.12em;
+    color: var(--muted);
+    opacity: 0;
+    animation: fadeIn 0.85s cubic-bezier(0.22, 1, 0.36, 1) 0.3s forwards;
+  }
+
+  .panel {
+    margin-top: 34px;
+    width: min(860px, 94vw);
+    padding: 32px 34px 34px;
+    border-radius: 20px;
+    background: rgba(var(--panel-rgb), 0.56);
+    border: 1px solid rgba(var(--line-rgb), 0.1);
+    -webkit-backdrop-filter: blur(14px) saturate(150%);
+    backdrop-filter: blur(14px) saturate(150%);
+    box-shadow: 0 24px 70px rgba(var(--shadow-rgb), 0.38);
+    opacity: 0;
+    animation: fadeIn 0.85s cubic-bezier(0.22, 1, 0.36, 1) 0.35s forwards;
+    display: flex;
+    flex-direction: column;
+    gap: 22px;
+  }
+
+  .field { display: flex; flex-direction: column; gap: 9px; }
+
+  .field-label {
+    font-size: 11px;
+    letter-spacing: 0.22em;
+    text-transform: uppercase;
+    color: var(--gold);
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .field-label .hint {
+    letter-spacing: 0.04em;
+    text-transform: none;
+    color: var(--muted);
+    font-size: 11px;
+    margin-left: auto;
+  }
+
+  .input, .textarea {
+    width: 100%;
+    padding: 13px 16px;
+    border-radius: 12px;
+    border: 1px solid rgba(var(--line-rgb), 0.14);
+    background: rgba(var(--line-rgb), 0.05);
+    color: var(--fg);
+    font-size: 14px;
+    font-family: inherit;
+    line-height: 1.7;
+    outline: none;
+    transition: border-color 0.3s ease, background 0.3s ease;
+  }
+  .input:focus, .textarea:focus {
+    border-color: rgba(200, 169, 110, 0.7);
+    background: rgba(var(--line-rgb), 0.08);
+  }
+  .input::placeholder, .textarea::placeholder { color: var(--muted); }
+
+  .textarea {
+    min-height: 260px;
+    resize: vertical;
+  }
+
+  .tag-editor {
+    display: flex;
+    gap: 10px;
+  }
+  .tag-editor .input { flex: 1; }
+
+  .chip-list {
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+  }
+
+  .tag-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 7px;
+    padding: 4px 11px;
+    border-radius: 999px;
+    border: 1px solid rgba(200, 169, 110, 0.45);
+    background: rgba(200, 169, 110, 0.14);
+    font-size: 12px;
+    color: var(--gold-light);
+  }
+  .tag-chip b { font-weight: 500; letter-spacing: 0.03em; }
+  .tag-chip span {
+    cursor: pointer;
+    opacity: 0.65;
+    font-size: 13px;
+    line-height: 1;
+  }
+  .tag-chip span:hover { opacity: 1; color: #e8a79c; }
+
+  .link-row {
+    display: flex;
+    gap: 10px;
+    align-items: center;
+  }
+  .link-row .input { flex: 1; }
+
+  .btn {
+    padding: 10px 22px;
+    border-radius: 999px;
+    border: 1px solid rgba(200, 169, 110, 0.55);
+    background: rgba(200, 169, 110, 0.18);
+    color: var(--fg);
+    font-size: 13px;
+    letter-spacing: 0.08em;
+    font-family: inherit;
+    cursor: pointer;
+    transition: background 0.25s cubic-bezier(0.22, 1, 0.36, 1), transform 0.2s cubic-bezier(0.22, 1, 0.36, 1), opacity 0.2s ease;
+  }
+  .btn:hover:not(:disabled) { background: rgba(200, 169, 110, 0.34); transform: translateY(-1px); }
+  .btn:disabled { opacity: 0.5; cursor: not-allowed; }
+  .btn.ghost {
+    border-color: rgba(var(--line-rgb), 0.18);
+    background: rgba(var(--line-rgb), 0.05);
+    color: var(--muted);
+  }
+  .btn.ghost:hover:not(:disabled) { background: rgba(var(--line-rgb), 0.1); color: var(--fg); }
+  .btn.small { padding: 7px 15px; font-size: 12px; }
+
+  .u-btn {
+    padding: 9px 18px;
+    border-radius: 999px;
+    border: 1px dashed rgba(var(--line-rgb), 0.28);
+    background: rgba(var(--line-rgb), 0.04);
+    color: var(--muted);
+    font-size: 12px;
+    letter-spacing: 0.06em;
+    font-family: inherit;
+    cursor: pointer;
+    transition: color 0.25s ease, border-color 0.25s ease, background 0.25s ease;
+  }
+  .u-btn:hover:not(:disabled) { color: var(--fg); border-color: var(--gold); background: rgba(200, 169, 110, 0.1); }
+  .u-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+
+  .img-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(96px, 1fr));
+    gap: 10px;
+  }
+  .img-cell {
+    position: relative;
+    border-radius: 10px;
+    overflow: hidden;
+    border: 1px solid rgba(var(--line-rgb), 0.12);
+    background: rgba(var(--line-rgb), 0.04);
+    aspect-ratio: 1 / 1;
+  }
+  .img-cell img { width: 100%; height: 100%; object-fit: cover; display: block; }
+  .img-cell .cell-del {
+    position: absolute;
+    top: 4px;
+    right: 4px;
+    width: 20px;
+    height: 20px;
+    border-radius: 50%;
+    border: none;
+    background: rgba(0, 0, 0, 0.62);
+    color: #fff;
+    font-size: 12px;
+    line-height: 20px;
+    text-align: center;
+    cursor: pointer;
+    font-family: inherit;
+  }
+  .img-cell .cell-del:hover { background: rgba(190, 70, 60, 0.9); }
+
+  .file-rows { display: flex; flex-direction: column; gap: 8px; }
+  .file-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 10px 14px;
+    border-radius: 10px;
+    border: 1px solid rgba(var(--line-rgb), 0.1);
+    background: rgba(var(--line-rgb), 0.04);
+    font-size: 13px;
+    color: var(--fg-soft);
+  }
+  .file-row .fname { flex: 1; word-break: break-all; }
+  .file-row .fsize { font-size: 11px; color: var(--muted); white-space: nowrap; }
+  .file-row .fdel {
+    border: none;
+    background: transparent;
+    color: var(--muted);
+    font-size: 13px;
+    cursor: pointer;
+    font-family: inherit;
+  }
+  .file-row .fdel:hover { color: #e8a79c; }
+
+  .form-msg {
+    min-height: 20px;
+    font-size: 12.5px;
+    letter-spacing: 0.04em;
+    line-height: 1.7;
+    display: none;
+  }
+  .form-msg.err { display: block; color: #e8948a; }
+  .form-msg.ok { display: block; color: var(--gold-light); }
+  html.light .form-msg.err { color: #b0453a; }
+
+  .submit-row {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    flex-wrap: wrap;
+  }
+  .submit-row .grow { flex: 1; }
+
+  /* ========== 我的文章 ========== */
+  .my-box {
+    margin-top: 30px;
+    width: min(860px, 94vw);
+  }
+  .sec-title {
+    font-size: 11px;
+    letter-spacing: 0.22em;
+    text-transform: uppercase;
+    color: var(--gold);
+    margin-bottom: 14px;
+  }
+  .my-list { display: flex; flex-direction: column; gap: 10px; }
+  .my-item {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    flex-wrap: wrap;
+    padding: 14px 18px;
+    border-radius: 12px;
+    border: 1px solid rgba(var(--line-rgb), 0.1);
+    background: rgba(var(--panel-rgb), 0.5);
+    -webkit-backdrop-filter: blur(10px);
+    backdrop-filter: blur(10px);
+  }
+  .my-item .mtitle {
+    flex: 1;
+    min-width: 160px;
+    font-size: 14px;
+    color: var(--fg);
+    word-break: break-word;
+  }
+  .my-item .mreason {
+    width: 100%;
+    font-size: 12px;
+    color: #e8948a;
+    line-height: 1.7;
+  }
+  html.light .my-item .mreason { color: #b0453a; }
+
+  .st {
+    font-size: 11px;
+    letter-spacing: 0.05em;
+    border-radius: 999px;
+    padding: 2px 10px;
+    white-space: nowrap;
+  }
+  .st.pending { color: var(--gold-light); border: 1px solid rgba(200, 169, 110, 0.5); background: rgba(200, 169, 110, 0.12); }
+  .st.approved { color: #9ed3a8; border: 1px solid rgba(120, 195, 135, 0.5); background: rgba(120, 195, 135, 0.12); }
+  .st.rejected { color: #e8948a; border: 1px solid rgba(214, 120, 110, 0.5); background: rgba(214, 120, 110, 0.12); }
+  html.light .st.approved { color: #2f6c3d; }
+  html.light .st.rejected { color: #b0453a; }
+
+  .empty-line {
+    padding: 26px 18px;
+    text-align: center;
+    border-radius: 12px;
+    border: 1px dashed rgba(var(--line-rgb), 0.16);
+    background: rgba(var(--panel-rgb), 0.34);
+    color: var(--muted);
+    font-size: 12.5px;
+    letter-spacing: 0.08em;
+  }
+
+  .back-home {
+    margin-top: 36px;
+    display: inline-block;
+    font-size: 13px;
+    letter-spacing: 0.12em;
+    color: var(--muted);
+    text-decoration: none;
+    border-bottom: 1px solid rgba(var(--fg-rgb), 0.22);
+    padding-bottom: 3px;
+    transition: color 0.3s ease, border-color 0.3s ease;
+  }
+  .back-home:hover { color: var(--fg); border-color: var(--fg); }
+
+  @keyframes fadeIn {
+    from { opacity: 0; transform: translateY(14px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+</style>
+  <script src="notice-link.js"></script>
+  <script src="i18n.js"></script>
+</head>
+<body>
+
+  <div class="art-bg"></div>
+  <div class="glow"></div>
+  <div class="grain"></div>
+
+  <header class="topbar">
+    <a class="logo" href="index.html">Cealin</a>
+    <div class="nav-right">
+      <ul class="menu">
+        <li><a href="index.html" data-i18n="nav.home">首页</a></li>
+        <li><a href="project.html" data-i18n="nav.project">项目</a></li>
+        <li><a href="platform.html" data-i18n="nav.platform">平台</a></li>
+        <li><a href="chat.html" data-i18n="nav.chat">聊天室</a></li>
+        <li><a href="articles.html" class="active" data-i18n="nav.articles">文章</a></li>
+        <li><a href="suggestion.html" data-i18n="nav.suggestion">建议</a></li>
+        <li><a href="notice-admin.html" data-i18n="nav.notice">公告</a></li>
+        <li><a href="mine.html" data-i18n="nav.mine">我的</a></li>
+      </ul>
+      <a class="avatar" href="settings.html" title="设置" data-i18n-title="nav.settings"></a>
+    </div>
+  </header>
+
+  <main class="hero">
+    <h1 class="title" id="pageTitle" data-i18n="wr.title">写文章</h1>
+    <p class="page-sub" data-i18n="wr.sub">提交后由管理员审核，通过后公开展示</p>
+
+    <section class="panel">
+      <!-- 标题 -->
+      <div class="field">
+        <label class="field-label" for="titleInput">
+          <span data-i18n="wr.titleLabel">标题</span>
+          <span class="hint" id="titleHint"></span>
+        </label>
+        <input id="titleInput" class="input" type="text" maxlength="120" autocomplete="off" spellcheck="false" placeholder="10-120 字" data-i18n-ph="wr.titlePh">
+      </div>
+
+      <!-- 标签 -->
+      <div class="field">
+        <label class="field-label" for="tagInput">
+          <span data-i18n="wr.tagsLabel">标签</span>
+          <span class="hint" data-i18n="wr.tagsHint">回车添加，最多 5 个</span>
+        </label>
+        <div class="tag-editor">
+          <input id="tagInput" class="input" type="text" maxlength="20" autocomplete="off" spellcheck="false" placeholder="输入后按回车" data-i18n-ph="wr.tagPh">
+          <button type="button" class="u-btn" onclick="addTag()" data-i18n="wr.addTag">添加</button>
+        </div>
+        <div class="chip-list" id="tagList"></div>
+      </div>
+
+      <!-- 正文 -->
+      <div class="field">
+        <label class="field-label" for="bodyInput">
+          <span data-i18n="wr.bodyLabel">正文</span>
+          <span class="hint" id="countHint">0 / 20000</span>
+        </label>
+        <textarea id="bodyInput" class="textarea" maxlength="20000" placeholder="10-20000 字，支持换行与链接" data-i18n-ph="wr.bodyPh"></textarea>
+      </div>
+
+      <!-- 相关链接 -->
+      <div class="field">
+        <div class="field-label">
+          <span data-i18n="wr.linksLabel">相关链接</span>
+          <span class="hint" data-i18n="wr.linksHint">最多 10 条，需以 http(s):// 开头</span>
+        </div>
+        <div class="file-rows" id="linkList"></div>
+        <div>
+          <button type="button" class="u-btn" onclick="addLinkRow()" data-i18n="wr.addLink">+ 添加链接</button>
+        </div>
+      </div>
+
+      <!-- 图片 -->
+      <div class="field">
+        <div class="field-label">
+          <span data-i18n="wr.imagesLabel">图片</span>
+          <span class="hint" data-i18n="wr.imagesHint">最多 6 张，自动压缩到 300KB 内</span>
+        </div>
+        <div class="img-grid" id="imgGrid"></div>
+        <div>
+          <button type="button" class="u-btn" id="pickImgBtn" onclick="document.getElementById('imgInput').click()" data-i18n="wr.chooseImages">+ 选择图片</button>
+          <input id="imgInput" type="file" accept="image/*" multiple style="display:none;">
+        </div>
+      </div>
+
+      <!-- 附件 -->
+      <div class="field">
+        <div class="field-label">
+          <span data-i18n="wr.filesLabel">附件</span>
+          <span class="hint" data-i18n="wr.filesHint">最多 3 个，单个不超过 2MB</span>
+        </div>
+        <div class="file-rows" id="fileRows"></div>
+        <div>
+          <button type="button" class="u-btn" id="pickFileBtn" onclick="document.getElementById('fileInput').click()" data-i18n="wr.chooseFiles">+ 选择附件</button>
+          <input id="fileInput" type="file" multiple style="display:none;">
+        </div>
+      </div>
+
+      <div class="form-msg" id="formMsg"></div>
+
+      <div class="submit-row">
+        <button type="button" class="btn" id="submitBtn" onclick="doSubmit()" data-i18n="wr.submit">提交审核</button>
+        <button type="button" class="btn ghost" onclick="location.href='articles.html'" data-i18n="wr.cancel">取消</button>
+        <span class="grow"></span>
+        <span class="hint" id="uploadHint" style="font-size:11px;color:var(--muted);letter-spacing:0.04em;"></span>
+      </div>
+    </section>
+
+    <section class="my-box">
+      <div class="sec-title" data-i18n="wr.myTitle">我的投稿</div>
+      <div class="my-list" id="myList"></div>
+    </section>
+
+    <a class="back-home" href="articles.html" data-i18n="artd.back">返回文章区</a>
+  </main>
+
+  <script>
+    (function () {
+      var TITLE_MIN = 10, TITLE_MAX = 120;
+      var BODY_MIN = 10, BODY_MAX = 20000;
+      var TAG_MAX = 5, TAG_LEN = 20;
+      var LINK_MAX = 10;
+      var IMG_MAX_COUNT = 6, IMG_MAX_BYTES = 300 * 1024, IMG_TOTAL_BYTES = Math.round(1.2 * 1024 * 1024);
+      var FILE_MAX_COUNT = 3, FILE_MAX_BYTES = 2 * 1024 * 1024, FILE_TOTAL_BYTES = 3 * 1024 * 1024;
+
+      var authorId = '';
+      var authorName = '';
+      try {
+        authorId = window.sessionStorage.getItem('cealin_account_id') || '';
+        authorName = window.sessionStorage.getItem('cealin_account_name') || '';
+      } catch (e) { authorId = ''; }
+
+      var params = new URLSearchParams(window.location.search);
+      var editId = params.get('id') || '';
+
+      // 一次投稿使用固定草稿标识，附件先传草稿区，提交时再挂到文章下
+      var draft = 'd' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
+
+      var tags = [];
+      var images = [];   // { assetId, name, size, preview }
+      var files = [];    // { assetId, name, size }
+      var uploaded = false;
+      var busy = false;
+
+      var titleInput = document.getElementById('titleInput');
+      var tagInput = document.getElementById('tagInput');
+      var bodyInput = document.getElementById('bodyInput');
+      var tagList = document.getElementById('tagList');
+      var linkList = document.getElementById('linkList');
+      var imgGrid = document.getElementById('imgGrid');
+      var fileRows = document.getElementById('fileRows');
+      var formMsg = document.getElementById('formMsg');
+      var submitBtn = document.getElementById('submitBtn');
+      var countHint = document.getElementById('countHint');
+      var uploadHint = document.getElementById('uploadHint');
+      var imgInput = document.getElementById('imgInput');
+      var fileInput = document.getElementById('fileInput');
+
+      function esc(s) {
+        return String(s === null || s === undefined ? '' : s)
+          .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+          .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+      }
+
+      function fmtSize(n) {
+        if (!n || n < 0) return '0 B';
+        if (n < 1024) return n + ' B';
+        if (n < 1024 * 1024) return (n / 1024).toFixed(1) + ' KB';
+        return (n / 1024 / 1024).toFixed(2) + ' MB';
+      }
+
+      function b64Bytes(b64) {
+        var s = String(b64 || '');
+        var pad = s.length % 4 === 0 ? 0 : (4 - s.length % 4);
+        s = s.replace(/=+$/, '');
+        return Math.floor(s.length * 3 / 4) - 0 + (pad ? 0 : 0);
+      }
+
+      function showMsg(text, ok) {
+        if (!text) {
+          formMsg.className = 'form-msg';
+          formMsg.textContent = '';
+          return;
+        }
+        formMsg.className = 'form-msg ' + (ok ? 'ok' : 'err');
+        formMsg.textContent = text;
+      }
+
+      // ---------- 标签 ----------
+      function renderTags() {
+        var html = '';
+        for (var i = 0; i < tags.length; i++) {
+          html += '<span class="tag-chip"><b>' + esc(tags[i]) + '</b>'
+            + '<span data-tag="' + esc(tags[i]) + '">×</span></span>';
+        }
+        tagList.innerHTML = html;
+      }
+
+      tagList.addEventListener('click', function (ev) {
+        var tag = ev.target.getAttribute && ev.target.getAttribute('data-tag');
+        if (!tag) return;
+        var idx = tags.indexOf(tag);
+        if (idx >= 0) tags.splice(idx, 1);
+        renderTags();
+      });
+
+      window.addTag = function () {
+        var v = (tagInput.value || '').replace(/^\s+|\s+$/g, '');
+        if (!v) return;
+        if (v.length > TAG_LEN) { showMsg(cealinT('wr.errTagLen'), false); return; }
+        if (tags.indexOf(v) >= 0) { tagInput.value = ''; return; }
+        if (tags.length >= TAG_MAX) { showMsg(cealinT('wr.errTagMax'), false); return; }
+        tags.push(v);
+        tagInput.value = '';
+        showMsg('');
+        renderTags();
+      };
+
+      tagInput.addEventListener('keydown', function (ev) {
+        if (ev.key === 'Enter' || ev.keyCode === 13) {
+          ev.preventDefault();
+          window.addTag();
+        }
+      });
+
+      // ---------- 相关链接 ----------
+      function renderLinks(list) {
+        var html = '';
+        for (var i = 0; i < list.length; i++) {
+          html += '<div class="link-row"><input class="input link-input" type="text" maxlength="500" placeholder="https://" value="' + esc(list[i]) + '">'
+            + '<button type="button" class="u-btn" onclick="removeLinkRow(this)" data-i18n-title="wr.remove">×</button></div>';
+        }
+        linkList.innerHTML = html;
+      }
+
+      window.addLinkRow = function () {
+        var rows = linkList.querySelectorAll('.link-input');
+        if (rows.length >= LINK_MAX) { showMsg(cealinT('wr.errLinkMax'), false); return; }
+        var div = document.createElement('div');
+        div.className = 'link-row';
+        div.innerHTML = '<input class="input link-input" type="text" maxlength="500" placeholder="https://">'
+          + '<button type="button" class="u-btn" onclick="removeLinkRow(this)">×</button>';
+        linkList.appendChild(div);
+        var inputs = linkList.querySelectorAll('.link-input');
+        inputs[inputs.length - 1].focus();
+      };
+
+      window.removeLinkRow = function (btn) {
+        var row = btn.parentNode;
+        if (row && row.parentNode) row.parentNode.removeChild(row);
+      };
+
+      function collectLinks() {
+        var out = [];
+        var inputs = linkList.querySelectorAll('.link-input');
+        for (var i = 0; i < inputs.length; i++) {
+          var v = (inputs[i].value || '').replace(/^\s+|\s+$/g, '');
+          if (v) out.push(v);
+        }
+        return out;
+      }
+
+      // ---------- 图片（canvas 压缩） ----------
+      function renderImages() {
+        var html = '';
+        for (var i = 0; i < images.length; i++) {
+          html += '<div class="img-cell"><img src="' + esc(images[i].preview || '') + '" alt="">'
+            + '<button type="button" class="cell-del" data-idx="' + i + '">×</button></div>';
+        }
+        imgGrid.innerHTML = html;
+      }
+
+      imgGrid.addEventListener('click', function (ev) {
+        var idx = ev.target.getAttribute && ev.target.getAttribute('data-idx');
+        if (idx === null || idx === undefined) return;
+        images.splice(parseInt(idx, 10), 1);
+        renderImages();
+      });
+
+      function imgBytesSum() {
+        var total = 0;
+        for (var i = 0; i < images.length; i++) total += images[i].size || 0;
+        return total;
+      }
+
+      // 压缩到宽 ≤1200、单张 ≤300KB：先降质量，质量到底后再缩尺寸
+      function compressImage(file, done, fail) {
+        var reader = new FileReader();
+        reader.onerror = function () { fail(cealinT('wr.errImgRead')); };
+        reader.onload = function (e) {
+          var img = new Image();
+          img.onerror = function () { fail(cealinT('wr.errImgRead')); };
+          img.onload = function () {
+            var w = img.naturalWidth || img.width;
+            var h = img.naturalHeight || img.height;
+            var ratio = w > 1200 ? 1200 / w : 1;
+            var curW = Math.max(1, Math.round(w * ratio));
+            var curH = Math.max(1, Math.round(h * ratio));
+            var quality = 0.8;
+            var round = 0;
+            (function step() {
+              var canvas = document.createElement('canvas');
+              canvas.width = curW;
+              canvas.height = curH;
+              var ctx = canvas.getContext('2d');
+              if (!ctx) { fail(cealinT('wr.errImgRead')); return; }
+              ctx.fillStyle = '#ffffff';
+              ctx.fillRect(0, 0, curW, curH);
+              ctx.drawImage(img, 0, 0, curW, curH);
+              var dataUrl = canvas.toDataURL('image/jpeg', quality);
+              var b64 = (dataUrl.split(',')[1] || '');
+              var size = b64Bytes(b64);
+              if (size <= IMG_MAX_BYTES) {
+                done({ data: b64, size: size, type: 'image/jpeg', preview: dataUrl });
+                return;
+              }
+              round++;
+              if (round > 14) { fail(cealinT('wr.errImgBig')); return; }
+              if (quality > 0.4) {
+                quality = Math.max(0.3, quality - 0.1);
+              } else {
+                curW = Math.round(curW * 0.8);
+                curH = Math.round(curH * 0.8);
+                quality = 0.7;
+                if (curW < 240 || curH < 240) { fail(cealinT('wr.errImgBig')); return; }
+              }
+              step();
+            })();
+          };
+          img.src = e.target.result;
+        };
+        reader.readAsDataURL(file);
+      }
+
+      function readAsDataUrl(file, done, fail) {
+        var reader = new FileReader();
+        reader.onerror = function () { fail(cealinT('wr.errFileRead')); };
+        reader.onload = function (e) {
+          var dataUrl = String(e.target.result || '');
+          done(dataUrl.split(',')[1] || '', dataUrl);
+        };
+        reader.readAsDataURL(file);
+      }
+
+      function postAsset(payload, done, fail) {
+        fetch('/api/articles', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload)
+        })
+          .then(function (resp) {
+            return resp.json().then(function (data) { return { status: resp.status, data: data }; });
+          })
+          .then(function (res) {
+            var data = res.data || {};
+            if (!data.ok) { fail(data.error || cealinT('wr.errAsset')); return; }
+            done(data);
+          })
+          .catch(function () { fail(cealinT('wr.errNet')); });
+      }
+
+      imgInput.addEventListener('change', function () {
+        var picked = [];
+        for (var i = 0; i < imgInput.files.length; i++) picked.push(imgInput.files[i]);
+        imgInput.value = '';
+        if (!picked.length) return;
+        if (images.length + picked.length > IMG_MAX_COUNT) {
+          showMsg(cealinT('wr.errImgMax'), false);
+          picked = picked.slice(0, IMG_MAX_COUNT - images.length);
+          if (!picked.length) return;
+        }
+        var idx = 0;
+        uploadHint.textContent = cealinT('wr.compressing');
+        (function next() {
+          if (idx >= picked.length) {
+            uploadHint.textContent = '';
+            showMsg('');
+            return;
+          }
+          var file = picked[idx++];
+          compressImage(file, function (res) {
+            if (imgBytesSum() + res.size > IMG_TOTAL_BYTES) {
+              showMsg(cealinT('wr.errImgTotal'), false);
+              uploadHint.textContent = '';
+              renderImages();
+              return;
+            }
+            uploadHint.textContent = cealinT('wr.uploading');
+            postAsset({
+              action: 'uploadAsset', draft: draft, kind: 'image',
+              name: file.name, type: res.type, size: res.size, data: res.data
+            }, function (data) {
+              images.push({ assetId: data.assetId, name: data.name, size: data.size, preview: res.preview });
+              renderImages();
+              uploadHint.textContent = '';
+              next();
+            }, function (msg) {
+              uploadHint.textContent = '';
+              showMsg(msg, false);
+            });
+          }, function (msg) {
+            uploadHint.textContent = '';
+            showMsg(msg, false);
+            next();
+          });
+        })();
+      });
+
+      // ---------- 附件 ----------
+      function renderFiles() {
+        var html = '';
+        for (var i = 0; i < files.length; i++) {
+          html += '<div class="file-row"><span class="fname">' + esc(files[i].name) + '</span>'
+            + '<span class="fsize">' + esc(fmtSize(files[i].size)) + '</span>'
+            + '<button type="button" class="fdel" data-idx="' + i + '">×</button></div>';
+        }
+        fileRows.innerHTML = html;
+      }
+
+      fileRows.addEventListener('click', function (ev) {
+        var idx = ev.target.getAttribute && ev.target.getAttribute('data-idx');
+        if (idx === null || idx === undefined) return;
+        files.splice(parseInt(idx, 10), 1);
+        renderFiles();
+      });
+
+      function fileBytesSum() {
+        var total = 0;
+        for (var i = 0; i < files.length; i++) total += files[i].size || 0;
+        return total;
+      }
+
+      fileInput.addEventListener('change', function () {
+        var picked = [];
+        for (var i = 0; i < fileInput.files.length; i++) picked.push(fileInput.files[i]);
+        fileInput.value = '';
+        if (!picked.length) return;
+        if (files.length + picked.length > FILE_MAX_COUNT) {
+          showMsg(cealinT('wr.errFileMax'), false);
+          picked = picked.slice(0, FILE_MAX_COUNT - files.length);
+          if (!picked.length) return;
+        }
+        var idx = 0;
+        (function next() {
+          if (idx >= picked.length) { uploadHint.textContent = ''; return; }
+          var file = picked[idx++];
+          if (file.size > FILE_MAX_BYTES) { showMsg(cealinT('wr.errFileBig'), false); next(); return; }
+          if (fileBytesSum() + file.size > FILE_TOTAL_BYTES) { showMsg(cealinT('wr.errFileTotal'), false); uploadHint.textContent = ''; return; }
+          uploadHint.textContent = cealinT('wr.uploading');
+          readAsDataUrl(file, function (b64) {
+            postAsset({
+              action: 'uploadAsset', draft: draft, kind: 'file',
+              name: file.name, type: file.type || 'application/octet-stream', size: file.size, data: b64
+            }, function (data) {
+              files.push({ assetId: data.assetId, name: data.name, size: data.size });
+              renderFiles();
+              uploadHint.textContent = '';
+              next();
+            }, function (msg) {
+              uploadHint.textContent = '';
+              showMsg(msg, false);
+            });
+          }, function (msg) {
+            uploadHint.textContent = '';
+            showMsg(msg, false);
+            next();
+          });
+        })();
+      });
+
+      // ---------- 字数统计 ----------
+      function refreshCount() {
+        var n = (bodyInput.value || '').length;
+        countHint.textContent = n + ' / ' + BODY_MAX;
+        countHint.style.color = (n > BODY_MAX) ? '#e8948a' : '';
+      }
+      bodyInput.addEventListener('input', refreshCount);
+
+      // ---------- 提交 ----------
+      function validate() {
+        var title = (titleInput.value || '').replace(/^\s+|\s+$/g, '');
+        var body = (bodyInput.value || '').replace(/^\s+|\s+$/g, '');
+        if (title.length < TITLE_MIN || title.length > TITLE_MAX) {
+          titleInput.focus();
+          return cealinT('wr.errTitle');
+        }
+        if (body.length < BODY_MIN || body.length > BODY_MAX) {
+          bodyInput.focus();
+          return cealinT('wr.errBody');
+        }
+        if (tags.length > TAG_MAX) return cealinT('wr.errTagMax');
+        var links = collectLinks();
+        if (links.length > LINK_MAX) return cealinT('wr.errLinkMax');
+        for (var i = 0; i < links.length; i++) {
+          if (!/^https?:\/\/[^\s]+$/i.test(links[i])) return cealinT('wr.errLinkBad');
+        }
+        return '';
+      }
+
+      window.doSubmit = function () {
+        if (busy) return;
+        showMsg('');
+        var err = validate();
+        if (err) { showMsg(err, false); return; }
+        if (uploadHint.textContent) { showMsg(cealinT('wr.waitUpload'), false); return; }
+
+        var linkValues = collectLinks();
+        var payload = {
+          action: 'submit',
+          authorId: authorId,
+          title: (titleInput.value || '').replace(/^\s+|\s+$/g, ''),
+          body: (bodyInput.value || '').replace(/^\s+|\s+$/g, ''),
+          tags: tags,
+          links: linkValues,
+          images: images.map(function (it) { return it.assetId; }),
+          files: files.map(function (it) { return it.assetId; }),
+          draft: draft
+        };
+        if (editId) payload.id = editId;
+
+        busy = true;
+        submitBtn.disabled = true;
+        submitBtn.textContent = cealinT('wr.submitting');
+
+        fetch('/api/articles', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload)
+        })
+          .then(function (resp) {
+            return resp.json().then(function (data) { return { status: resp.status, data: data }; });
+          })
+          .then(function (res) {
+            var data = res.data || {};
+            busy = false;
+            submitBtn.disabled = false;
+            submitBtn.textContent = cealinT('wr.submit');
+            if (!data.ok) {
+              showMsg(data.error || cealinT('wr.errNet'), false);
+              if (data.code === 'login_required' || data.code === 'bad_account') {
+                setTimeout(function () { location.href = 'account.html'; }, 1200);
+              }
+              return;
+            }
+            showMsg(cealinT('wr.submitted'), true);
+            // 提交成功：清空草稿态，跳转详情页查看
+            uploaded = true;
+            setTimeout(function () {
+              location.href = 'article.html?id=' + encodeURIComponent(data.id);
+            }, 900);
+          })
+          .catch(function () {
+            busy = false;
+            submitBtn.disabled = false;
+            submitBtn.textContent = cealinT('wr.submit');
+            showMsg(cealinT('wr.errNet'), false);
+          });
+      };
+
+      // ---------- 我的投稿 ----------
+      function statusText(st) {
+        if (st === 'approved') return cealinT('wr.statusApproved');
+        if (st === 'rejected') return cealinT('wr.statusRejected');
+        return cealinT('wr.statusPending');
+      }
+
+      function loadMine() {
+        if (!authorId) {
+          document.getElementById('myList').innerHTML = '<div class="empty-line">' + esc(cealinT('wr.loginRequired')) + '</div>';
+          return;
+        }
+        fetch('/api/articles', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ action: 'mine', authorId: authorId })
+        })
+          .then(function (resp) { return resp.json(); })
+          .then(function (data) {
+            var list = (data && data.ok && data.articles) ? data.articles : [];
+            var el = document.getElementById('myList');
+            if (!list.length) {
+              el.innerHTML = '<div class="empty-line">' + esc(cealinT('wr.myEmpty')) + '</div>';
+              return;
+            }
+            var html = '';
+            for (var i = 0; i < list.length; i++) {
+              var it = list[i];
+              html += '<div class="my-item">'
+                + '<span class="mtitle">' + esc(it.title) + '</span>'
+                + '<span class="st ' + esc(it.status) + '">' + esc(statusText(it.status)) + '</span>'
+                + '<a class="btn ghost small" href="article.html?id=' + encodeURIComponent(it.id) + '">' + esc(cealinT('wr.view')) + '</a>'
+                + '<a class="btn small" href="write.html?id=' + encodeURIComponent(it.id) + '">' + esc(cealinT('wr.edit')) + '</a>'
+                + '</div>';
+            }
+            el.innerHTML = html;
+          })
+          .catch(function () {
+            document.getElementById('myList').innerHTML = '<div class="empty-line">' + esc(cealinT('wr.loadFail')) + '</div>';
+          });
+      }
+
+      // ---------- 编辑模式：预填既有内容 ----------
+      function loadForEdit() {
+        document.getElementById('pageTitle').setAttribute('data-i18n', 'wr.editTitle');
+        document.getElementById('pageTitle').textContent = cealinT('wr.editTitle');
+        fetch('/api/articles', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ action: 'detail', id: editId, authorId: authorId })
+        })
+          .then(function (resp) { return resp.json(); })
+          .then(function (data) {
+            if (!data || !data.ok || !data.article) {
+              showMsg((data && data.error) || cealinT('wr.loadFail'), false);
+              return;
+            }
+            var a = data.article;
+            if (a.authorId !== authorId) {
+              showMsg(cealinT('wr.notOwner'), false);
+              return;
+            }
+            titleInput.value = a.title || '';
+            bodyInput.value = a.body || '';
+            refreshCount();
+            tags = Array.isArray(a.tags) ? a.tags.slice() : [];
+            renderTags();
+            renderLinks(Array.isArray(a.links) ? a.links : []);
+            images = (Array.isArray(a.images) ? a.images : []).map(function (it) {
+              return {
+                assetId: it.assetId,
+                name: it.name,
+                size: it.size,
+                preview: '/api/articles?action=asset&id=' + encodeURIComponent(a.id)
+                  + '&assetId=' + encodeURIComponent(it.assetId)
+                  + '&authorId=' + encodeURIComponent(authorId)
+              };
+            });
+            renderImages();
+            files = (Array.isArray(a.files) ? a.files : []).map(function (it) {
+              return { assetId: it.assetId, name: it.name, size: it.size };
+            });
+            renderFiles();
+          })
+          .catch(function () {
+            showMsg(cealinT('wr.loadFail'), false);
+          });
+      }
+
+      // ---------- 初始化 ----------
+      renderTags();
+      renderLinks(['']);
+      renderImages();
+      renderFiles();
+      refreshCount();
+      loadMine();
+      if (editId) loadForEdit();
+
+      if (window.cealinOnLangChange) {
+        cealinOnLangChange(function () {
+          refreshCount();
+          loadMine();
+        });
+      }
+    })();
+  </script>
+
+</body>
+</html>

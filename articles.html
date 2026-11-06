@@ -1,0 +1,740 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+<!-- 登录守卫（未登录立即跳转登录页，页面保持隐藏） -->
+<script src="guard.js"></script>
+<!-- 主题引导 + 全站共享主题样式（明亮模式在 <head> 最早应用，避免闪烁） -->
+<script src="theme.js"></script>
+<link rel="stylesheet" href="theme.css">
+<title data-i18n="title.articles">文章 - Cealin</title>
+<style>
+  /* 主题变量统一由 theme.css 提供（含明亮模式），此处不再覆盖 */
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  html, body { height: 100%; }
+
+  body {
+    color: var(--fg);
+    font-family: "Helvetica Neue", "PingFang SC", "Microsoft YaHei", Arial, sans-serif;
+    -webkit-font-smoothing: antialiased;
+    overflow-y: auto;
+    background: var(--page-bg);
+  }
+
+  /* ========== 全屏背景图 ========== */
+  .art-bg {
+    position: fixed;
+    inset: 0;
+    z-index: 0;
+    background-image: url('assets/bg.jpg');
+    background-size: cover;
+    background-position: center;
+  }
+
+  .glow {
+    position: fixed;
+    inset: 0;
+    z-index: 1;
+    pointer-events: none;
+    background:
+      radial-gradient(ellipse 55% 42% at 50% 46%, rgba(255, 196, 120, 0.20), transparent 62%),
+      radial-gradient(ellipse 40% 35% at 50% 60%, rgba(230, 170, 90, 0.10), transparent 70%),
+      linear-gradient(180deg, rgba(var(--veil-rgb), 0.30) 0%, rgba(var(--veil-rgb), 0) 30%, rgba(var(--veil-rgb), 0.20) 78%, rgba(var(--veil-rgb), 0.55) 100%);
+  }
+
+  .grain {
+    position: fixed;
+    inset: 0;
+    z-index: 2;
+    pointer-events: none;
+    opacity: 0.07;
+    mix-blend-mode: overlay;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='180' height='180'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+  }
+
+  /* ========== 顶部导航栏（苹果液态玻璃） ========== */
+  .topbar {
+    position: fixed;
+    top: 14px;
+    left: 20px;
+    right: 20px;
+    z-index: 10;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 12px 26px;
+    border-radius: 22px;
+    background: linear-gradient(135deg, rgba(var(--line-rgb), 0.16), rgba(var(--line-rgb), 0.06) 48%, rgba(200, 169, 110, 0.08));
+    -webkit-backdrop-filter: blur(20px) saturate(170%);
+    backdrop-filter: blur(20px) saturate(170%);
+    border: 1px solid rgba(var(--line-rgb), 0.18);
+    box-shadow:
+      0 12px 36px rgba(var(--shadow-rgb), 0.30),
+      inset 0 1px 0 rgba(var(--line-rgb), 0.25),
+      inset 0 -1px 0 rgba(var(--line-rgb), 0.05);
+  }
+
+  .logo {
+    font-size: 22px;
+    font-weight: 800;
+    letter-spacing: 0.06em;
+    color: var(--fg);
+    text-decoration: none;
+  }
+
+  .nav-right {
+    display: flex;
+    align-items: center;
+    gap: 26px;
+  }
+
+  .menu {
+    display: flex;
+    gap: 22px;
+    list-style: none;
+  }
+  .menu a {
+    font-size: 15px;
+    font-weight: 500;
+    color: var(--muted);
+    text-decoration: none;
+    transition: color 0.3s ease;
+  }
+  .menu a:hover { color: var(--fg); }
+  .menu a.active { color: var(--fg); }
+  .menu a.active::after {
+    content: "";
+    display: block;
+    height: 1px;
+    margin-top: 3px;
+    background: rgba(var(--fg-rgb), 0.45);
+  }
+
+  .avatar {
+    width: 34px;
+    height: 34px;
+    border-radius: 50%;
+    border: 1.5px solid rgba(var(--hl-rgb), 0.35);
+    background:
+      radial-gradient(circle at 35% 30%, rgba(var(--hl-rgb), 0.35), transparent 40%),
+      linear-gradient(135deg, #7d8a7a, #3a4038);
+    cursor: pointer;
+    position: relative;
+    display: block;
+  }
+  .avatar::after {
+    content: "";
+    position: absolute;
+    inset: 4px;
+    border-radius: 50%;
+    border: 1px solid rgba(var(--hl-rgb), 0.15);
+  }
+
+  /* ========== 页面主体 ========== */
+  .hero {
+    position: relative;
+    z-index: 5;
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: 110px 24px 70px;
+  }
+
+  .title {
+    font-size: clamp(38px, 6vw, 68px);
+    font-weight: 800;
+    letter-spacing: 0.10em;
+    text-indent: 0.10em;
+    line-height: 1;
+    color: var(--fg);
+    text-shadow: 0 4px 60px rgba(var(--shadow-rgb), 0.45);
+    user-select: none;
+    animation: fadeIn 0.85s cubic-bezier(0.22, 1, 0.36, 1) both;
+  }
+
+  .page-sub {
+    margin-top: 18px;
+    font-size: 14px;
+    letter-spacing: 0.12em;
+    color: var(--muted);
+    opacity: 0;
+    animation: fadeIn 0.85s cubic-bezier(0.22, 1, 0.36, 1) 0.4s forwards;
+  }
+
+  /* ========== 筛选条 ========== */
+  .filter-bar {
+    margin-top: 36px;
+    width: min(1040px, 94vw);
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+    padding: 18px 20px;
+    border-radius: 18px;
+    background: rgba(var(--panel-rgb), 0.5);
+    border: 1px solid rgba(var(--line-rgb), 0.1);
+    -webkit-backdrop-filter: blur(12px);
+    backdrop-filter: blur(12px);
+    box-shadow: 0 18px 60px rgba(var(--shadow-rgb), 0.35);
+    opacity: 0;
+    animation: fadeIn 0.85s cubic-bezier(0.22, 1, 0.36, 1) 0.5s forwards;
+  }
+
+  .search-row {
+    display: flex;
+    gap: 10px;
+    flex-wrap: wrap;
+  }
+  .search-input {
+    flex: 1;
+    min-width: 180px;
+    padding: 11px 15px;
+    border-radius: 999px;
+    border: 1px solid rgba(var(--line-rgb), 0.14);
+    background: rgba(var(--line-rgb), 0.05);
+    color: var(--fg);
+    font-size: 14px;
+    font-family: inherit;
+    outline: none;
+    transition: border-color 0.3s ease;
+  }
+  .search-input:focus { border-color: var(--gold); }
+  .search-input::placeholder { color: var(--muted); }
+
+  .btn {
+    padding: 10px 22px;
+    border-radius: 999px;
+    border: 1px solid rgba(200, 169, 110, 0.55);
+    background: rgba(200, 169, 110, 0.18);
+    color: var(--fg);
+    font-size: 13px;
+    letter-spacing: 0.08em;
+    font-family: inherit;
+    cursor: pointer;
+    transition: background 0.25s cubic-bezier(0.22, 1, 0.36, 1), transform 0.2s cubic-bezier(0.22, 1, 0.36, 1), box-shadow 0.25s ease;
+  }
+  .btn:hover:not(:disabled) { background: rgba(200, 169, 110, 0.34); transform: translateY(-1px); box-shadow: 0 6px 22px rgba(200, 169, 110, 0.18); }
+  .btn:disabled { opacity: 0.5; cursor: not-allowed; }
+  .btn.ghost {
+    border-color: rgba(var(--line-rgb), 0.18);
+    background: rgba(var(--line-rgb), 0.05);
+  }
+  .btn.ghost:hover:not(:disabled) { background: rgba(var(--line-rgb), 0.1); box-shadow: none; }
+
+  .sort-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    flex-wrap: wrap;
+  }
+  .sort-row .spacer { flex: 1; }
+
+  .chip {
+    padding: 6px 14px;
+    border-radius: 999px;
+    border: 1px solid rgba(var(--line-rgb), 0.16);
+    background: rgba(var(--line-rgb), 0.04);
+    color: var(--muted);
+    font-size: 12px;
+    letter-spacing: 0.06em;
+    font-family: inherit;
+    cursor: pointer;
+    transition: color 0.25s ease, border-color 0.25s ease, background 0.25s ease;
+  }
+  .chip:hover { color: var(--fg); border-color: rgba(var(--line-rgb), 0.32); }
+  .chip.on {
+    color: var(--fg);
+    border-color: rgba(200, 169, 110, 0.65);
+    background: rgba(200, 169, 110, 0.2);
+  }
+
+  .tag-row {
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+    align-items: center;
+    max-height: 96px;
+    overflow-y: auto;
+  }
+  .tag-row .tag-label {
+    font-size: 11px;
+    letter-spacing: 0.2em;
+    text-transform: uppercase;
+    color: var(--gold);
+    margin-right: 4px;
+  }
+
+  .result-line {
+    width: min(1040px, 94vw);
+    margin-top: 16px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    font-size: 12px;
+    letter-spacing: 0.06em;
+    color: var(--muted);
+  }
+
+  /* ========== 卡片流 ========== */
+  .art-list {
+    width: min(1040px, 94vw);
+    margin-top: 14px;
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 16px;
+  }
+  @media (min-width: 900px) {
+    .art-list { grid-template-columns: 1fr 1fr; }
+  }
+
+  .art-card {
+    text-align: left;
+    padding: 20px 22px 18px;
+    border-radius: 16px;
+    border: 1px solid rgba(var(--line-rgb), 0.1);
+    background: rgba(var(--panel-rgb), 0.5);
+    -webkit-backdrop-filter: blur(10px);
+    backdrop-filter: blur(10px);
+    box-shadow: 0 14px 42px rgba(var(--shadow-rgb), 0.32);
+    cursor: pointer;
+    transition: transform 0.28s cubic-bezier(0.22, 1, 0.36, 1), border-color 0.28s ease, box-shadow 0.28s ease;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+  }
+  .art-card:hover {
+    transform: translateY(-3px);
+    border-color: rgba(200, 169, 110, 0.55);
+    box-shadow: 0 20px 56px rgba(var(--shadow-rgb), 0.42);
+  }
+  .art-card h3 {
+    font-size: 16px;
+    font-weight: 600;
+    letter-spacing: 0.04em;
+    line-height: 1.5;
+    color: var(--fg);
+    word-break: break-word;
+  }
+  .art-card .summary {
+    font-size: 13px;
+    line-height: 1.85;
+    color: var(--muted);
+    word-break: break-word;
+    display: -webkit-box;
+    -webkit-line-clamp: 3;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+  }
+  .art-card .tags { display: flex; gap: 6px; flex-wrap: wrap; }
+  .art-card .tag {
+    font-size: 11px;
+    letter-spacing: 0.05em;
+    color: var(--gold-light);
+    border: 1px solid rgba(200, 169, 110, 0.35);
+    border-radius: 999px;
+    padding: 2px 9px;
+  }
+  .art-card .foot {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    flex-wrap: wrap;
+    font-size: 11px;
+    letter-spacing: 0.05em;
+    color: var(--muted);
+    margin-top: 2px;
+    padding-top: 10px;
+    border-top: 1px solid rgba(var(--line-rgb), 0.08);
+  }
+  .art-card .foot .dot { opacity: 0.4; }
+  .art-card .foot .badge {
+    border-radius: 999px;
+    padding: 1px 8px;
+    background: rgba(var(--line-rgb), 0.08);
+    border: 1px solid rgba(var(--line-rgb), 0.12);
+  }
+
+  .empty-box {
+    width: min(1040px, 94vw);
+    margin-top: 40px;
+    padding: 46px 20px;
+    text-align: center;
+    border-radius: 16px;
+    border: 1px dashed rgba(var(--line-rgb), 0.16);
+    background: rgba(var(--panel-rgb), 0.34);
+    color: var(--muted);
+    font-size: 13px;
+    letter-spacing: 0.08em;
+  }
+
+  /* ========== 分页 ========== */
+  .pager {
+    width: min(1040px, 94vw);
+    margin-top: 26px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 14px;
+    font-size: 12px;
+    color: var(--muted);
+    letter-spacing: 0.06em;
+  }
+  .pager .page-info { min-width: 96px; text-align: center; }
+
+  .back-home {
+    margin-top: 40px;
+    display: inline-block;
+    font-size: 13px;
+    letter-spacing: 0.12em;
+    color: var(--muted);
+    text-decoration: none;
+    border-bottom: 1px solid rgba(var(--fg-rgb), 0.22);
+    padding-bottom: 3px;
+    transition: color 0.3s ease, border-color 0.3s ease;
+  }
+  .back-home:hover { color: var(--fg); border-color: var(--fg); }
+
+  @keyframes fadeIn {
+    from { opacity: 0; transform: translateY(14px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+
+  button:hover:active:not(:disabled) { transform: translateY(0) scale(0.97); }
+</style>
+  <script src="notice-link.js"></script>
+  <script src="i18n.js"></script>
+</head>
+<body>
+
+  <!-- 油画背景 -->
+  <div class="art-bg"></div>
+
+  <div class="glow"></div>
+  <div class="grain"></div>
+
+  <!-- 顶部导航 -->
+  <header class="topbar">
+    <a class="logo" href="index.html">Cealin</a>
+    <div class="nav-right">
+      <ul class="menu">
+        <li><a href="index.html" data-i18n="nav.home">首页</a></li>
+        <li><a href="project.html" data-i18n="nav.project">项目</a></li>
+        <li><a href="platform.html" data-i18n="nav.platform">平台</a></li>
+        <li><a href="chat.html" data-i18n="nav.chat">聊天室</a></li>
+        <li><a href="articles.html" class="active" data-i18n="nav.articles">文章</a></li>
+        <li><a href="suggestion.html" data-i18n="nav.suggestion">建议</a></li>
+        <li><a href="notice-admin.html" data-i18n="nav.notice">公告</a></li>
+        <li><a href="mine.html" data-i18n="nav.mine">我的</a></li>
+      </ul>
+      <a class="avatar" href="settings.html" title="设置" data-i18n-title="nav.settings"></a>
+    </div>
+  </header>
+
+  <!-- 页面主体 -->
+  <main class="hero">
+    <h1 class="title" data-i18n="art.title">文章</h1>
+    <p class="page-sub" data-i18n="art.sub">技术、生活与思考的记录</p>
+
+    <!-- 筛选条 -->
+    <section class="filter-bar">
+      <div class="search-row">
+        <input id="qInput" class="search-input" type="text" maxlength="60" autocomplete="off" spellcheck="false" placeholder="搜索标题、正文或标签" data-i18n-ph="art.searchPh">
+        <button type="button" class="btn" id="searchBtn" onclick="applySearch()" data-i18n="art.searchBtn">搜索</button>
+      </div>
+
+      <div class="sort-row">
+        <button type="button" class="chip" id="sortNew" onclick="setSort('new')" data-i18n="art.sortNew">最新</button>
+        <button type="button" class="chip" id="sortHot" onclick="setSort('hot')" data-i18n="art.sortHot">最热</button>
+        <span class="spacer"></span>
+        <button type="button" class="btn" id="writeBtn" onclick="goWrite()" data-i18n="art.writeBtn">写文章</button>
+      </div>
+
+      <div class="tag-row" id="tagRow">
+        <span class="tag-label" data-i18n="art.tagAll">标签</span>
+      </div>
+    </section>
+
+    <div class="result-line">
+      <span id="totalLine"></span>
+      <button type="button" class="chip" id="clearBtn" onclick="clearFilters()" style="display:none;" data-i18n="art.clear">清除筛选</button>
+    </div>
+
+    <section class="art-list" id="artList"></section>
+    <div class="empty-box" id="emptyBox" style="display:none;"></div>
+
+    <div class="pager" id="pager" style="display:none;">
+      <button type="button" class="chip" id="prevBtn" onclick="gotoPage(-1)" data-i18n="art.prev">上一页</button>
+      <span class="page-info" id="pageInfo"></span>
+      <button type="button" class="chip" id="nextBtn" onclick="gotoPage(1)" data-i18n="art.next">下一页</button>
+    </div>
+
+    <a class="back-home" href="index.html" data-i18n="common.backHome">返回首页</a>
+  </main>
+
+  <script>
+    (function () {
+      var PAGE_SIZE = 12;
+
+      var state = { q: '', tags: [], sort: 'new', page: 1 };
+      var allTags = [];
+      var lastTotal = 0;
+      var lastTotalPages = 1;
+      var loading = false;
+
+      var listEl = document.getElementById('artList');
+      var emptyEl = document.getElementById('emptyBox');
+      var pagerEl = document.getElementById('pager');
+      var pageInfoEl = document.getElementById('pageInfo');
+      var prevBtn = document.getElementById('prevBtn');
+      var nextBtn = document.getElementById('nextBtn');
+      var totalLine = document.getElementById('totalLine');
+      var tagRow = document.getElementById('tagRow');
+      var clearBtn = document.getElementById('clearBtn');
+      var qInput = document.getElementById('qInput');
+
+      function esc(s) {
+        return String(s === null || s === undefined ? '' : s)
+          .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+          .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+      }
+
+      function pad2(n) { return n < 10 ? '0' + n : '' + n; }
+
+      function fmtDate(ts) {
+        if (!ts) return '';
+        var d = new Date(ts);
+        return d.getFullYear() + '-' + pad2(d.getMonth() + 1) + '-' + pad2(d.getDate());
+      }
+
+      // ---------- URL 同步：筛选条件写进查询参数，刷新后状态不丢 ----------
+      function readUrl() {
+        var sp = new URLSearchParams(window.location.search);
+        state.q = sp.get('q') || '';
+        var tagStr = sp.get('tag') || '';
+        state.tags = tagStr ? tagStr.split(',').filter(function (t) { return !!t; }) : [];
+        state.sort = sp.get('sort') === 'hot' ? 'hot' : 'new';
+        var p = parseInt(sp.get('page'), 10);
+        state.page = (p && p > 0) ? p : 1;
+        qInput.value = state.q;
+      }
+
+      function writeUrl() {
+        var parts = [];
+        if (state.q) parts.push('q=' + encodeURIComponent(state.q));
+        if (state.tags.length) parts.push('tag=' + encodeURIComponent(state.tags.join(',')));
+        if (state.sort !== 'new') parts.push('sort=' + state.sort);
+        if (state.page > 1) parts.push('page=' + state.page);
+        var url = window.location.pathname + (parts.length ? ('?' + parts.join('&')) : '');
+        try { window.history.replaceState(null, '', url); } catch (e) { /* file:// 下忽略 */ }
+      }
+
+      // ---------- 标签 chip ----------
+      function renderTags() {
+        var html = '<span class="tag-label">' + esc(cealinT('art.tagAll')) + '</span>';
+        for (var i = 0; i < allTags.length; i++) {
+          var name = allTags[i].name;
+          var on = state.tags.indexOf(name) >= 0;
+          html += '<button type="button" class="chip' + (on ? ' on' : '') + '" data-tag="' + esc(name) + '">'
+            + esc(name) + ' · ' + allTags[i].count + '</button>';
+        }
+        tagRow.innerHTML = html;
+      }
+
+      tagRow.addEventListener('click', function (ev) {
+        var node = ev.target;
+        while (node && node !== tagRow && !node.getAttribute('data-tag')) node = node.parentNode;
+        if (!node || node === tagRow) return;
+        var tag = node.getAttribute('data-tag');
+        var idx = state.tags.indexOf(tag);
+        if (idx >= 0) state.tags.splice(idx, 1);
+        else state.tags.push(tag);
+        state.page = 1;
+        writeUrl();
+        load();
+      });
+
+      // ---------- 列表渲染 ----------
+      function renderList(items) {
+        var html = '';
+        for (var i = 0; i < items.length; i++) {
+          var it = items[i];
+          var tags = Array.isArray(it.tags) ? it.tags : [];
+          var tagHtml = '';
+          for (var j = 0; j < tags.length; j++) {
+            tagHtml += '<span class="tag">' + esc(tags[j]) + '</span>';
+          }
+          var badges = '';
+          if (it.imgCount > 0) badges += '<span class="badge">' + esc(cealinT('art.imgBadge', { n: it.imgCount })) + '</span>';
+          if (it.fileCount > 0) badges += '<span class="badge">' + esc(cealinT('art.fileBadge', { n: it.fileCount })) + '</span>';
+
+          html += '<article class="art-card" data-id="' + esc(it.id) + '">'
+            + '<h3>' + esc(it.title) + '</h3>'
+            + '<p class="summary">' + esc(it.summary) + '</p>'
+            + (tagHtml ? '<div class="tags">' + tagHtml + '</div>' : '')
+            + '<div class="foot">'
+            + '<span>' + esc(it.authorName || cealinT('common.anonymous')) + '</span>'
+            + '<span class="dot">·</span>'
+            + '<span>' + esc(fmtDate(it.createdAt)) + '</span>'
+            + '<span class="dot">·</span>'
+            + '<span>' + esc(cealinT('art.views', { n: it.views || 0 })) + '</span>'
+            + badges
+            + '</div>'
+            + '</article>';
+        }
+        listEl.innerHTML = html;
+      }
+
+      listEl.addEventListener('click', function (ev) {
+        var node = ev.target;
+        while (node && node !== listEl && !node.getAttribute('data-id')) node = node.parentNode;
+        if (!node || node === listEl) return;
+        window.location.href = 'article.html?id=' + encodeURIComponent(node.getAttribute('data-id'));
+      });
+
+      function renderPager(total, totalPages) {
+        lastTotal = total;
+        lastTotalPages = totalPages;
+        totalLine.textContent = total ? cealinT('art.total', { n: total }) : '';
+        var hasFilter = !!state.q || state.tags.length > 0;
+        clearBtn.style.display = hasFilter ? 'inline-block' : 'none';
+
+        if (totalPages <= 1) {
+          pagerEl.style.display = 'none';
+          return;
+        }
+        pagerEl.style.display = 'flex';
+        pageInfoEl.textContent = cealinT('art.page', { p: state.page, t: totalPages });
+        prevBtn.disabled = state.page <= 1;
+        nextBtn.disabled = state.page >= totalPages;
+      }
+
+      function showEmpty(total) {
+        var hasFilter = !!state.q || state.tags.length > 0;
+        emptyEl.style.display = 'block';
+        emptyEl.textContent = (total === 0 && !hasFilter) ? cealinT('art.empty') : cealinT('art.emptyMatch');
+      }
+
+      function load() {
+        if (loading) return;
+        loading = true;
+        emptyEl.style.display = 'none';
+        if (!listEl.children.length) {
+          emptyEl.style.display = 'block';
+          emptyEl.textContent = cealinT('common.loading');
+        }
+        fetch('/api/articles', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            action: 'list',
+            q: state.q,
+            tags: state.tags,
+            sort: state.sort,
+            page: state.page,
+            pageSize: PAGE_SIZE
+          })
+        })
+          .then(function (resp) {
+            return resp.json().then(function (data) { return { status: resp.status, data: data }; });
+          })
+          .then(function (res) {
+            loading = false;
+            var data = res.data || {};
+            if (!data.ok) {
+              listEl.innerHTML = '';
+              emptyEl.style.display = 'block';
+              emptyEl.textContent = data.error || cealinT('art.loadFail');
+              pagerEl.style.display = 'none';
+              return;
+            }
+            allTags = data.tags || [];
+            renderTags();
+            var items = data.articles || [];
+            renderList(items);
+            renderPager(data.total || 0, data.totalPages || 1);
+            if (!items.length) {
+              emptyEl.style.display = 'block';
+              showEmpty(data.total || 0);
+            } else {
+              emptyEl.style.display = 'none';
+            }
+          })
+          .catch(function () {
+            loading = false;
+            listEl.innerHTML = '';
+            pagerEl.style.display = 'none';
+            emptyEl.style.display = 'block';
+            emptyEl.textContent = cealinT('art.loadFail');
+          });
+      }
+
+      // ---------- 交互 ----------
+      window.applySearch = function () {
+        state.q = (qInput.value || '').replace(/^\s+|\s+$/g, '');
+        state.page = 1;
+        writeUrl();
+        load();
+      };
+
+      window.setSort = function (sort) {
+        state.sort = sort === 'hot' ? 'hot' : 'new';
+        state.page = 1;
+        document.getElementById('sortNew').className = 'chip' + (state.sort === 'new' ? ' on' : '');
+        document.getElementById('sortHot').className = 'chip' + (state.sort === 'hot' ? ' on' : '');
+        writeUrl();
+        load();
+      };
+
+      window.gotoPage = function (delta) {
+        var next = state.page + delta;
+        if (next < 1 || next > lastTotalPages) return;
+        state.page = next;
+        writeUrl();
+        load();
+        window.scrollTo(0, 0);
+      };
+
+      window.clearFilters = function () {
+        state.q = '';
+        state.tags = [];
+        state.page = 1;
+        qInput.value = '';
+        writeUrl();
+        load();
+      };
+
+      window.goWrite = function () {
+        window.location.href = 'write.html';
+      };
+
+      qInput.addEventListener('keydown', function (ev) {
+        if (ev.key === 'Enter' || ev.keyCode === 13) {
+          ev.preventDefault();
+          window.applySearch();
+        }
+      });
+
+      // ---------- 初始化 ----------
+      readUrl();
+      document.getElementById('sortNew').className = 'chip' + (state.sort === 'new' ? ' on' : '');
+      document.getElementById('sortHot').className = 'chip' + (state.sort === 'hot' ? ' on' : '');
+      load();
+
+      // 语言切换后重绘（文章内容属用户数据不翻译，仅界面文案刷新）
+      if (window.cealinOnLangChange) {
+        cealinOnLangChange(function () {
+          renderTags();
+          renderPager(lastTotal, lastTotalPages);
+          if (listEl.children.length) load();
+        });
+      }
+    })();
+  </script>
+
+</body>
+</html>
