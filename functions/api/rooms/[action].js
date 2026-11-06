@@ -54,26 +54,81 @@ const writePresence = (env, code, presence) =>
 // 30 秒内活跃视为在线
 const ONLINE_TTL = 30000;
 
-// 账号编号：6 位大写字母 / 数字（与 /api/accounts 的编号规则一致）
-const ACC_ID_RE = /^[A-Z0-9]{6}$/;
+// 账号编号：新编号 8 位（0-9 / A-Z / a-z / @），历史账号 6 位大写；规则与 /api/accounts 一致
+const ACC_ID_RE = /^[A-Za-z0-9@]{6,8}$/;
 
 const sanitizeAccId = (value) => {
-  const id = String(value || '').trim().toUpperCase();
+  const id = String(value || '').trim();
   return ACC_ID_RE.test(id) ? id : '';
 };
 
 // 校验 accId 与昵称的绑定关系：账号存在且账号名称与昵称一致才返回编号，
-// 避免客户端伪造他人编号把消息记到别人账号名下；未登录 / 校验失败返回空串（消息照常发送）
-async function resolveAccId(env, rawAccId, name) {
+// 避免客户端伪造他人编号把消息记到别人账号名下；未登录 / 校验失败返回空编号（消息照常发送）。
+// official 为账号的官方认证状态（/api/accounts 的 official action 写入），用于消息渲染金色「官方」标识。
+async function resolveAccount(env, rawAccId, name) {
   const id = sanitizeAccId(rawAccId);
-  if (!id || !name) return '';
+  if (!id || !name) return { id: '', official: false };
   try {
-    const acc = await env.GUESTBOOK.get('account:' + id, 'json');
-    if (acc && typeof acc.name === 'string' && acc.name === name) return id;
+    let acc = await env.GUESTBOOK.get('account:' + id, 'json');
+    let realId = id;
+    // 历史 6 位编号存的是大写，用户小写输入时回退再查一次
+    if ((!acc || typeof acc !== 'object') && id.length === 6 && /^[a-z0-9]+$/.test(id)) {
+      realId = id.toUpperCase();
+      acc = await env.GUESTBOOK.get('account:' + realId, 'json');
+    }
+    if (acc && typeof acc.name === 'string' && acc.name === name) {
+      return { id: acc.id || realId, official: !!acc.official };
+    }
   } catch (err) {
     // 账号读取异常不影响聊天主流程，降级为无账号消息
   }
-  return '';
+  return { id: '', official: false };
+}
+
+// 官方认证缓存：key 为 `room:{code}:offcache`，值为 { at, ids: [官方账号编号] }
+// 轮询每 3 秒一次，若每次都逐条查 account:{id} 会放大 KV 读，故按房间缓存 60 秒。
+const OFFICIAL_CACHE_TTL = 60000;
+const OFFICIAL_LOOKUP_MAX = 40;
+
+async function resolveOfficialIds(env, code, room) {
+  const ids = [];
+  for (let i = 0; i < room.length && ids.length < OFFICIAL_LOOKUP_MAX; i++) {
+    const aid = room[i] && room[i].accId ? String(room[i].accId) : '';
+    if (aid && ids.indexOf(aid) < 0) ids.push(aid);
+  }
+  if (!ids.length) return [];
+  try {
+    const cache = await env.GUESTBOOK.get(PREFIX + code + ':offcache', 'json');
+    if (cache && typeof cache.at === 'number' && Date.now() - cache.at < OFFICIAL_CACHE_TTL && Array.isArray(cache.ids)) {
+      return cache.ids;
+    }
+  } catch (err) {
+    // 缓存读取失败则继续实时查询
+  }
+  const official = [];
+  for (let i = 0; i < ids.length; i++) {
+    try {
+      const acc = await env.GUESTBOOK.get('account:' + ids[i], 'json');
+      if (acc && acc.official) official.push(ids[i]);
+    } catch (err) {
+      // 单个账号读取失败忽略，不影响其他消息渲染
+    }
+  }
+  try {
+    await env.GUESTBOOK.put(PREFIX + code + ':offcache', JSON.stringify({ at: Date.now(), ids: official }));
+  } catch (err) {
+    // 缓存写入失败不影响本次返回
+  }
+  return official;
+}
+
+// 给消息数组附加官方状态：只复制命中官方的消息对象，未命中的原样返回（避免额外开销）
+function withOfficial(room, officialIds) {
+  if (!officialIds.length) return room;
+  return room.map((m) => {
+    if (!m || !m.accId || officialIds.indexOf(String(m.accId)) < 0) return m;
+    return Object.assign({}, m, { official: true });
+  });
 }
 
 // 封禁时长：10 天，到期后读取时自动清除该房间全部 KV 数据
@@ -192,13 +247,14 @@ async function handleJoin(env, body) {
   }
   // 返回 meta：前端据此判断官方授权状态与房间显示名称
   const meta = await readMeta(env, code);
-  // 账号登录态：编号与昵称校验通过才回传，前端据此渲染"本人消息"
-  const accId = await resolveAccId(env, body.accId, name);
+  // 账号登录态：编号与昵称校验通过才回传，前端据此渲染"本人消息"与官方标识
+  const account = await resolveAccount(env, body.accId, name);
   return json({
     ok: true,
     code,
     name,
-    accId,
+    accId: account.id,
+    official: account.official,
     banned: !!status.banned,
     bannedAt: status.bannedAt || null,
     reported: !!status.reported,
@@ -229,10 +285,12 @@ async function handleMessagesGet(env, url) {
   }
   // 返回 meta：前端轮询时同步官方授权状态与房间显示名称
   const meta = await readMeta(env, code);
+  // 消息作者的官方认证状态：按房间缓存 60 秒，前端据此在昵称后渲染金色「官方」标识
+  const officialIds = await resolveOfficialIds(env, code, room);
   return json({
     ok: true,
     code,
-    messages: room, // 最新在最后
+    messages: withOfficial(room, officialIds), // 最新在最后
     verified: !!meta.verified,
     roomName: typeof meta.name === 'string' ? meta.name : null
   });
@@ -270,10 +328,11 @@ async function handleMessagesPost(env, body) {
 
   // 服务端补充时间，避免依赖客户端时钟
   const time = new Date().toISOString();
-  // 已登录账号：消息附带账号编号，便于刷新 / 重进房间后识别本人消息
-  const accId = await resolveAccId(env, body.accId, name);
+  // 已登录账号：消息附带账号编号，便于刷新 / 重进房间后识别本人消息；官方账号再附带官方标记
+  const account = await resolveAccount(env, body.accId, name);
   const message = { name, text, time };
-  if (accId) message.accId = accId;
+  if (account.id) message.accId = account.id;
+  if (account.id && account.official) message.official = true;
   room.push(message);
 
   // 房间消息最多保留 200 条，超出截掉最旧的

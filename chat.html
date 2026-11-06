@@ -497,6 +497,29 @@
     white-space: nowrap;
   }
 
+  /* 官方账号发言标识：金色渐变胶囊 + 对勾，沿用认证用的金色视觉语言 */
+  .msg-official {
+    display: inline-flex;
+    align-items: center;
+    gap: 3px;
+    margin-left: 6px;
+    padding: 1px 7px 1px 5px;
+    border-radius: 999px;
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: 0.06em;
+    color: #2b2417;
+    background: linear-gradient(145deg, #f0cf8f, #c8a96e 55%, #a8874f);
+    box-shadow: 0 1px 7px rgba(200, 169, 110, 0.5), inset 0 1px 0 rgba(255, 255, 255, 0.45);
+    vertical-align: 1px;
+    white-space: nowrap;
+  }
+  .msg-official svg {
+    display: block;
+    width: 9px;
+    height: 9px;
+  }
+
   .msg-empty {
     padding: 26px 0;
     text-align: center;
@@ -751,9 +774,10 @@
       var accountId = '';
       var accountName = '';
       try {
-        var sid = String(sessionStorage.getItem(SID_KEY) || '').trim().toUpperCase();
+        // 编号区分大小写（新编号允许小写与 @），历史 6 位编号为大写
+        var sid = String(sessionStorage.getItem(SID_KEY) || '').trim();
         var sname = String(sessionStorage.getItem(SNAME_KEY) || '').trim();
-        if (/^[A-Z0-9]{6}$/.test(sid) && sname) {
+        if (/^[A-Za-z0-9@]{6,8}$/.test(sid) && sname) {
           accountId = sid;
           accountName = sname.slice(0, 20);
         }
@@ -887,7 +911,7 @@
         currentName = name;
         state = state || {};
         // 消息归属标识：服务端校验通过的账号编号优先，其次本地登录态，无账号为空
-        currentAccId = state.accId ? String(state.accId).toUpperCase() : (isAccount && accountNickLocked ? accountId : '');
+        currentAccId = state.accId ? String(state.accId) : (isAccount && accountNickLocked ? accountId : '');
         // 账号昵称被临时改用时，记录本次会话昵称：这些消息不携带编号，只能在本次会话内按昵称兜底识别
         currentNickAlias = (isAccount && !currentAccId) ? name : '';
         try { localStorage.setItem(NAME_KEY, name); } catch (e) {}
@@ -1209,8 +1233,14 @@
             }
             wrap.innerHTML = list.map(function (m) {
               var mine = isMineMsg(m);
+              // 官方账号发言：昵称后追加金色「官方」标识（复用认证金色视觉）
+              var officialHtml = m.official
+                ? '<span class="msg-official" title="' + esc(cealinT('chat.official')) + '">' +
+                  '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20 6L9 17l-5-5" fill="none" stroke="currentColor" stroke-width="3.4" stroke-linecap="round" stroke-linejoin="round"/></svg>' +
+                  esc(cealinT('chat.official')) + '</span>'
+                : '';
               return '<div class="msg-item' + (mine ? ' mine' : '') + '">' +
-                '<div class="msg-meta"><span class="msg-name">' + esc(m.name) +
+                '<div class="msg-meta"><span class="msg-name">' + esc(m.name) + officialHtml +
                 (mine ? '<span class="msg-mine">' + esc(cealinT('chat.mine')) + '</span>' : '') +
                 '</span>' +
                 '<span class="msg-time">' + esc(fmtTime(m.time)) + '</span></div>' +
@@ -1229,7 +1259,7 @@
       // 未登录用户回退为昵称相同即本人
       function isMineMsg(m) {
         if (!m) return false;
-        var aid = m.accId ? String(m.accId).toUpperCase() : '';
+        var aid = m.accId ? String(m.accId) : '';
         var myId = currentAccId || accountId;
         if (myId) {
           if (aid) return aid === myId;

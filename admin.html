@@ -263,6 +263,37 @@
     margin-bottom: 12px;
   }
 
+  /* ========== 官方账号区 ========== */
+  .off-search {
+    display: flex;
+    gap: 10px;
+    align-items: center;
+    margin-top: 4px;
+  }
+  .off-input {
+    flex: 1;
+    min-width: 0;
+    padding: 10px 16px;
+    border-radius: 999px;
+    border: 1px solid rgba(255, 255, 255, 0.14);
+    background: rgba(255, 255, 255, 0.05);
+    color: var(--fg);
+    font-size: 14px;
+    letter-spacing: 0.1em;
+    outline: none;
+    font-family: inherit;
+    transition: border-color 0.25s ease;
+  }
+  .off-input:focus { border-color: rgba(200, 169, 110, 0.65); }
+  .off-input::placeholder { color: var(--muted); letter-spacing: 0.04em; }
+  .off-id {
+    font-size: 17px;
+    font-weight: 800;
+    letter-spacing: 0.16em;
+    color: var(--gold);
+    font-family: Menlo, Consolas, monospace;
+  }
+
   /* ========== 聊天室管理区 ========== */
   .room-list {
     display: flex;
@@ -508,6 +539,21 @@
       </div>
       <div id="sugList" class="room-list"></div>
       <p class="notice-msg" id="sugMsg"></p>
+    </section>
+
+    <!-- 官方账号管理区 -->
+    <section class="notice-card" id="offAdminCard" style="display:none;">
+      <h2 class="notice-title" data-i18n="ad.offTitle">官方账号</h2>
+      <p class="notice-tip" data-i18n="ad.offDesc">按编号搜索账号，可授予或取消「官方」认证。</p>
+      <div class="off-search">
+        <input id="offQuery" class="off-input" type="text" maxlength="8" autocomplete="off" spellcheck="false" placeholder="输入编号（可只输入部分）" data-i18n-ph="ad.offPh">
+        <button type="button" class="save-btn" id="offSearchBtn" onclick="searchAccounts()" data-i18n="ad.offSearch">搜索</button>
+      </div>
+      <div class="notice-meta">
+        <span class="notice-count" id="offCount"></span>
+      </div>
+      <div id="offList" class="room-list"></div>
+      <p class="notice-msg" id="offMsg"></p>
     </section>
 
     <!-- 入口 -->
@@ -829,6 +875,161 @@
       };
       window.loadSuggestions = loadSuggestionsList;
 
+      // 官方账号：按编号搜索 → 授予 / 取消官方（POST /api/accounts，需管理员密码校验）
+      var offCard = document.getElementById('offAdminCard');
+      var offQuery = document.getElementById('offQuery');
+      var offList = document.getElementById('offList');
+      var offCount = document.getElementById('offCount');
+      var offMsgEl = document.getElementById('offMsg');
+
+      // 输入时就地过滤：编号只含数字、字母与 @，最长 8 位
+      offQuery.addEventListener('input', function () {
+        var v = (offQuery.value || '').replace(/[^A-Za-z0-9@]/g, '').substr(0, 8);
+        if (v !== offQuery.value) offQuery.value = v;
+      });
+      offQuery.addEventListener('keydown', function (ev) {
+        var code = ev.keyCode || ev.which;
+        if (code === 13) { ev.preventDefault(); searchAccounts(); }
+      });
+
+      function offRowHtml(it) {
+        var idText = escHtml(it.id || '');
+        var nameText = it.name ? escHtml(it.name) : '<span class="off">' + cealinT('common.anonymous') + '</span>';
+        var tag = it.official ? '<span class="room-verified-tag">' + cealinT('ad.offTag') + '</span>' : '';
+        var btn = it.official
+          ? '<button type="button" class="op-btn verify on" onclick="setOfficial(\'' + idText + '\', false)">' + cealinT('ad.offRevoke') + '</button>'
+          : '<button type="button" class="op-btn verify" onclick="setOfficial(\'' + idText + '\', true)">' + cealinT('ad.offGrant') + '</button>';
+        return '<div class="room-item" data-id="' + idText + '">'
+          + '<div class="room-item-head">'
+          + '<span class="off-id">' + idText + '</span>'
+          + '<span class="room-meta">' + nameText + ' · ' + cealinT('ad.offCreated', { t: fmtRoomTime(it.createdAt) }) + '</span>'
+          + '<span class="room-ops">' + tag + btn + '</span>'
+          + '</div>'
+          + '</div>';
+      }
+
+      function searchAccounts() {
+        if (!pwd || !adminFlag) {
+          offMsgEl.textContent = cealinT('ad.relogin');
+          offMsgEl.classList.remove('ok');
+          return;
+        }
+        var q = (offQuery.value || '').replace(/[^A-Za-z0-9@]/g, '').substr(0, 8);
+        offMsgEl.textContent = '';
+        offMsgEl.classList.remove('ok');
+        if (!q) {
+          offMsgEl.textContent = cealinT('ad.offNeedQuery');
+          offQuery.focus();
+          return;
+        }
+        offCount.textContent = cealinT('ad.offSearching');
+        offList.innerHTML = '';
+        fetch('/api/accounts', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ action: 'search', q: q, password: pwd })
+        })
+          .then(function (resp) {
+            return resp.json().then(function (data) { return { status: resp.status, data: data }; });
+          })
+          .then(function (res) {
+            var data = res.data || {};
+            if (!data.ok) {
+              offCount.textContent = '';
+              offMsgEl.textContent = (res.status === 401 || data.code === 'admin_pwd')
+                ? cealinT('ad.pwdExpired')
+                : (data.error || cealinT('ad.queryFailed'));
+              return;
+            }
+            var items = data.accounts || [];
+            offCount.textContent = cealinT('ad.offCount', { n: items.length });
+            if (!items.length) {
+              offList.innerHTML = '<div class="room-empty">' + cealinT('ad.offEmpty') + '</div>';
+              return;
+            }
+            var html = '';
+            items.forEach(function (it) { html += offRowHtml(it); });
+            offList.innerHTML = html;
+            if (data.truncated) {
+              offMsgEl.textContent = cealinT('ad.offTruncated');
+              offMsgEl.classList.remove('ok');
+            }
+          })
+          .catch(function () {
+            offCount.textContent = '';
+            offMsgEl.textContent = cealinT('ad.netQuery');
+            offMsgEl.classList.remove('ok');
+          });
+      }
+
+      function setOfficial(id, on) {
+        if (!pwd || !adminFlag) {
+          offMsgEl.textContent = cealinT('ad.relogin');
+          return;
+        }
+        offMsgEl.textContent = '';
+        offMsgEl.classList.remove('ok');
+        fetch('/api/accounts', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ action: 'official', id: id, official: !!on, password: pwd })
+        })
+          .then(function (resp) {
+            return resp.json().then(function (data) { return { status: resp.status, data: data }; });
+          })
+          .then(function (res) {
+            var data = res.data || {};
+            if (data.ok) {
+              offMsgEl.classList.add('ok');
+              offMsgEl.textContent = data.official
+                ? cealinT('ad.offGrantedDone', { id: data.id || id })
+                : cealinT('ad.offRevokedDone', { id: data.id || id });
+              // 就地更新该行按钮与标签，避免整列表重绘闪烁
+              updateOfficialRow(data.id || id, !!data.official);
+            } else if (res.status === 401 || data.code === 'admin_pwd') {
+              offMsgEl.textContent = cealinT('ad.pwdExpired');
+              offMsgEl.classList.remove('ok');
+            } else {
+              offMsgEl.textContent = data.error || cealinT('ad.opFailed');
+              offMsgEl.classList.remove('ok');
+            }
+          })
+          .catch(function () {
+            offMsgEl.textContent = cealinT('ad.netOp');
+            offMsgEl.classList.remove('ok');
+          });
+      }
+
+      function updateOfficialRow(id, on) {
+        var rows = offList.querySelectorAll('.room-item');
+        for (var i = 0; i < rows.length; i++) {
+          if (rows[i].getAttribute('data-id') !== id) continue;
+          var ops = rows[i].querySelector('.room-ops');
+          if (!ops) return;
+          var btn = ops.querySelector('.op-btn');
+          if (on) {
+            if (!ops.querySelector('.room-verified-tag')) {
+              var tag = document.createElement('span');
+              tag.className = 'room-verified-tag';
+              tag.textContent = cealinT('ad.offTag');
+              ops.insertBefore(tag, ops.firstChild);
+            }
+            btn.className = 'op-btn verify on';
+            btn.textContent = cealinT('ad.offRevoke');
+            btn.setAttribute('onclick', 'setOfficial(\'' + id + '\', false)');
+          } else {
+            var old = ops.querySelector('.room-verified-tag');
+            if (old && old.parentNode) old.parentNode.removeChild(old);
+            btn.className = 'op-btn verify';
+            btn.textContent = cealinT('ad.offGrant');
+            btn.setAttribute('onclick', 'setOfficial(\'' + id + '\', true)');
+          }
+          return;
+        }
+      }
+      window.searchAccounts = searchAccounts;
+      window.setOfficial = setOfficial;
+
       // 未登录 / 旧会话：提示重新登录并禁用编辑（不加载公告内容，避免未授权观看公告）
       if (!pwd || !adminFlag) {
         tipEl.style.display = 'block';
@@ -841,6 +1042,7 @@
         loadRoomsList();
         sugCard.style.display = 'block';
         loadSuggestionsList();
+        offCard.style.display = 'block';
         fetch('/api/notice')
           .then(function (resp) { return resp.json(); })
           .then(function (data) {

@@ -350,6 +350,33 @@
     margin-top: 20px;
   }
 
+  /* ========== 账号设置（更改编号，仅登录后显示） ========== */
+  .settings-card {
+    animation-delay: 0.7s;
+  }
+  .settings-title {
+    margin: 0 0 6px;
+    font-size: 16px;
+    font-weight: 500;
+    letter-spacing: 0.14em;
+    color: var(--fg);
+  }
+  .settings-sub {
+    margin: 0 0 12px;
+    font-size: 12px;
+    letter-spacing: 0.06em;
+    color: var(--muted);
+  }
+  .settings-card .id-box { margin-top: 0; margin-bottom: 20px; }
+  .chg-done {
+    margin-top: 18px;
+    padding-top: 18px;
+    border-top: 1px solid rgba(255, 255, 255, 0.1);
+  }
+  .chg-done .id-box { margin-bottom: 14px; }
+  /* 实时校验通过的提示用金色，与全站高亮一致 */
+  .hint.hint-ok { color: #e8c07a; }
+
   .back-home {
     margin-top: 34px;
     font-size: 13px;
@@ -441,7 +468,7 @@
       <div class="pane" id="paneLogin" role="tabpanel">
         <div class="field">
           <label for="loginId" data-i18n="acc.id">编号</label>
-          <input id="loginId" type="text" maxlength="6" autocomplete="username" spellcheck="false" data-i18n-ph="acc.idPh" placeholder="6 位账号编号">
+          <input id="loginId" type="text" maxlength="8" autocomplete="username" spellcheck="false" data-i18n-ph="acc.idPh" placeholder="账号编号（6 或 8 位）">
         </div>
         <div class="field">
           <label for="loginPwd" data-i18n="acc.pwd">密码</label>
@@ -450,6 +477,33 @@
         <p class="hint" data-i18n="acc.idHint">登录只认编号，不认名称</p>
         <button type="button" class="primary-btn" id="btnLogin" data-i18n="acc.loginBtn">登录</button>
         <p class="msg" id="loginMsg"></p>
+      </div>
+    </section>
+
+    <!-- 账号设置：仅在登录后显示，用于更改自己的编号 -->
+    <section class="card settings-card" id="acctSettings" style="display:none">
+      <h2 class="settings-title" data-i18n="acc.setTitle">账号设置</h2>
+      <p class="settings-sub" data-i18n="acc.curIdLabel">当前登录编号</p>
+      <div class="id-box"><span class="id-num" id="curId">------</span></div>
+
+      <div class="field">
+        <label for="chgId" data-i18n="acc.newId">新编号</label>
+        <input id="chgId" type="text" maxlength="8" autocomplete="off" spellcheck="false" data-i18n-ph="acc.newIdPh" placeholder="8 位：数字、字母或 @">
+      </div>
+      <p class="hint" id="chgHint" data-i18n="acc.chgRule">须为 8 位，只能使用数字、字母（大小写均可）和 @，且不能与他人重复</p>
+
+      <div class="field">
+        <label for="chgPwd" data-i18n="acc.pwd">密码</label>
+        <input id="chgPwd" type="password" maxlength="64" autocomplete="current-password" data-i18n-ph="acc.pwdPh" placeholder="至少 6 位">
+      </div>
+      <button type="button" class="primary-btn" id="btnChangeId" data-i18n="acc.changeBtn">更改编号</button>
+      <p class="msg" id="chgMsg"></p>
+
+      <div class="chg-done" id="chgDone" style="display:none">
+        <p class="done-label" data-i18n="acc.changed">编号已更改，此后请使用新编号登录</p>
+        <div class="id-box"><span class="id-num" id="chgNewId">--------</span></div>
+        <button type="button" class="ghost-btn" id="btnCopyNew" data-i18n="acc.copy">复制编号</button>
+        <p class="msg ok" id="chgDoneMsg"></p>
       </div>
     </section>
 
@@ -695,18 +749,20 @@
       var loginPwd = d.getElementById('loginPwd');
       var loginMsg = d.getElementById('loginMsg');
 
+      // 编号区分大小写（新编号允许小写与 @），输入时就地过滤非法字符
+      var ACCEPT_RE = /[^A-Za-z0-9@]/g;
       loginId.oninput = function () {
-        var v = (loginId.value || '').toUpperCase().replace(/[^A-Z0-9]/g, '').substr(0, 6);
+        var v = (loginId.value || '').replace(ACCEPT_RE, '').substr(0, 8);
         if (v !== loginId.value) loginId.value = v;
       };
 
       btnLogin.onclick = function () {
         if (btnLogin.disabled) return;
-        var id = (loginId.value || '').toUpperCase().replace(/[^A-Z0-9]/g, '');
+        var id = (loginId.value || '').replace(ACCEPT_RE, '');
         var pwd = loginPwd.value || '';
 
         setMsg(loginMsg, '');
-        if (id.length !== 6) { setMsg(loginMsg, 'acc.err.id_short'); loginId.focus(); return; }
+        if (id.length !== 6 && id.length !== 8) { setMsg(loginMsg, 'acc.err.id_short'); loginId.focus(); return; }
         if (!pwd) { setMsg(loginMsg, 'acc.err.pwd_required'); loginPwd.focus(); return; }
         if (!cryptoReady()) { setMsg(loginMsg, 'acc.err.no_crypto'); return; }
 
@@ -755,11 +811,129 @@
       onEnter(loginId, btnLogin);
       onEnter(loginPwd, btnLogin);
 
+      /* ---------------- 账号设置：更改自己的编号（仅登录后可用） ---------------- */
+      var settingsCard = d.getElementById('acctSettings');
+      var curIdEl = d.getElementById('curId');
+      var chgId = d.getElementById('chgId');
+      var chgPwd = d.getElementById('chgPwd');
+      var chgMsg = d.getElementById('chgMsg');
+      var chgHint = d.getElementById('chgHint');
+      var btnChangeId = d.getElementById('btnChangeId');
+      var chgDone = d.getElementById('chgDone');
+      var chgNewId = d.getElementById('chgNewId');
+      var chgDoneMsg = d.getElementById('chgDoneMsg');
+      var btnCopyNew = d.getElementById('btnCopyNew');
+      var sessionId = ''; // 当前登录编号（更改成功后立即刷新为新编号）
+      var lastNewId = '';
+
+      // 新编号：必须 8 位，字符仅 0-9 A-Z a-z 与 @（@ 是唯一允许的特殊符号）
+      var SESSION_ID_RE = /^[A-Za-z0-9@]{6,8}$/;
+      var NEW_ID_RE = /^[A-Za-z0-9@]{8}$/;
+      var ID_ILLEGAL_RE = /[^A-Za-z0-9@]/;
+
+      function setHint(key) {
+        if (!chgHint) return;
+        chgHint.className = 'hint' + (key === 'acc.chgOk' ? ' hint-ok' : '');
+        chgHint.setAttribute('data-msg-key', key || 'acc.chgRule');
+        chgHint.textContent = T(key || 'acc.chgRule');
+      }
+
+      // 实时校验：非法字符当场剔除，并按「字符 → 位数 → 与原编号相同 → 可用」顺序给出提示
+      function liveCheck() {
+        var raw = chgId.value || '';
+        var clean = raw.replace(ACCEPT_RE, '').substr(0, 8);
+        if (clean !== raw) {
+          chgId.value = clean;
+          return 'acc.chgChar';
+        }
+        if (!clean) return 'acc.chgRule';
+        if (clean.length !== 8) return 'acc.chgLen';
+        if (sessionId && clean === sessionId) return 'acc.chgSame';
+        return 'acc.chgOk';
+      }
+
+      chgId.oninput = function () {
+        setHint(liveCheck());
+        setMsg(chgMsg, '');
+      };
+
+      btnChangeId.onclick = function () {
+        if (btnChangeId.disabled) return;
+        var raw = chgId.value || '';
+        var newId = raw.replace(ACCEPT_RE, '');
+        var pwd = chgPwd.value || '';
+
+        setMsg(chgMsg, '');
+        chgDone.style.display = 'none';
+
+        if (!sessionId) { setMsg(chgMsg, 'acc.err.not_login'); return; }
+        if (!newId) { setMsg(chgMsg, 'acc.err.new_id_required'); chgId.focus(); return; }
+        if (ID_ILLEGAL_RE.test(raw)) { setMsg(chgMsg, 'acc.err.id_char'); chgId.focus(); return; }
+        if (!NEW_ID_RE.test(newId)) { setMsg(chgMsg, 'acc.err.id_len'); chgId.focus(); return; }
+        if (newId === sessionId) { setMsg(chgMsg, 'acc.err.id_same'); chgId.focus(); return; }
+        if (!pwd) { setMsg(chgMsg, 'acc.err.pwd_required'); chgPwd.focus(); return; }
+        if (!cryptoReady()) { setMsg(chgMsg, 'acc.err.no_crypto'); return; }
+
+        btnChangeId.disabled = true;
+        setBtnLabel(btnChangeId, 'acc.changing');
+
+        // 先取当前编号的盐计算密码哈希，再提交改号：明文密码不出浏览器
+        post({ action: 'challenge', id: sessionId }).then(function (data) {
+          if (!data || !data.ok || !data.salt) return { ok: false, code: (data && data.code) || 'bad_cred' };
+          return sha256Hex(data.salt + ':' + pwd).then(function (pwdHash) {
+            if (!pwdHash) return { ok: false, code: 'no_crypto' };
+            return post({ action: 'changeId', id: sessionId, newId: newId, pwdHash: pwdHash });
+          });
+        }).then(function (data) {
+          btnChangeId.disabled = false;
+          setBtnLabel(btnChangeId, 'acc.changeBtn');
+          if (data && data.ok && data.id) {
+            lastNewId = data.id;
+            chgNewId.textContent = data.id;
+            chgDone.style.display = '';
+            chgPwd.value = '';
+            chgId.value = '';
+            // 同步登录态：编号已迁移，sessionStorage 不留旧编号，否则刷新后旧编号失效
+            sessionId = data.id;
+            curIdEl.textContent = data.id;
+            loginId.value = data.id;
+            try { sessionStorage.setItem(SID_KEY, data.id); } catch (e) {}
+            setMsg(chgDoneMsg, 'acc.changeOk', 'ok');
+            setHint('acc.chgRule');
+            return;
+          }
+          showErr(chgMsg, data);
+        }).catch(function () {
+          btnChangeId.disabled = false;
+          setBtnLabel(btnChangeId, 'acc.changeBtn');
+          setMsg(chgMsg, 'acc.err.net');
+        });
+      };
+
+      btnCopyNew.onclick = function () {
+        if (!lastNewId) return;
+        function ok() { setBtnLabel(btnCopyNew, 'acc.copied'); setTimeout(function () { setBtnLabel(btnCopyNew, 'acc.copy'); }, 1600); }
+        if (w.navigator && navigator.clipboard && navigator.clipboard.writeText) {
+          navigator.clipboard.writeText(lastNewId).then(ok, function () {
+            if (legacyCopy(lastNewId)) ok(); else setBtnLabel(btnCopyNew, 'acc.copy');
+          });
+        } else if (legacyCopy(lastNewId)) {
+          ok();
+        }
+      };
+
+      onEnter(chgId, btnChangeId);
+      onEnter(chgPwd, btnChangeId);
+
       /* ---------------- 初始状态 ---------------- */
-      // 已登录过则默认展示登录页，方便再次登录
+      // 已登录过则默认展示登录页，方便再次登录；同时展开账号设置卡片用于更改编号
       var savedId = '';
       try { savedId = sessionStorage.getItem(SID_KEY) || ''; } catch (e) {}
-      if (savedId && /^[A-Z0-9]{6}$/.test(savedId)) {
+      if (savedId && SESSION_ID_RE.test(savedId)) {
+        sessionId = savedId;
+        curIdEl.textContent = savedId;
+        settingsCard.style.display = '';
+        setHint('acc.chgRule');
         loginId.value = savedId;
         showTab('login');
       }

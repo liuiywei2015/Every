@@ -363,14 +363,29 @@
       <a class="entry-btn" href="chat.html" data-i18n="guest.enterChat">进入聊天室</a>
     </div>
 
-    <!-- 账号登录入口：游客 → 登录界面 -->
-    <section class="account-entry">
+    <!-- 账号登录入口：游客 → 登录界面；已登录时整卡隐藏（默认 visibility:hidden 占位，避免首帧闪现与布局跳动） -->
+    <section class="account-entry" id="accountEntry" style="visibility:hidden">
       <div class="account-entry-text">
         <p class="account-entry-title" data-i18n="guest.accountTitle">已有账号</p>
         <p class="account-entry-sub" data-i18n="guest.accountSub">登录后即可使用聊天室等全部功能</p>
       </div>
       <a class="account-entry-btn" href="account.html" data-i18n="guest.accountBtn">进入登录界面</a>
     </section>
+    <script>
+      (function () {
+        // 已登录（sessionStorage 存有账号编号）：整卡不显示，display 收起占用空间，visibility 双保险
+        var card = document.getElementById('accountEntry');
+        if (!card) return;
+        var sid = '';
+        try { sid = String(sessionStorage.getItem('cealin_account_id') || '').trim(); } catch (e) { sid = ''; }
+        if (/^[A-Za-z0-9@]{6,8}$/.test(sid)) {
+          card.style.visibility = 'hidden';
+          card.style.display = 'none';
+        } else {
+          card.style.visibility = 'visible';
+        }
+      })();
+    </script>
 
     <a class="back-home" href="index.html" data-i18n="common.backHome">返回首页</a>
   </main>
