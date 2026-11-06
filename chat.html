@@ -671,6 +671,7 @@
         <li><a href="chat.html" class="active" data-i18n="nav.chat">聊天室</a></li>
         <li><a href="suggestion.html" data-i18n="nav.suggestion">建议</a></li>
         <li><a href="notice-admin.html" data-i18n="nav.notice">公告</a></li>
+        <li><a href="mine.html" data-i18n="nav.mine">我的</a></li>
       </ul>
       <a class="avatar" href="settings.html" title="设置" data-i18n-title="nav.settings"></a>
     </div>
@@ -770,7 +771,11 @@
       var SID_KEY = 'cealin_account_id';
       var SNAME_KEY = 'cealin_account_name';
       var API = '/api/rooms';
+      // 消息轮询节奏：基准 6 秒；失败时按倍数退避到上限 60 秒，成功后恢复基准
+      var POLL_INTERVAL = 6000;
+      var POLL_BACKOFF_MAX = 60000;
       var pollTimer = null;
+      var pollDelay = POLL_INTERVAL;
       var currentCode = '';
       var currentName = '';
       var currentBanned = false;
@@ -956,8 +961,7 @@
         if (editEntry) editEntry.style.display = currentRole === 'admin' ? 'block' : 'none';
         clearOfflineTip();
         loadMessages();
-        if (pollTimer) clearInterval(pollTimer);
-        pollTimer = setInterval(loadMessages, 3000);
+        startPolling();
         el('msgInput').focus();
       }
 
@@ -1170,7 +1174,7 @@
       };
 
       window.leaveRoom = function () {
-        if (pollTimer) { clearInterval(pollTimer); pollTimer = null; }
+        stopPolling();
         if (currentCode && currentName) {
           post('/leave', { code: currentCode, name: currentName }).catch(function () {});
         }
@@ -1210,12 +1214,71 @@
         el('nickInput').focus();
       };
 
-      window.loadMessages = function () {
+      /* ---------------- 消息轮询调度 ----------------
+       * 基准 6 秒；页面不可见（切标签页 / 切后台）时完全暂停，恢复可见时立即拉取一次再恢复定时；
+       * 单次失败按 2 倍退避（6s → 12s → 24s → 48s → 上限 60s），下一次成功即回到基准，
+       * 避免接口异常时按固定节奏持续打请求。 */
+      function stopPolling() {
+        if (pollTimer) {
+          clearTimeout(pollTimer);
+          pollTimer = null;
+        }
+      }
+
+      function schedulePoll(delay) {
+        stopPolling();
+        if (!currentCode || document.hidden) return;
+        pollTimer = setTimeout(function () {
+          pollTimer = null;
+          runPollOnce();
+        }, delay);
+      }
+
+      function runPollOnce() {
+        if (!currentCode || document.hidden) return;
+        loadMessages()
+          .then(function (ok) {
+            pollDelay = ok ? POLL_INTERVAL : Math.min(pollDelay * 2, POLL_BACKOFF_MAX);
+          })
+          .catch(function () {
+            pollDelay = Math.min(pollDelay * 2, POLL_BACKOFF_MAX);
+          })
+          .then(function () {
+            schedulePoll(pollDelay);
+          });
+      }
+
+      function startPolling() {
+        pollDelay = POLL_INTERVAL;
+        schedulePoll(POLL_INTERVAL);
+      }
+
+      document.addEventListener('visibilitychange', function () {
         if (!currentCode) return;
-        fetch(API + '/messages?code=' + encodeURIComponent(currentCode) + '&name=' + encodeURIComponent(currentName))
+        if (document.hidden) {
+          stopPolling();
+          return;
+        }
+        // 恢复可见：立即补一次，把离开期间的增量一次拉回来，再按结果决定下次间隔（失败同样退避）
+        pollDelay = POLL_INTERVAL;
+        loadMessages()
+          .then(function (ok) {
+            pollDelay = ok ? POLL_INTERVAL : Math.min(pollDelay * 2, POLL_BACKOFF_MAX);
+          })
+          .catch(function () {
+            pollDelay = Math.min(pollDelay * 2, POLL_BACKOFF_MAX);
+          })
+          .then(function () {
+            schedulePoll(pollDelay);
+          });
+      });
+
+      window.loadMessages = function () {
+        if (!currentCode) return Promise.resolve(false);
+        return fetch(API + '/messages?code=' + encodeURIComponent(currentCode) + '&name=' + encodeURIComponent(currentName))
           .then(function (resp) { return resp.json(); })
           .then(function (data) {
-            if (!data || !data.ok || !Array.isArray(data.messages)) return;
+            if (!data || !data.ok || !Array.isArray(data.messages)) return false;
             // 轮询同步官方授权与房间名称（管理员授权/取消后即时反映到标题区与横幅）
             if (data.verified !== undefined || data.roomName !== undefined) {
               currentVerified = !!data.verified;
@@ -1237,7 +1300,7 @@
             if (!list.length) {
               wrap.innerHTML = '<div class="msg-empty">' + cealinT('chat.empty') + '</div>';
               lastCount = 0;
-              return;
+              return true;
             }
             wrap.innerHTML = list.map(function (m) {
               var mine = isMineMsg(m);
@@ -1258,8 +1321,9 @@
               wrap.scrollTop = wrap.scrollHeight;
               lastCount = list.length;
             }
+            return true;
           })
-          .catch(function () { /* 轮询失败静默，等待下次 */ });
+          .catch(function () { return false; /* 轮询失败静默，由调度器退避后重试 */ });
       };
 
       // 本人消息判定：已登录账号一律以账号编号为准（刷新 / 重进房间 / 临时改名均有效），

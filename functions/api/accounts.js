@@ -10,15 +10,15 @@
 //   { action: 'changeId', id, newId, pwdHash }    或 { action: 'changeId', id, newId, password }
 //   { action: 'changePwd', id, pwdHash, newPwdHash, newSalt? }
 //                                 或 { action: 'changePwd', id, password, newPassword }
-//   { action: 'heartbeat', id }                   在线心跳：写 account:presence:{id}（TTL 300 秒）
-//   { action: 'search', password, q? }            管理员：账号列表 / 按编号或名称搜索（q 留空=全部）
-//   { action: 'stats', password }                 管理员：概览统计（在线数、账号数、房间数、消息数、KV 用量估算）
+//   { action: 'heartbeat', id }                   在线心跳：写 account:presence:{id}（TTL 1800 秒）
+//   { action: 'search', password, q? }            管理员：账号列表 / 按编号或名称搜索（q 留空=全部，60 秒边缘缓存）
+//   { action: 'stats', password }                 管理员：概览统计（在线数、账号数、房间数、消息数估算、KV 用量估算，60 秒边缘缓存）
 //   { action: 'official', password, id, official } 管理员：授予 / 取消官方认证
 // 响应：{ ok: true, id, name } / { ok: false, error, code }
 //
 // KV 约定（绑定名 GUESTBOOK）：
 //   account:{id} -> { id, name, pwdHash, salt, createdAt, official?, officialAt?, idChangedAt? }
-//   account:presence:{id} -> { id, ts }  （在线心跳，写入时带 expirationTtl=300 秒自动回收）
+//   account:presence:{id} -> { id, ts }  （在线心跳，写入时带 expirationTtl=1800 秒自动回收）
 //   新编号固定 8 位，字符集为 0-9 / A-Z / a-z 与 @（@ 为唯一允许的特殊符号）；
 //   系统自动分配的编号只用大写字母 + 数字（排除易混淆的 0 O 1 I L），便于手抄。
 
@@ -48,18 +48,24 @@ const SEARCH_PAGE_SIZE = 1000;
 const ACCOUNT_READ_MAX = 300;
 const ACCOUNT_SCAN_MAX = 2000;
 
-// 在线心跳：account:presence:{id} 带 300 秒 TTL 自动回收；读取时 180 秒内有心跳视为在线
+// 在线心跳：account:presence:{id} 带 1800 秒 TTL 自动回收；读取时 20 分钟内有心跳视为在线。
+// 阈值必须明显大于前端心跳间隔（10 分钟 + 0~2 分钟抖动），否则用户会在下一次心跳到来前被判离线。
 const PRESENCE_PREFIX = 'account:presence:';
-const PRESENCE_TTL = 300;
-const ONLINE_WINDOW = 180 * 1000;
+const PRESENCE_TTL = 1800;
+const ONLINE_WINDOW = 20 * 60 * 1000;
 // 单次心跳表读取上限（防止大量历史键拖垮请求）
 const PRESENCE_READ_LIMIT = 200;
 
-// 概览统计：最多遍历 10 页（每页 1000 键）、最多读 100 个房间、每类最多 4 个抽样键
+// 概览统计：最多遍历 10 页（每页 1000 键）、最多读 30 个房间做消息量抽样、每类最多 4 个抽样键
 const STATS_PAGES = 10;
 const STATS_PAGE_SIZE = 1000;
-const STATS_ROOM_READ_MAX = 100;
+const STATS_ROOM_READ_MAX = 30;
 const STATS_SAMPLE_PER_CAT = 4;
+
+// 管理员统计 / 搜索结果的边缘缓存：同一查询 60 秒内复用，避免后台反复点击消耗 KV 读与 list 配额。
+// 缓存键只由「接口类型 + 查询词」决定；管理员密码校验始终在读写缓存之前完成，未授权请求不会进入缓存。
+const CACHE_TTL = 60;
+const CACHE_HOST = 'cealin-cache.internal';
 
 function bytesToHex(bytes) {
   let out = '';
@@ -158,8 +164,8 @@ function categorizeKey(name) {
   return 'other';
 }
 
-// 读取在线表：account:presence:{id} 的键本身带 300 秒 TTL，
-// 值里的 ts 在 180 秒内才算在线；超出的只作为「最近活跃时间」参考。
+// 读取在线表：account:presence:{id} 的键本身带 1800 秒 TTL，
+// 值里的 ts 在 20 分钟内才算在线；超出的只作为「最近活跃时间」参考。
 async function readPresence(kv, now, maxRead) {
   const names = [];
   let cursor;
@@ -216,6 +222,65 @@ export async function onRequest(context) {
     });
 
   const fail = (status, error, code) => json({ ok: false, error, code }, status);
+
+  /* ---------------- 边缘缓存（Cloudflare Cache API） ----------------
+   * 只服务管理员 stats / search：同一「接口类型 + 查询词」60 秒内复用结果，
+   * 避免后台反复点刷新、反复搜索时把 KV 读次数与 list 配额打满。
+   * 缓存键用内部域名 + 路径 + 查询词构造（不同查询词、不同统计类型互不串数据）；
+   * 读缓存与写缓存一律发生在管理员密码校验通过之后，未授权请求既不会命中也不会污染缓存。
+   * 本地开发或未绑定 caches 时自动退化为直连 KV，行为不变。 */
+  const cacheStore = (() => {
+    try {
+      if (typeof caches !== 'undefined' && caches && caches.default) return caches.default;
+    } catch (err) {
+      /* 无 Cache API 时忽略 */
+    }
+    return null;
+  })();
+
+  const cacheKeyOf = (kind, q) =>
+    'https://' + CACHE_HOST + '/api/accounts/' + kind + (q ? '?q=' + encodeURIComponent(String(q).toLowerCase()) : '');
+
+  const cacheRead = async (key) => {
+    if (!cacheStore) return null;
+    try {
+      const hit = await cacheStore.match(key);
+      if (!hit) return null;
+      const text = await hit.text();
+      return text || null;
+    } catch (err) {
+      return null;
+    }
+  };
+
+  const cacheHit = (text) =>
+    new Response(text, {
+      status: 200,
+      headers: { 'Content-Type': 'application/json; charset=utf-8', 'X-Cealin-Cache': 'hit' }
+    });
+
+  const cacheMiss = async (key, payload) => {
+    const text = JSON.stringify(payload);
+    if (cacheStore) {
+      try {
+        await cacheStore.put(
+          key,
+          new Response(text, {
+            headers: {
+              'Content-Type': 'application/json; charset=utf-8',
+              'Cache-Control': 'public, max-age=' + CACHE_TTL
+            }
+          })
+        );
+      } catch (err) {
+        /* 缓存写入失败不影响本次返回 */
+      }
+    }
+    return new Response(text, {
+      status: 200,
+      headers: { 'Content-Type': 'application/json; charset=utf-8', 'X-Cealin-Cache': 'miss' }
+    });
+  };
 
   if (request.method !== 'POST') {
     return fail(405, '不支持的请求方法', 'method');
@@ -494,9 +559,10 @@ export async function onRequest(context) {
     return json({ ok: true, id: updated.id || id, name: updated.name || '' });
   }
 
-  /* ---------------- 在线心跳：登录态页面每 60 秒上报一次 ----------------
-   * 只写 account:presence:{编号} = { id, ts }，并带 300 秒 TTL 自动回收，
-   * 因此离开页面无需额外通知，超过 180 秒没有心跳即视为离线。 */
+  /* ---------------- 在线心跳：登录态页面约每 10 分钟上报一次 ----------------
+   * 只写 account:presence:{编号} = { id, ts }，并带 1800 秒 TTL 自动回收，
+   * 因此离开页面无需额外通知，超过 20 分钟没有心跳即视为离线
+   * （判定阈值明显大于心跳间隔，保证用户不会在下一次心跳到来前被判离线）。 */
   if (action === 'heartbeat') {
     if (!ID_RE.test(id)) return fail(400, '编号格式不正确', 'id_bad');
 
@@ -537,6 +603,11 @@ export async function onRequest(context) {
     const now = Date.now();
     const q = (typeof body.q === 'string' ? body.q.trim() : '').replace(/^account:/i, '');
     const qLower = q.toLowerCase();
+
+    // 缓存命中直接返回（密码校验已在上方完成）：键含查询词，不同查询词互不干扰
+    const cacheKey = cacheKeyOf('search', qLower);
+    const cachedSearch = await cacheRead(cacheKey);
+    if (cachedSearch) return cacheHit(cachedSearch);
 
     // 1) 先取在线表（心跳键数量≈近期活跃账号数，通常很小）
     let presence = null;
@@ -631,7 +702,7 @@ export async function onRequest(context) {
       if (all[i].online) onlineCount++;
     }
 
-    return json({
+    return cacheMiss(cacheKey, {
       ok: true,
       accounts: accounts,
       count: accounts.length,
@@ -644,7 +715,9 @@ export async function onRequest(context) {
       // 列表本身被截断（只展示前 SEARCH_LIMIT 条）
       truncated: matched.length > accounts.length,
       // 数据量超过单请求处理上限，统计/匹配可能不完整
-      partial: keysTruncated || detailTruncated || !!presence.truncated
+      partial: keysTruncated || detailTruncated || !!presence.truncated,
+      // 结果会被边缘缓存复用，最长可能有 60 秒延迟
+      cacheTtl: CACHE_TTL
     });
   }
 
@@ -661,6 +734,11 @@ export async function onRequest(context) {
     if (!admin) return fail(401, '密码错误', 'admin_pwd');
 
     const now = Date.now();
+
+    // 缓存命中直接返回（密码校验已在上方完成）：统计结果只有一种，键不含查询词
+    const cacheKey = cacheKeyOf('stats', '');
+    const cachedStats = await cacheRead(cacheKey);
+    if (cachedStats) return cacheHit(cachedStats);
 
     // 1) 遍历全部 KV 键并归类（KV list 每页最多 1000 个键）
     const counts = { account: 0, presence: 0, room: 0, roomSub: 0, suggestion: 0, notice: 0, other: 0 };
@@ -694,7 +772,7 @@ export async function onRequest(context) {
     }
     const keysTruncated = !!cursor;
 
-    // 2) 在线人数：读心跳表，180 秒内有心跳算在线
+    // 2) 在线人数：读心跳表，20 分钟内有心跳算在线
     let presence = null;
     try {
       presence = await readPresence(kv, now, PRESENCE_READ_LIMIT);
@@ -777,7 +855,7 @@ export async function onRequest(context) {
       estimatedBytes += counts[cat] * avg;
     }
 
-    return json({
+    return cacheMiss(cacheKey, {
       ok: true,
       now: now,
       accounts: {
@@ -788,8 +866,15 @@ export async function onRequest(context) {
       },
       rooms: {
         total: counts.room,
+        // 消息总条数为抽样估算：只累加前 STATS_ROOM_READ_MAX 个房间的实际条数
         messages: messages,
-        counted: roomReadCodes.length
+        // 按抽样均值外推到全部房间的估算总量（仅供容量判断，非精确值）
+        messagesEstimate: roomReadCodes.length
+          ? Math.round((messages / roomReadCodes.length) * counts.room)
+          : 0,
+        counted: roomReadCodes.length,
+        readMax: STATS_ROOM_READ_MAX,
+        estimate: roomReadCodes.length < counts.room
       },
       kv: {
         keys: kvKeys,
@@ -802,9 +887,11 @@ export async function onRequest(context) {
         onlineWindow: ONLINE_WINDOW,
         presenceTtl: PRESENCE_TTL,
         listPageMax: STATS_PAGES * STATS_PAGE_SIZE,
-        roomReadMax: STATS_ROOM_READ_MAX
+        roomReadMax: STATS_ROOM_READ_MAX,
+        cacheTtl: CACHE_TTL
       },
-      truncated: keysTruncated || roomCodes.length > roomReadCodes.length || !!presence.truncated
+      // 房间数超过抽样上限不算「数据不完整」：消息数已由 rooms.estimate 明确标注为抽样估算
+      truncated: keysTruncated || !!presence.truncated
     });
   }
 

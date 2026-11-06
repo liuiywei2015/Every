@@ -32,6 +32,7 @@
     'title.notice': { zh: '公告管理 - Cealin', en: 'Manage notices - Cealin', ja: 'お知らせ管理 - Cealin', ko: '공지사항 관리 - Cealin', es: 'Gestionar anuncios - Cealin' },
     'title.suggestion': { zh: '建议 - Cealin', en: 'Feedback - Cealin', ja: 'ご意見 - Cealin', ko: '의견 - Cealin', es: 'Sugerencias - Cealin' },
     'title.account': { zh: '账号 - Cealin', en: 'Account - Cealin', ja: 'アカウント - Cealin', ko: '계정 - Cealin', es: 'Cuenta - Cealin' },
+    'title.mine': { zh: '我的 - Cealin', en: 'Me - Cealin', ja: 'マイページ - Cealin', ko: '내 정보 - Cealin', es: 'Mi cuenta - Cealin' },
 
     /* ---------- 导航与通用 ---------- */
     'nav.home': { zh: '首页', en: 'Home', ja: 'ホーム', ko: '홈', es: 'Inicio' },
@@ -40,6 +41,7 @@
     'nav.chat': { zh: '聊天室', en: 'Chat', ja: 'チャット', ko: '채팅방', es: 'Chat' },
     'nav.suggestion': { zh: '建议', en: 'Feedback', ja: 'ご意見', ko: '의견', es: 'Sugerencias' },
     'nav.notice': { zh: '公告', en: 'Notices', ja: 'お知らせ', ko: '공지사항', es: 'Anuncios' },
+    'nav.mine': { zh: '我的', en: 'Me', ja: 'マイページ', ko: '내 정보', es: 'Mi cuenta' },
     'nav.settingsTitle': { zh: '设置', en: 'Settings', ja: '設定', ko: '설정', es: 'Ajustes' },
     'nav.settings': { zh: '设置', en: 'Settings', ja: '設定', ko: '설정', es: 'Ajustes' },
 
@@ -231,7 +233,7 @@
     'ad.offEmpty': { zh: '没有匹配的账号', en: 'No accounts matched', ja: '一致するアカウントはありません', ko: '일치하는 계정이 없습니다', es: 'Ninguna cuenta coincide' },
     'ad.offTruncated': { zh: '匹配结果较多，仅显示前 50 个，请输入更完整的编号或名称缩小范围', en: 'Too many matches—showing the first 50. Enter a fuller ID or name to narrow it down.', ja: '一致件数が多いため先頭50件のみ表示しています。IDまたは名前を詳しく入力して絞り込んでください', ko: '일치 결과가 많아 앞의 50개만 표시합니다. ID 또는 이름을 더 정확히 입력해 범위를 좁혀 주세요', es: 'Hay demasiadas coincidencias: se muestran las primeras 50. Escribe un ID o nombre más completo para acotar.' },
     'ad.ovTitle': { zh: '概览', en: 'Overview', ja: '概要', ko: '개요', es: 'Resumen' },
-    'ad.ovDesc': { zh: '在线人数、聊天室与消息数均为实时读取结果；存储占用为抽样估算，仅供容量参考。', en: 'Online users, chat rooms and message counts are read live; storage usage is a sampled estimate, for capacity reference only.', ja: 'オンライン人数・チャットルーム数・メッセージ数はすべてリアルタイムに取得した値です。ストレージ使用量はサンプリングによる推定値で、容量の目安としてのみご利用ください。', ko: '온라인 인원, 채팅방 수, 메시지 수는 모두 실시간으로 읽어온 값입니다. 저장 공간 사용량은 표본 추정치로, 용량 참고용으로만 사용하세요.', es: 'El número de usuarios en línea, salas y mensajes se lee en tiempo real; el uso de almacenamiento es una estimación por muestreo y solo sirve como referencia de capacidad.' },
+    'ad.ovDesc': { zh: '在线人数、账号总数与聊天室数为实时读取结果；消息条数为抽样估算、存储占用为抽样推算，仅供容量参考。统计与搜索结果最多缓存 60 秒。', en: 'Online users, total accounts and chat rooms are read live; message totals are sampled estimates and storage usage is extrapolated, for capacity reference only. Stats and searches are cached for up to 60 seconds.', ja: 'オンライン人数・アカウント総数・チャットルーム数はリアルタイムに取得した値です。メッセージ数はサンプリングによる推定値、ストレージ使用量は抽出推算値で、容量の目安としてのみご利用ください。統計と検索の結果は最大 60 秒キャッシュされます。', ko: '온라인 인원, 전체 계정 수, 채팅방 수는 실시간으로 읽은 값입니다. 메시지 수는 표본 추정치, 저장 공간 사용량은 표본 추산치로 용량 참고용입니다. 통계와 검색 결과는 최대 60초간 캐시됩니다.', es: 'Los usuarios en línea, las cuentas totales y las salas se leen en tiempo real; el total de mensajes es una estimación por muestreo y el almacenamiento se extrapola, solo como referencia de capacidad. Las estadísticas y búsquedas se guardan en caché hasta 60 segundos.' },
     'ad.ovOnline': { zh: '在线人数', en: 'Online now', ja: 'オンライン人数', ko: '온라인 인원', es: 'En línea' },
     'ad.ovRate': { zh: '占账号总数 {p}%', en: '{p}% of all accounts', ja: '全アカウントの {p}%', ko: '전체 계정의 {p}%', es: '{p}% del total de cuentas' },
     'ad.ovNoAccount': { zh: '暂无账号数据', en: 'No accounts yet', ja: 'アカウントデータがありません', ko: '계정 데이터가 없습니다', es: 'Aún no hay datos de cuentas' },
@@ -241,6 +243,20 @@
     'ad.ovRoomsSub': { zh: '已读取 {n} 个房间的消息数', en: 'Message counts read from {n} rooms', ja: '{n} 件のルームからメッセージ数を取得', ko: '{n}개 방의 메시지 수를 읽음', es: 'Recuento de mensajes leído en {n} salas' },
     'ad.ovMessages': { zh: '消息总条数', en: 'Total messages', ja: 'メッセージ総数', ko: '전체 메시지 수', es: 'Mensajes totales' },
     'ad.ovMessagesSub': { zh: '按全部聊天室累计', en: 'Summed across all chat rooms', ja: 'すべてのルームの合計', ko: '모든 채팅방 합계', es: 'Suma de todas las salas' },
+    'ad.ovMessagesEst': {
+      zh: '抽样 {n} 个房间估算（共 {t} 个房间），非全量精确值',
+      en: 'Estimated from {n} of {t} rooms—not an exact total',
+      ja: '{t} 件中 {n} 件のルームを抽出した推定値（全体の正確な値ではありません）',
+      ko: '{t}개 중 {n}개 방을 표본으로 한 추정치(전체 정확값 아님)',
+      es: 'Estimado a partir de {n} de {t} salas; no es un total exacto'
+    },
+    'ad.ovQuota': {
+      zh: '容量与配额 · 心跳间隔 <b>{h}</b> 分钟 · 在线判定 <b>{w}</b> 分钟 · 按 <b>{d}</b> 位日活、人均在线 <b>{m}</b> 分钟估算：每人约 <b>{per}</b> 次心跳，合计约 <b>{n}</b> 次写入/天。Workers KV 免费额度为 1000 次写入/天，付费版 100 万次写入/月，超出需升级。以上为按当前配置推算的静态说明，不是实时配额数据。',
+      en: 'Capacity & quotas · heartbeat every <b>{h}</b> min · online threshold <b>{w}</b> min · with <b>{d}</b> daily active users online about <b>{m}</b> min each: about <b>{per}</b> heartbeats per user, roughly <b>{n}</b> writes per day. Workers KV includes 1,000 writes/day on the free plan and 1,000,000 writes/month on paid plans; above that an upgrade is required. These figures are a static calculation from the current configuration, not live quota data.',
+      ja: '容量と割り当て · ハートビート間隔 <b>{h}</b> 分 · オンライン判定 <b>{w}</b> 分 · 日次アクティブ <b>{d}</b> 人・1人あたり平均 <b>{m}</b> 分オンラインと仮定：1人あたり約 <b>{per}</b> 回、合計で約 <b>{n}</b> 回の書き込み/日。Workers KV は無料枠が 1 日 1,000 回、有料版が月 100 万回の書き込みで、超過時はアップグレードが必要です。本表示は現在の設定から算出した静的な説明であり、リアルタイムの割り当て値ではありません。',
+      ko: '용량 및 할당량 · 하트비트 간격 <b>{h}</b>분 · 온라인 판정 <b>{w}</b>분 · 일일 활성 사용자 <b>{d}</b>명, 1인당 평균 <b>{m}</b>분 접속 가정: 1인당 약 <b>{per}</b>회, 합계 약 <b>{n}</b>회 쓰기/일. Workers KV 무료 한도는 하루 1,000회 쓰기, 유료 플랜은 월 100만 회 쓰기이며 초과 시 업그레이드가 필요합니다. 이 안내는 현재 설정으로 계산한 정적 설명이며 실시간 할당량 데이터가 아닙니다.',
+      es: 'Capacidad y cuotas · latido cada <b>{h}</b> min · umbral de conexión <b>{w}</b> min · con <b>{d}</b> usuarios activos al día y <b>{m}</b> min en línea de media: unas <b>{per}</b> latidos por usuario y en total unas <b>{n}</b> escrituras al día. Workers KV incluye 1.000 escrituras/día en el plan gratuito y 1.000.000 al mes en el de pago; por encima hay que ampliar. Estas cifras son un cálculo estático según la configuración actual, no datos de cuota en tiempo real.'
+    },
     'ad.ovKvKeys': { zh: 'KV 键总数', en: 'KV keys', ja: 'KV キー総数', ko: 'KV 키 총수', es: 'Claves KV' },
     'ad.ovKvSub': { zh: '账号 {a} · 心跳 {p} · 房间 {r} · 建议 {s}', en: 'accounts {a} · heartbeat {p} · rooms {r} · suggestions {s}', ja: 'アカウント {a} · ハートビート {p} · ルーム {r} · 提案 {s}', ko: '계정 {a} · 하트비트 {p} · 방 {r} · 건의 {s}', es: 'cuentas {a} · latidos {p} · salas {r} · sugerencias {s}' },
     'ad.ovStorage': { zh: '存储占用', en: 'Storage usage', ja: 'ストレージ使用量', ko: '저장 공간 사용량', es: 'Uso de almacenamiento' },
@@ -347,6 +363,14 @@
     'acc.goLogin': { zh: '用这个编号登录', en: 'Log in with this ID', ja: 'このIDでログイン', ko: '이 ID로 로그인', es: 'Entrar con este ID' },
     'acc.setTitle': { zh: '账号设置', en: 'Account settings', ja: 'アカウント設定', ko: '계정 설정', es: 'Ajustes de la cuenta' },
     'acc.curIdLabel': { zh: '当前登录编号', en: 'Current ID', ja: '現在のアカウントID', ko: '현재 계정 ID', es: 'ID actual' },
+    'acc.toMine': {
+      zh: '账号设置（更改密码、更改编号、退出登录）已移至',
+      en: 'Password, ID and sign-out settings have moved to',
+      ja: 'パスワード・ID の変更やログアウトはこちらに移動しました：',
+      ko: '비밀번호·ID 변경과 로그아웃은 다음 페이지로 이동했습니다:',
+      es: 'Los ajustes de contraseña, ID y cierre de sesión están ahora en'
+    },
+
     'acc.newId': { zh: '新编号', en: 'New ID', ja: '新しいID', ko: '새 ID', es: 'Nuevo ID' },
     'acc.newIdPh': { zh: '8 位：数字、字母或 @', en: '8 characters: digits, letters or @', ja: '8桁：数字・英字・@', ko: '8자리: 숫자, 영문, @', es: '8 caracteres: números, letras o @' },
     'acc.chgRule': { zh: '须为 8 位，只能使用数字、字母（大小写均可）和 @，且不能与他人重复', en: 'Must be 8 characters, using only digits, letters (either case) and @, and it must not be taken', ja: '8桁で、数字・英字（大文字小文字）・@ のみ使用できます。他の人と重複はできません', ko: '8자리여야 하며 숫자, 영문(대소문자), @만 사용할 수 있고 다른 사람과 중복될 수 없습니다', es: 'Debe tener 8 caracteres y solo puede incluir números, letras (mayúsculas o minúsculas) y @, sin coincidir con otro' },
@@ -402,7 +426,22 @@
     'acc.err.id_same': { zh: '新编号与原编号相同', en: 'The new ID matches your current one', ja: '新しいIDが現在のIDと同じです', ko: '새 ID가 현재 ID와 같습니다', es: 'El nuevo ID es igual al actual' },
     'acc.err.id_taken': { zh: '该编号已被占用，请换一个', en: 'That ID is already taken—pick another', ja: 'そのIDはすでに使われています。別のIDにしてください', ko: '이미 사용 중인 ID입니다. 다른 ID를 입력해 주세요', es: 'Ese ID ya está en uso: elige otro' },
     'acc.err.id_not_found': { zh: '账号不存在或已被更改', en: 'That account no longer exists', ja: 'アカウントが見つかりません', ko: '계정을 찾을 수 없습니다', es: 'Esa cuenta ya no existe' },
-    'acc.err.admin_pwd': { zh: '管理员密码校验失败，请重新登录后台', en: 'Admin password check failed—sign in to the console again', ja: '管理者パスワードの確認に失敗しました。管理画面に再ログインしてください', ko: '관리자 비밀번호 확인에 실패했습니다. 관리자 화면에 다시 로그인해 주세요', es: 'La contraseña de administrador no es válida: vuelve a entrar en el panel' }
+    'acc.err.admin_pwd': { zh: '管理员密码校验失败，请重新登录后台', en: 'Admin password check failed—sign in to the console again', ja: '管理者パスワードの確認に失敗しました。管理画面に再ログインしてください', ko: '관리자 비밀번호 확인에 실패했습니다. 관리자 화면에 다시 로그인해 주세요', es: 'La contraseña de administrador no es válida: vuelve a entrar en el panel' },
+
+    /* ---------- 我的（个人中心） ---------- */
+    'mine.title': { zh: '我的', en: 'Me', ja: 'マイページ', ko: '내 정보', es: 'Mi cuenta' },
+    'mine.sub': {
+      zh: '账号信息与安全设置都在这里',
+      en: 'Your account details and security settings, all in one place',
+      ja: 'アカウント情報とセキュリティ設定をここにまとめています',
+      ko: '계정 정보와 보안 설정을 이곳에서 관리합니다',
+      es: 'Los datos de tu cuenta y su seguridad, todo en un mismo lugar'
+    },
+    'mine.infoTitle': { zh: '账号信息', en: 'Account details', ja: 'アカウント情報', ko: '계정 정보', es: 'Datos de la cuenta' },
+    'mine.idLabel': { zh: '账号编号', en: 'Account ID', ja: 'アカウントID', ko: '계정 ID', es: 'ID de cuenta' },
+    'mine.nameLabel': { zh: '名称', en: 'Name', ja: '名前', ko: '이름', es: 'Nombre' },
+    'mine.official': { zh: '官方认证', en: 'Verified', ja: '公式認証', ko: '공식 인증', es: 'Cuenta verificada' },
+    'mine.created': { zh: '注册时间', en: 'Joined', ja: '登録日', ko: '가입일', es: 'Fecha de alta' }
   };
 
   var current = DEFAULT_LANG;

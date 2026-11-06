@@ -578,6 +578,22 @@
     letter-spacing: 0.1em;
     line-height: 1.6;
   }
+  /* 容量与配额提示：静态配置值 + 按 1000 日活的写入量估算，非实时配额数据 */
+  .ov-quota {
+    margin: 16px 0 0;
+    padding-top: 12px;
+    border-top: 1px dashed rgba(var(--line-rgb), 0.22);
+    font-size: 11px;
+    line-height: 1.8;
+    letter-spacing: 0.03em;
+    color: var(--muted);
+    word-break: break-word;
+  }
+  .ov-quota b {
+    color: var(--gold);
+    font-weight: 700;
+    font-family: Menlo, Consolas, monospace;
+  }
   @media (max-width: 900px) {
     .ov-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
     .ov-tile.ov-wide { grid-column: span 2; }
@@ -692,6 +708,8 @@
           <span class="ov-sub" id="ovKvSizeSub"></span>
         </div>
       </div>
+      <!-- 容量与配额：静态配置 + 估算说明，不读取任何实时配额接口 -->
+      <p class="ov-quota" id="ovQuota"></p>
       <div class="notice-meta">
         <span class="notice-count" id="ovUpdated"></span>
         <button type="button" class="save-btn" id="ovRefreshBtn" onclick="loadStats()" data-i18n="ad.ovRefresh">刷新概览</button>
@@ -1092,6 +1110,14 @@
       var ovUpdatedEl = document.getElementById('ovUpdated');
       var ovMsgEl = document.getElementById('ovMsg');
       var ovRefreshBtn = document.getElementById('ovRefreshBtn');
+      var ovQuotaEl = document.getElementById('ovQuota');
+
+      // 与服务器（functions/api/accounts.js）和前端（presence.js）保持一致的容量参数：
+      // 心跳基准间隔 10 分钟、在线判定窗口 20 分钟；扩容时三处同步修改。
+      var HEARTBEAT_MIN = 10;
+      var ONLINE_WINDOW_MIN = 20;
+      var QUOTA_DAU = 1000;      // 按「每天 1000 人在线」标定
+      var QUOTA_ONLINE_HOURS = 1; // 每人平均在线时长假设（估算口径）
 
       // 环形图：半径 50 → 周长 2πr，用 dashoffset 表示占比
       var RING_LEN = 2 * Math.PI * 50;
@@ -1102,6 +1128,37 @@
         if (n < 1024) return n + ' B';
         if (n < 1048576) return (n / 1024).toFixed(1) + ' KB';
         return (n / 1048576).toFixed(2) + ' MB';
+      }
+
+      /* 容量与配额提示：展示当前真实配置值（心跳间隔 / 在线阈值）与按 1000 日活推算的心跳写入量。
+       * 全部为静态计算说明，不请求任何配额接口，也不展示伪造的「剩余额度」。
+       * 口径：每人每天心跳次数 ≈ 平均在线分钟数 ÷ 心跳间隔（向上取整），再乘日活人数。 */
+      function fmtNum(n) {
+        var lang = (window.cealinLang && window.cealinLang()) || 'zh';
+        var v = Number(n) || 0;
+        // 中/日/韩不对 4 位数加千分位；英文、西班牙文按本地习惯分组
+        if (v < 10000 && (lang === 'zh' || lang === 'ja' || lang === 'ko')) return String(v);
+        try {
+          var map = { zh: 'zh-CN', en: 'en-US', ja: 'ja-JP', ko: 'ko-KR', es: 'es-ES' };
+          return v.toLocaleString(map[lang] || 'en-US');
+        } catch (e) {
+          return String(v);
+        }
+      }
+
+      function renderQuota() {
+        if (!ovQuotaEl) return;
+        var minutes = QUOTA_ONLINE_HOURS * 60;
+        var perUser = Math.ceil(minutes / HEARTBEAT_MIN) || 1;
+        var writes = perUser * QUOTA_DAU;
+        ovQuotaEl.innerHTML = cealinT('ad.ovQuota', {
+          h: HEARTBEAT_MIN,
+          w: ONLINE_WINDOW_MIN,
+          d: fmtNum(QUOTA_DAU),
+          m: minutes,
+          per: perUser,
+          n: fmtNum(writes)
+        });
       }
 
       function renderStats(data) {
@@ -1127,8 +1184,17 @@
 
         ovRoomsEl.textContent = Number(r.total) || 0;
         ovRoomsSub.textContent = cealinT('ad.ovRoomsSub', { n: Number(r.counted) || 0 });
-        ovMessagesEl.textContent = Number(r.messages) || 0;
-        ovMessagesSub.textContent = cealinT('ad.ovMessagesSub');
+        // 消息条数：房间数超出抽样上限时展示按样本外推的估算值（带 ≈ 前缀），并标注抽样口径
+        if (r.estimate || (Number(r.readMax) && Number(r.counted) < (Number(r.total) || 0))) {
+          ovMessagesEl.textContent = '≈' + fmtNum(Number(r.messagesEstimate) || 0);
+          ovMessagesSub.textContent = cealinT('ad.ovMessagesEst', {
+            n: Number(r.counted) || 0,
+            t: Number(r.total) || 0
+          });
+        } else {
+          ovMessagesEl.textContent = Number(r.messages) || 0;
+          ovMessagesSub.textContent = cealinT('ad.ovMessagesSub');
+        }
         ovKvEl.textContent = Number(k.keys) || 0;
         ovKvSub.textContent = cealinT('ad.ovKvSub', {
           a: Number(by.account) || 0,
@@ -1140,6 +1206,7 @@
         ovSizeSub.textContent = cealinT('ad.ovSizeSub', { n: Number(k.sampledKeys) || 0 });
         ovUpdatedEl.textContent = cealinT('ad.ovUpdated', { t: fmtRoomTime(data.now) });
         ovMsgEl.textContent = data.truncated ? cealinT('ad.ovTruncated') : '';
+        renderQuota();
       }
 
       function loadStats() {
@@ -1370,6 +1437,8 @@
       } else {
         // 仅管理员会话有效时读取当前公告并预填（供编辑使用）
         ovCard.style.display = 'block';
+        // 配额提示是静态配置说明，先渲染出来，不依赖 stats 请求是否成功
+        renderQuota();
         loadStats();
         roomCard.style.display = 'block';
         loadRoomsList();
@@ -1445,6 +1514,7 @@
           if (sugList && sugList.children.length) loadSuggestionsList();
           // 概览用最近一次数据重绘（不重复请求），账号列表按当前查询词重拉
           if (ovData) renderStats(ovData);
+          renderQuota();
           requestAccounts((offQuery.value || '').replace(/^\s+|\s+$/g, ''));
         });
       }
