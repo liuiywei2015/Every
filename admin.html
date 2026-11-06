@@ -472,6 +472,148 @@
   to { opacity: 1; transform: translateY(0); }
 }
   button:hover:active:not(:disabled) { transform: translateY(0) scale(0.97); }
+
+  /* ========== 概览面板（环形图 + 指标卡，纯 CSS/SVG） ========== */
+  .ov-grid {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 12px;
+    margin-top: 4px;
+  }
+  .ov-tile.ov-wide { grid-column: span 3; }
+  .ov-tile {
+    padding: 14px 16px;
+    border-radius: 10px;
+    border: 1px solid rgba(var(--line-rgb), 0.12);
+    background: linear-gradient(160deg, rgba(var(--panel-rgb), 0.55), rgba(var(--panel-rgb), 0.2));
+    display: flex;
+    flex-direction: column;
+    gap: 5px;
+    min-width: 0;
+  }
+  .ov-tile.ov-ring-tile {
+    grid-row: span 2;
+    align-items: center;
+    justify-content: center;
+    gap: 4px;
+  }
+  .ov-label {
+    font-size: 10px;
+    letter-spacing: 0.2em;
+    text-transform: uppercase;
+    color: var(--muted);
+    display: flex;
+    align-items: center;
+  }
+  .ov-num {
+    font-size: 24px;
+    font-weight: 800;
+    letter-spacing: 0.03em;
+    color: var(--fg);
+    font-family: Menlo, Consolas, monospace;
+    line-height: 1.25;
+    word-break: break-all;
+  }
+  .ov-sub {
+    font-size: 11px;
+    line-height: 1.6;
+    letter-spacing: 0.04em;
+    color: var(--muted);
+    word-break: break-word;
+  }
+  .ov-bar {
+    height: 6px;
+    border-radius: 999px;
+    background: rgba(var(--line-rgb), 0.14);
+    overflow: hidden;
+    margin-top: 2px;
+  }
+  .ov-bar-fill {
+    display: block;
+    height: 100%;
+    width: 0%;
+    border-radius: 999px;
+    background: linear-gradient(90deg, rgba(200, 169, 110, 0.7), rgba(200, 169, 110, 1));
+    transition: width 0.7s cubic-bezier(0.22, 1, 0.36, 1);
+  }
+  .ov-ring-wrap { position: relative; display: flex; align-items: center; justify-content: center; }
+  .ov-ring { width: 116px; height: 116px; display: block; }
+  .ov-ring circle { fill: none; stroke-width: 9; stroke-linecap: round; }
+  .ov-ring-bg { stroke: rgba(var(--line-rgb), 0.14); }
+  .ov-ring-fg {
+    stroke: rgba(200, 169, 110, 0.95);
+    filter: drop-shadow(0 0 6px rgba(200, 169, 110, 0.45));
+    transition: stroke-dashoffset 0.9s cubic-bezier(0.22, 1, 0.36, 1);
+  }
+  .ov-ring-center {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 1px;
+  }
+  .ov-ring-num {
+    font-size: 25px;
+    font-weight: 800;
+    color: var(--gold);
+    font-family: Menlo, Consolas, monospace;
+    line-height: 1.1;
+  }
+  .ov-ring-label {
+    font-size: 9px;
+    letter-spacing: 0.16em;
+    color: var(--muted);
+    text-transform: uppercase;
+  }
+  .ov-est {
+    display: inline-block;
+    margin-left: 6px;
+    padding: 1px 7px;
+    border-radius: 999px;
+    border: 1px solid rgba(200, 169, 110, 0.45);
+    color: var(--gold);
+    font-size: 9px;
+    letter-spacing: 0.1em;
+    line-height: 1.6;
+  }
+  @media (max-width: 900px) {
+    .ov-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    .ov-tile.ov-wide { grid-column: span 2; }
+  }
+  @media (max-width: 620px) {
+    .ov-grid { grid-template-columns: 1fr; }
+    .ov-tile.ov-ring-tile { grid-row: auto; }
+    .ov-tile.ov-wide { grid-column: span 1; }
+  }
+
+  /* ========== 账号列表状态（在线 / 离线） ========== */
+  .acc-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    flex: none;
+    margin-right: 2px;
+    background: rgba(var(--fg-rgb), 0.26);
+  }
+  .acc-dot.on {
+    background: #6fcf97;
+    box-shadow: 0 0 8px rgba(111, 207, 151, 0.7);
+  }
+  .acc-state { color: var(--muted); }
+  .acc-state.on { color: #6fcf97; }
+  .room-item.acc-online {
+    border-color: rgba(111, 207, 151, 0.32);
+    box-shadow: inset 2px 0 0 rgba(111, 207, 151, 0.55);
+  }
+  .off-actions {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    flex-wrap: wrap;
+    margin-top: 12px;
+  }
 </style>
   <script src="notice-link.js"></script>
   <script src="i18n.js"></script>
@@ -504,6 +646,58 @@
   <main class="main">
     <h1 class="page-title" data-i18n="ad.title">管理员界面</h1>
     <p class="page-sub" data-i18n="ad.sub">欢迎回来，管理员</p>
+
+    <!-- 概览面板（管理面板首位） -->
+    <section class="notice-card" id="ovCard" style="display:none;">
+      <h2 class="notice-title" data-i18n="ad.ovTitle">概览</h2>
+      <p class="notice-tip" data-i18n="ad.ovDesc">在线人数、聊天室与消息数均为实时读取结果；存储占用为抽样估算，仅供容量参考。</p>
+      <div class="ov-grid">
+        <div class="ov-tile ov-ring-tile">
+          <div class="ov-ring-wrap">
+            <svg class="ov-ring" viewBox="0 0 120 120" aria-hidden="true">
+              <circle class="ov-ring-bg" cx="60" cy="60" r="50"></circle>
+              <circle class="ov-ring-fg" id="ovRing" cx="60" cy="60" r="50" transform="rotate(-90 60 60)" stroke-dasharray="314.16" stroke-dashoffset="314.16"></circle>
+            </svg>
+            <div class="ov-ring-center">
+              <span class="ov-ring-num" id="ovOnline">—</span>
+              <span class="ov-ring-label" data-i18n="ad.ovOnline">在线人数</span>
+            </div>
+          </div>
+          <span class="ov-sub" id="ovOnlineRate"></span>
+        </div>
+        <div class="ov-tile">
+          <span class="ov-label" data-i18n="ad.ovAccounts">账号总数</span>
+          <span class="ov-num" id="ovAccounts">—</span>
+          <div class="ov-bar"><span class="ov-bar-fill" id="ovBarFill"></span></div>
+          <span class="ov-sub" id="ovOffline"></span>
+        </div>
+        <div class="ov-tile">
+          <span class="ov-label" data-i18n="ad.ovRooms">聊天室数量</span>
+          <span class="ov-num" id="ovRooms">—</span>
+          <span class="ov-sub" id="ovRoomsSub"></span>
+        </div>
+        <div class="ov-tile">
+          <span class="ov-label" data-i18n="ad.ovMessages">消息总条数</span>
+          <span class="ov-num" id="ovMessages">—</span>
+          <span class="ov-sub" id="ovMessagesSub"></span>
+        </div>
+        <div class="ov-tile">
+          <span class="ov-label" data-i18n="ad.ovKvKeys">KV 键总数</span>
+          <span class="ov-num" id="ovKvKeys">—</span>
+          <span class="ov-sub" id="ovKvSub"></span>
+        </div>
+        <div class="ov-tile ov-wide">
+          <span class="ov-label"><span data-i18n="ad.ovStorage">存储占用</span><span class="ov-est" data-i18n="ad.ovEstimate">估算</span></span>
+          <span class="ov-num" id="ovKvSize">—</span>
+          <span class="ov-sub" id="ovKvSizeSub"></span>
+        </div>
+      </div>
+      <div class="notice-meta">
+        <span class="notice-count" id="ovUpdated"></span>
+        <button type="button" class="save-btn" id="ovRefreshBtn" onclick="loadStats()" data-i18n="ad.ovRefresh">刷新概览</button>
+      </div>
+      <p class="notice-msg" id="ovMsg"></p>
+    </section>
 
     <!-- 编辑公告区 -->
     <section class="notice-card">
@@ -541,13 +735,17 @@
       <p class="notice-msg" id="sugMsg"></p>
     </section>
 
-    <!-- 官方账号管理区 -->
+    <!-- 账号管理区 -->
     <section class="notice-card" id="offAdminCard" style="display:none;">
       <h2 class="notice-title" data-i18n="ad.offTitle">官方账号</h2>
-      <p class="notice-tip" data-i18n="ad.offDesc">按编号搜索账号，可授予或取消「官方」认证。</p>
+      <p class="notice-tip" data-i18n="ad.offDesc">按编号或名称搜索账号（支持部分匹配），也可直接查看全部账号；可授予或取消「官方」认证。</p>
       <div class="off-search">
-        <input id="offQuery" class="off-input" type="text" maxlength="8" autocomplete="off" spellcheck="false" placeholder="输入编号（可只输入部分）" data-i18n-ph="ad.offPh">
+        <input id="offQuery" class="off-input" type="text" maxlength="32" autocomplete="off" spellcheck="false" placeholder="输入编号或名称（可只输入部分）" data-i18n-ph="ad.offPh">
         <button type="button" class="save-btn" id="offSearchBtn" onclick="searchAccounts()" data-i18n="ad.offSearch">搜索</button>
+      </div>
+      <div class="off-actions">
+        <button type="button" class="op-btn verify" id="offAllBtn" onclick="listAllAccounts()" data-i18n="ad.accAll">全部账号</button>
+        <span class="ov-sub" data-i18n="ad.accSortHint">排序：在线优先，离线在后；同组按最近活跃时间倒序。</span>
       </div>
       <div class="notice-meta">
         <span class="notice-count" id="offCount"></span>
@@ -875,17 +1073,121 @@
       };
       window.loadSuggestions = loadSuggestionsList;
 
-      // 官方账号：按编号搜索 → 授予 / 取消官方（POST /api/accounts，需管理员密码校验）
+      // 概览：在线人数 / 账号总数 / 聊天室 / 消息数 / KV 键数与估算占用（POST /api/accounts，action=stats）
+      var ovCard = document.getElementById('ovCard');
+      var ovRing = document.getElementById('ovRing');
+      var ovOnlineEl = document.getElementById('ovOnline');
+      var ovOnlineRate = document.getElementById('ovOnlineRate');
+      var ovAccountsEl = document.getElementById('ovAccounts');
+      var ovOfflineEl = document.getElementById('ovOffline');
+      var ovBarFill = document.getElementById('ovBarFill');
+      var ovRoomsEl = document.getElementById('ovRooms');
+      var ovRoomsSub = document.getElementById('ovRoomsSub');
+      var ovMessagesEl = document.getElementById('ovMessages');
+      var ovMessagesSub = document.getElementById('ovMessagesSub');
+      var ovKvEl = document.getElementById('ovKvKeys');
+      var ovKvSub = document.getElementById('ovKvSub');
+      var ovSizeEl = document.getElementById('ovKvSize');
+      var ovSizeSub = document.getElementById('ovKvSizeSub');
+      var ovUpdatedEl = document.getElementById('ovUpdated');
+      var ovMsgEl = document.getElementById('ovMsg');
+      var ovRefreshBtn = document.getElementById('ovRefreshBtn');
+
+      // 环形图：半径 50 → 周长 2πr，用 dashoffset 表示占比
+      var RING_LEN = 2 * Math.PI * 50;
+      var ovData = null;
+
+      function fmtBytes(n) {
+        n = Number(n) || 0;
+        if (n < 1024) return n + ' B';
+        if (n < 1048576) return (n / 1024).toFixed(1) + ' KB';
+        return (n / 1048576).toFixed(2) + ' MB';
+      }
+
+      function renderStats(data) {
+        ovData = data || null;
+        if (!data || !data.ok) return;
+        var a = data.accounts || {};
+        var r = data.rooms || {};
+        var k = data.kv || {};
+        var by = k.byCategory || {};
+        var total = Number(a.total) || 0;
+        var online = Number(a.online) || 0;
+        var ratio = total > 0 ? Math.min(1, online / total) : 0;
+
+        ovOnlineEl.textContent = online;
+        ovAccountsEl.textContent = total;
+        ovRing.setAttribute('stroke-dasharray', RING_LEN.toFixed(2));
+        ovRing.setAttribute('stroke-dashoffset', (RING_LEN * (1 - ratio)).toFixed(2));
+        ovOnlineRate.textContent = total
+          ? cealinT('ad.ovRate', { p: Math.round(ratio * 1000) / 10 })
+          : cealinT('ad.ovNoAccount');
+        ovOfflineEl.textContent = cealinT('ad.ovOffline', { n: Math.max(0, total - online) });
+        ovBarFill.style.width = (ratio * 100).toFixed(1) + '%';
+
+        ovRoomsEl.textContent = Number(r.total) || 0;
+        ovRoomsSub.textContent = cealinT('ad.ovRoomsSub', { n: Number(r.counted) || 0 });
+        ovMessagesEl.textContent = Number(r.messages) || 0;
+        ovMessagesSub.textContent = cealinT('ad.ovMessagesSub');
+        ovKvEl.textContent = Number(k.keys) || 0;
+        ovKvSub.textContent = cealinT('ad.ovKvSub', {
+          a: Number(by.account) || 0,
+          p: Number(by.presence) || 0,
+          r: (Number(by.room) || 0) + (Number(by.roomSub) || 0),
+          s: Number(by.suggestion) || 0
+        });
+        ovSizeEl.textContent = fmtBytes(k.estimatedBytes);
+        ovSizeSub.textContent = cealinT('ad.ovSizeSub', { n: Number(k.sampledKeys) || 0 });
+        ovUpdatedEl.textContent = cealinT('ad.ovUpdated', { t: fmtRoomTime(data.now) });
+        ovMsgEl.textContent = data.truncated ? cealinT('ad.ovTruncated') : '';
+      }
+
+      function loadStats() {
+        if (!pwd || !adminFlag) {
+          ovMsgEl.textContent = cealinT('ad.relogin');
+          return;
+        }
+        ovMsgEl.textContent = '';
+        ovUpdatedEl.textContent = cealinT('ad.ovLoading');
+        ovRefreshBtn.disabled = true;
+        fetch('/api/accounts', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ action: 'stats', password: pwd })
+        })
+          .then(function (resp) {
+            return resp.json().then(function (data) { return { status: resp.status, data: data }; });
+          })
+          .then(function (res) {
+            ovRefreshBtn.disabled = false;
+            var data = res.data || {};
+            if (!data.ok) {
+              ovUpdatedEl.textContent = '';
+              ovMsgEl.textContent = (res.status === 401 || data.code === 'admin_pwd')
+                ? cealinT('ad.pwdExpired')
+                : (data.error || cealinT('ad.queryFailed'));
+              return;
+            }
+            renderStats(data);
+          })
+          .catch(function () {
+            ovRefreshBtn.disabled = false;
+            ovUpdatedEl.textContent = '';
+            ovMsgEl.textContent = cealinT('ad.netQuery');
+          });
+      }
+      window.loadStats = loadStats;
+
+      // 账号管理：列表 / 搜索（编号或名称均可，部分匹配、大小写不敏感）→ 授予 / 取消官方
       var offCard = document.getElementById('offAdminCard');
       var offQuery = document.getElementById('offQuery');
       var offList = document.getElementById('offList');
       var offCount = document.getElementById('offCount');
       var offMsgEl = document.getElementById('offMsg');
 
-      // 输入时就地过滤：编号只含数字、字母与 @，最长 8 位
+      // 输入只限长度，不过滤字符（名称可含任意字符）
       offQuery.addEventListener('input', function () {
-        var v = (offQuery.value || '').replace(/[^A-Za-z0-9@]/g, '').substr(0, 8);
-        if (v !== offQuery.value) offQuery.value = v;
+        if (offQuery.value.length > 32) offQuery.value = offQuery.value.substr(0, 32);
       });
       offQuery.addEventListener('keydown', function (ev) {
         var code = ev.keyCode || ev.which;
@@ -899,35 +1201,36 @@
         var btn = it.official
           ? '<button type="button" class="op-btn verify on" onclick="setOfficial(\'' + idText + '\', false)">' + cealinT('ad.offRevoke') + '</button>'
           : '<button type="button" class="op-btn verify" onclick="setOfficial(\'' + idText + '\', true)">' + cealinT('ad.offGrant') + '</button>';
-        return '<div class="room-item" data-id="' + idText + '">'
+        var stateText = it.online ? cealinT('ad.accOnline') : cealinT('ad.accOffline');
+        var state = '<span class="acc-state' + (it.online ? ' on' : '') + '">' + stateText + '</span>';
+        var seen = it.online
+          ? cealinT('ad.accNow')
+          : (it.lastSeen ? cealinT('ad.accLastSeen', { t: fmtRoomTime(it.lastSeen) }) : cealinT('ad.accNoSeen'));
+        return '<div class="room-item' + (it.online ? ' acc-online' : '') + '" data-id="' + idText + '">'
           + '<div class="room-item-head">'
+          + '<span class="acc-dot' + (it.online ? ' on' : '') + '" title="' + stateText + '"></span>'
           + '<span class="off-id">' + idText + '</span>'
-          + '<span class="room-meta">' + nameText + ' · ' + cealinT('ad.offCreated', { t: fmtRoomTime(it.createdAt) }) + '</span>'
-          + '<span class="room-ops">' + tag + btn + '</span>'
+          + '<span class="room-meta">' + nameText + ' · ' + seen + ' · ' + cealinT('ad.offCreated', { t: fmtRoomTime(it.createdAt) }) + '</span>'
+          + '<span class="room-ops">' + state + tag + btn + '</span>'
           + '</div>'
           + '</div>';
       }
 
-      function searchAccounts() {
+      // q 为空 → 全部账号；q 非空 → 编号或名称部分匹配
+      function requestAccounts(q) {
         if (!pwd || !adminFlag) {
           offMsgEl.textContent = cealinT('ad.relogin');
           offMsgEl.classList.remove('ok');
           return;
         }
-        var q = (offQuery.value || '').replace(/[^A-Za-z0-9@]/g, '').substr(0, 8);
         offMsgEl.textContent = '';
         offMsgEl.classList.remove('ok');
-        if (!q) {
-          offMsgEl.textContent = cealinT('ad.offNeedQuery');
-          offQuery.focus();
-          return;
-        }
         offCount.textContent = cealinT('ad.offSearching');
         offList.innerHTML = '';
         fetch('/api/accounts', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ action: 'search', q: q, password: pwd })
+          body: JSON.stringify({ action: 'search', q: q || '', password: pwd })
         })
           .then(function (resp) {
             return resp.json().then(function (data) { return { status: resp.status, data: data }; });
@@ -942,16 +1245,24 @@
               return;
             }
             var items = data.accounts || [];
-            offCount.textContent = cealinT('ad.offCount', { n: items.length });
+            var matched = Number(data.matched) || items.length;
+            var total = Number(data.total) || items.length;
+            var onlineCount = Number(data.online) || 0;
+            offCount.textContent = ceilCountText(q, items.length, matched, total, onlineCount);
             if (!items.length) {
-              offList.innerHTML = '<div class="room-empty">' + cealinT('ad.offEmpty') + '</div>';
+              offList.innerHTML = '<div class="room-empty">' + (q ? cealinT('ad.offEmpty') : cealinT('ad.accEmpty')) + '</div>';
               return;
             }
             var html = '';
             items.forEach(function (it) { html += offRowHtml(it); });
             offList.innerHTML = html;
-            if (data.truncated) {
-              offMsgEl.textContent = cealinT('ad.offTruncated');
+            if (data.partial) {
+              offMsgEl.textContent = cealinT('ad.accPartial');
+              offMsgEl.classList.remove('ok');
+            } else if (data.truncated) {
+              offMsgEl.textContent = q
+                ? cealinT('ad.offTruncated')
+                : cealinT('ad.accTruncated', { n: items.length, total: matched });
               offMsgEl.classList.remove('ok');
             }
           })
@@ -960,6 +1271,24 @@
             offMsgEl.textContent = cealinT('ad.netQuery');
             offMsgEl.classList.remove('ok');
           });
+      }
+
+      function ceilCountText(q, shown, matched, total, online) {
+        if (q) {
+          return cealinT('ad.accMatched', { matched: matched, total: total, online: online, shown: shown });
+        }
+        return cealinT('ad.accShowing', { shown: shown, total: total, online: online });
+      }
+
+      function searchAccounts() {
+        var q = (offQuery.value || '').replace(/^\s+|\s+$/g, '');
+        requestAccounts(q);
+      }
+
+      // 全部账号：清空查询词后拉取全量列表（默认视图）
+      function listAllAccounts() {
+        offQuery.value = '';
+        requestAccounts('');
       }
 
       function setOfficial(id, on) {
@@ -1007,12 +1336,13 @@
           var ops = rows[i].querySelector('.room-ops');
           if (!ops) return;
           var btn = ops.querySelector('.op-btn');
+          if (!btn) return;
           if (on) {
             if (!ops.querySelector('.room-verified-tag')) {
               var tag = document.createElement('span');
               tag.className = 'room-verified-tag';
               tag.textContent = cealinT('ad.offTag');
-              ops.insertBefore(tag, ops.firstChild);
+              ops.insertBefore(tag, btn);
             }
             btn.className = 'op-btn verify on';
             btn.textContent = cealinT('ad.offRevoke');
@@ -1029,6 +1359,7 @@
       }
       window.searchAccounts = searchAccounts;
       window.setOfficial = setOfficial;
+      window.listAllAccounts = listAllAccounts;
 
       // 未登录 / 旧会话：提示重新登录并禁用编辑（不加载公告内容，避免未授权观看公告）
       if (!pwd || !adminFlag) {
@@ -1038,11 +1369,15 @@
         showMsg(cealinT('ad.relogin'), false);
       } else {
         // 仅管理员会话有效时读取当前公告并预填（供编辑使用）
+        ovCard.style.display = 'block';
+        loadStats();
         roomCard.style.display = 'block';
         loadRoomsList();
         sugCard.style.display = 'block';
         loadSuggestionsList();
         offCard.style.display = 'block';
+        // 账号面板默认展示全部账号（在线优先），无需先输入查询词
+        requestAccounts('');
         fetch('/api/notice')
           .then(function (resp) { return resp.json(); })
           .then(function (data) {
@@ -1108,6 +1443,9 @@
           if (!pwd || !adminFlag) return;
           if (roomList && roomList.children.length) loadRoomsList();
           if (sugList && sugList.children.length) loadSuggestionsList();
+          // 概览用最近一次数据重绘（不重复请求），账号列表按当前查询词重拉
+          if (ovData) renderStats(ovData);
+          requestAccounts((offQuery.value || '').replace(/^\s+|\s+$/g, ''));
         });
       }
     })();

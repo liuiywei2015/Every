@@ -10,12 +10,15 @@
 //   { action: 'changeId', id, newId, pwdHash }    或 { action: 'changeId', id, newId, password }
 //   { action: 'changePwd', id, pwdHash, newPwdHash, newSalt? }
 //                                 或 { action: 'changePwd', id, password, newPassword }
-//   { action: 'search', password, q }             管理员：按编号（完整 / 部分）搜索账号
+//   { action: 'heartbeat', id }                   在线心跳：写 account:presence:{id}（TTL 300 秒）
+//   { action: 'search', password, q? }            管理员：账号列表 / 按编号或名称搜索（q 留空=全部）
+//   { action: 'stats', password }                 管理员：概览统计（在线数、账号数、房间数、消息数、KV 用量估算）
 //   { action: 'official', password, id, official } 管理员：授予 / 取消官方认证
 // 响应：{ ok: true, id, name } / { ok: false, error, code }
 //
 // KV 约定（绑定名 GUESTBOOK）：
 //   account:{id} -> { id, name, pwdHash, salt, createdAt, official?, officialAt?, idChangedAt? }
+//   account:presence:{id} -> { id, ts }  （在线心跳，写入时带 expirationTtl=300 秒自动回收）
 //   新编号固定 8 位，字符集为 0-9 / A-Z / a-z 与 @（@ 为唯一允许的特殊符号）；
 //   系统自动分配的编号只用大写字母 + 数字（排除易混淆的 0 O 1 I L），便于手抄。
 
@@ -41,6 +44,22 @@ const ADMIN_PWD_KEY = 'admin_pwd';
 const SEARCH_LIMIT = 50;
 const SEARCH_PAGES = 10;
 const SEARCH_PAGE_SIZE = 1000;
+// 列表最多读取 300 条账号明细、最多扫描 2000 个编号键，避免单次请求无上限膨胀
+const ACCOUNT_READ_MAX = 300;
+const ACCOUNT_SCAN_MAX = 2000;
+
+// 在线心跳：account:presence:{id} 带 300 秒 TTL 自动回收；读取时 180 秒内有心跳视为在线
+const PRESENCE_PREFIX = 'account:presence:';
+const PRESENCE_TTL = 300;
+const ONLINE_WINDOW = 180 * 1000;
+// 单次心跳表读取上限（防止大量历史键拖垮请求）
+const PRESENCE_READ_LIMIT = 200;
+
+// 概览统计：最多遍历 10 页（每页 1000 键）、最多读 100 个房间、每类最多 4 个抽样键
+const STATS_PAGES = 10;
+const STATS_PAGE_SIZE = 1000;
+const STATS_ROOM_READ_MAX = 100;
+const STATS_SAMPLE_PER_CAT = 4;
 
 function bytesToHex(bytes) {
   let out = '';
@@ -115,6 +134,76 @@ async function checkAdmin(kv, password) {
   let adminPwd = DEFAULT_ADMIN_PWD;
   adminPwd = (await kv.get(ADMIN_PWD_KEY)) || DEFAULT_ADMIN_PWD;
   return typeof password === 'string' && password.length > 0 && password === adminPwd;
+}
+
+// 字节长度：KV 存储按 key + value 的字节数计，用于概览里的「估算占用」
+function byteLen(str) {
+  if (!str) return 0;
+  try {
+    return new TextEncoder().encode(str).length;
+  } catch (err) {
+    return String(str).length;
+  }
+}
+
+// KV 键归类：概览面板按类别统计键数量与抽样体积
+function categorizeKey(name) {
+  if (name.indexOf(PRESENCE_PREFIX) === 0) return 'presence';
+  if (name.indexOf(KV_PREFIX) === 0) return 'account';
+  if (name.indexOf('room:') === 0) {
+    return /^[A-Za-z0-9]{4}$/.test(name.slice(5)) ? 'room' : 'roomSub';
+  }
+  if (name.indexOf('suggestion') === 0) return 'suggestion';
+  if (name === 'notice') return 'notice';
+  return 'other';
+}
+
+// 读取在线表：account:presence:{id} 的键本身带 300 秒 TTL，
+// 值里的 ts 在 180 秒内才算在线；超出的只作为「最近活跃时间」参考。
+async function readPresence(kv, now, maxRead) {
+  const names = [];
+  let cursor;
+  let page = 0;
+  do {
+    const opts = { prefix: PRESENCE_PREFIX, limit: 1000 };
+    if (cursor) opts.cursor = cursor;
+    const res = await kv.list(opts);
+    const keys = (res && res.keys) || [];
+    for (let i = 0; i < keys.length; i++) {
+      const name = keys[i] && keys[i].name ? String(keys[i].name) : '';
+      if (name.length > PRESENCE_PREFIX.length) names.push(name);
+    }
+    cursor = res && !res.list_complete ? res.cursor : null;
+    page++;
+  } while (cursor && page < SEARCH_PAGES);
+
+  const limit = typeof maxRead === 'number' && maxRead > 0 ? maxRead : PRESENCE_READ_LIMIT;
+  const readNames = names.slice(0, limit);
+  const rows = await Promise.all(
+    readNames.map(async (name) => {
+      try {
+        const raw = await kv.get(name, 'json');
+        const id = name.slice(PRESENCE_PREFIX.length);
+        const ts = raw && typeof raw.ts === 'number' ? raw.ts : 0;
+        return { id: id, ts: ts };
+      } catch (err) {
+        return null;
+      }
+    })
+  );
+
+  const map = {};
+  const order = [];
+  let onlineCount = 0;
+  for (let i = 0; i < rows.length; i++) {
+    const row = rows[i];
+    if (!row || !row.id) continue;
+    const online = row.ts > 0 && now - row.ts <= ONLINE_WINDOW;
+    map[row.id] = { ts: row.ts, online: online };
+    order.push(row.id);
+    if (online) onlineCount++;
+  }
+  return { map: map, ids: order, onlineCount: onlineCount, truncated: names.length > readNames.length };
 }
 
 export async function onRequest(context) {
@@ -405,7 +494,37 @@ export async function onRequest(context) {
     return json({ ok: true, id: updated.id || id, name: updated.name || '' });
   }
 
-  /* ---------------- 管理员：按编号搜索账号 ---------------- */
+  /* ---------------- 在线心跳：登录态页面每 60 秒上报一次 ----------------
+   * 只写 account:presence:{编号} = { id, ts }，并带 300 秒 TTL 自动回收，
+   * 因此离开页面无需额外通知，超过 180 秒没有心跳即视为离线。 */
+  if (action === 'heartbeat') {
+    if (!ID_RE.test(id)) return fail(400, '编号格式不正确', 'id_bad');
+
+    let found = null;
+    try {
+      found = await readAccount(kv, id);
+    } catch (err) {
+      return fail(500, '服务异常，请稍后重试', 'server');
+    }
+    // 编号不存在时不写心跳键，避免无效数据堆积（前端静默忽略该失败）
+    if (!found) return fail(404, '账号不存在', 'id_not_found');
+
+    const realId = found.acc.id || id;
+    const ts = Date.now();
+    try {
+      await kv.put(PRESENCE_PREFIX + realId, JSON.stringify({ id: realId, ts: ts }), {
+        expirationTtl: PRESENCE_TTL
+      });
+    } catch (err) {
+      return fail(500, '服务异常，请稍后重试', 'server');
+    }
+    return json({ ok: true, id: realId, ts: ts, onlineWindow: ONLINE_WINDOW, ttl: PRESENCE_TTL });
+  }
+
+  /* ---------------- 管理员：账号列表 / 按编号或名称搜索 ----------------
+   * q 留空 → 列出全部账号；q 非空 → 编号（account id）与名称（name）同时参与匹配，
+   * 均为「包含即命中」的部分匹配、大小写不敏感。返回结构统一，前端只用一套逻辑。
+   * 排序：在线优先 → 组内按最近活跃时间倒序 → 无活跃记录按注册时间倒序。 */
   if (action === 'search') {
     let admin = false;
     try {
@@ -415,13 +534,25 @@ export async function onRequest(context) {
     }
     if (!admin) return fail(401, '密码错误', 'admin_pwd');
 
+    const now = Date.now();
     const q = (typeof body.q === 'string' ? body.q.trim() : '').replace(/^account:/i, '');
-    const qUpper = q.toUpperCase();
+    const qLower = q.toLowerCase();
 
-    const matched = [];
+    // 1) 先取在线表（心跳键数量≈近期活跃账号数，通常很小）
+    let presence = null;
+    try {
+      presence = await readPresence(kv, now, PRESENCE_READ_LIMIT);
+    } catch (err) {
+      presence = { map: {}, ids: [], onlineCount: 0, truncated: false };
+    }
+    const onlineMap = presence.map;
+
+    // 2) 遍历 account: 前缀键收集编号，跳过 account:presence: 心跳键
+    const ids = [];
     let scanned = 0;
     let page = 0;
     let cursor = undefined;
+    let keysTruncated = false;
     try {
       while (page < SEARCH_PAGES) {
         const opts = { prefix: KV_PREFIX, limit: SEARCH_PAGE_SIZE };
@@ -429,15 +560,16 @@ export async function onRequest(context) {
         const res = await kv.list(opts);
         const keys = (res && res.keys) || [];
         for (let i = 0; i < keys.length; i++) {
-          const aid = String(keys[i] && keys[i].name ? keys[i].name : '').slice(KV_PREFIX.length);
-          if (!aid) continue;
-          if (qUpper && aid.toUpperCase().indexOf(qUpper) < 0) continue;
-          matched.push(aid);
-          if (matched.length >= SEARCH_LIMIT) break;
+          const name = keys[i] && keys[i].name ? String(keys[i].name) : '';
+          if (name.length <= KV_PREFIX.length) continue;
+          const aid = name.slice(KV_PREFIX.length);
+          if (aid.indexOf('presence:') === 0) continue;
+          ids.push(aid);
+          if (ids.length >= ACCOUNT_SCAN_MAX) break;
         }
         scanned += keys.length;
         page++;
-        if (matched.length >= SEARCH_LIMIT) break;
+        if (ids.length >= ACCOUNT_SCAN_MAX) { keysTruncated = true; break; }
         if (!res || res.list_complete) break;
         cursor = res.cursor;
         if (!cursor) break;
@@ -446,20 +578,27 @@ export async function onRequest(context) {
       return fail(500, '服务异常，请稍后重试', 'server');
     }
 
-    // 逐个读明细（凭据字段 pwdHash / salt 一律不回传）
+    // 3) 读明细（凭据字段 pwdHash / salt 一律不回传）
+    const detailIds = ids.slice(0, ACCOUNT_READ_MAX);
+    const detailTruncated = ids.length > detailIds.length;
     const records = await Promise.all(
-      matched.map(async (aid) => {
+      detailIds.map(async (aid) => {
         try {
           const raw = await kv.get(KV_PREFIX + aid);
           if (!raw) return null;
           const acc = JSON.parse(raw);
           if (!acc || typeof acc !== 'object') return null;
+          const realId = acc.id || aid;
+          const p = onlineMap[aid] || onlineMap[realId] || null;
+          const lastSeen = p && typeof p.ts === 'number' ? p.ts : 0;
           return {
-            id: acc.id || aid,
+            id: realId,
             name: acc.name || '',
             createdAt: acc.createdAt || 0,
             official: !!acc.official,
-            officialAt: acc.officialAt || 0
+            officialAt: acc.officialAt || 0,
+            online: !!(p && p.online),
+            lastSeen: lastSeen
           };
         } catch (err) {
           return null;
@@ -467,17 +606,205 @@ export async function onRequest(context) {
       })
     );
 
-    const accounts = records.filter(Boolean).sort((a, b) => {
-      if (a.official !== b.official) return a.official ? -1 : 1;
+    const all = records.filter(Boolean);
+
+    // 4) 过滤：编号或名称包含查询词即命中
+    const matched = all.filter(function (it) {
+      if (!qLower) return true;
+      if (String(it.id || '').toLowerCase().indexOf(qLower) >= 0) return true;
+      return String(it.name || '').toLowerCase().indexOf(qLower) >= 0;
+    });
+
+    // 5) 排序：在线优先；组内最近活跃倒序；从未活跃按注册时间倒序
+    matched.sort(function (a, b) {
+      if (a.online !== b.online) return a.online ? -1 : 1;
+      const la = a.lastSeen || 0;
+      const lb = b.lastSeen || 0;
+      if (la !== lb) return lb - la;
       return (b.createdAt || 0) - (a.createdAt || 0);
     });
+
+    const accounts = matched.slice(0, SEARCH_LIMIT);
+
+    let onlineCount = 0;
+    for (let i = 0; i < all.length; i++) {
+      if (all[i].online) onlineCount++;
+    }
 
     return json({
       ok: true,
       accounts: accounts,
       count: accounts.length,
+      matched: matched.length,
+      total: ids.length,
+      online: onlineCount,
+      limit: SEARCH_LIMIT,
+      query: q,
       scanned: scanned,
-      truncated: matched.length >= SEARCH_LIMIT
+      // 列表本身被截断（只展示前 SEARCH_LIMIT 条）
+      truncated: matched.length > accounts.length,
+      // 数据量超过单请求处理上限，统计/匹配可能不完整
+      partial: keysTruncated || detailTruncated || !!presence.truncated
+    });
+  }
+
+  /* ---------------- 管理员：概览统计 ----------------
+   * 在线人数 / 账号总数 / 聊天室数 / 消息总条数 均为真实读取结果；
+   * 存储占用为「抽样平均体积 × 键数」的估算值，前端必须标注「估算」。 */
+  if (action === 'stats') {
+    let admin = false;
+    try {
+      admin = await checkAdmin(kv, password);
+    } catch (err) {
+      return fail(500, '服务异常，请稍后重试', 'server');
+    }
+    if (!admin) return fail(401, '密码错误', 'admin_pwd');
+
+    const now = Date.now();
+
+    // 1) 遍历全部 KV 键并归类（KV list 每页最多 1000 个键）
+    const counts = { account: 0, presence: 0, room: 0, roomSub: 0, suggestion: 0, notice: 0, other: 0 };
+    const samples = { account: [], presence: [], room: [], roomSub: [], suggestion: [], notice: [], other: [] };
+    const roomCodes = [];
+    let kvKeys = 0;
+    let cursor = undefined;
+    let page = 0;
+    try {
+      while (page < STATS_PAGES) {
+        const opts = { limit: STATS_PAGE_SIZE };
+        if (cursor) opts.cursor = cursor;
+        const res = await kv.list(opts);
+        const keys = (res && res.keys) || [];
+        for (let i = 0; i < keys.length; i++) {
+          const name = keys[i] && keys[i].name ? String(keys[i].name) : '';
+          if (!name) continue;
+          const cat = categorizeKey(name);
+          counts[cat]++;
+          kvKeys++;
+          if (samples[cat].length < STATS_SAMPLE_PER_CAT) samples[cat].push(name);
+          if (cat === 'room') roomCodes.push(name.slice(5));
+        }
+        page++;
+        if (!res || res.list_complete) { cursor = null; break; }
+        cursor = res.cursor;
+        if (!cursor) break;
+      }
+    } catch (err) {
+      return fail(500, '服务异常，请稍后重试', 'server');
+    }
+    const keysTruncated = !!cursor;
+
+    // 2) 在线人数：读心跳表，180 秒内有心跳算在线
+    let presence = null;
+    try {
+      presence = await readPresence(kv, now, PRESENCE_READ_LIMIT);
+    } catch (err) {
+      presence = { map: {}, ids: [], onlineCount: 0, truncated: false };
+    }
+
+    // 3) 聊天室：读主键拿消息条数（顺带作为 room 类体积样本）
+    const roomReadCodes = roomCodes.slice(0, STATS_ROOM_READ_MAX);
+    let messages = 0;
+    const roomBytes = [];
+    const roomRows = await Promise.all(
+      roomReadCodes.map(async (code) => {
+        try {
+          const raw = await kv.get('room:' + code);
+          if (!raw) return { count: 0, bytes: 0 };
+          let arr = null;
+          try {
+            arr = JSON.parse(raw);
+          } catch (e) {
+            arr = null;
+          }
+          return { count: Array.isArray(arr) ? arr.length : 0, bytes: byteLen('room:' + code) + byteLen(raw) };
+        } catch (err) {
+          return { count: 0, bytes: 0 };
+        }
+      })
+    );
+    for (let i = 0; i < roomRows.length; i++) {
+      messages += roomRows[i].count;
+      if (roomRows[i].bytes > 0) roomBytes.push(roomRows[i].bytes);
+    }
+
+    // 4) 抽样估算平均单键体积（key + value 字节数）
+    const avgBytes = {};
+    let sampleCount = 0;
+    let sampleTotal = 0;
+    const cats = ['account', 'roomSub', 'suggestion', 'notice', 'other'];
+    for (let c = 0; c < cats.length; c++) {
+      const cat = cats[c];
+      if (!counts[cat] || !samples[cat].length) continue;
+      const vals = await Promise.all(
+        samples[cat].map(async (name) => {
+          try {
+            const raw = await kv.get(name);
+            return byteLen(name) + byteLen(raw);
+          } catch (err) {
+            return 0;
+          }
+        })
+      );
+      let total = 0;
+      let n = 0;
+      for (let i = 0; i < vals.length; i++) {
+        if (vals[i] > 0) { total += vals[i]; n++; }
+      }
+      if (n) {
+        avgBytes[cat] = total / n;
+        sampleTotal += total;
+        sampleCount += n;
+      }
+    }
+    // 心跳键体积几乎固定（{id,ts}），不额外读取，按固定结构估算
+    if (counts.presence) {
+      avgBytes.presence = PRESENCE_PREFIX.length + 10 + 48;
+    }
+    // 房间主键体积用上面读房间时的样本
+    if (roomBytes.length) {
+      let total = 0;
+      for (let i = 0; i < roomBytes.length; i++) total += roomBytes[i];
+      avgBytes.room = total / roomBytes.length;
+    }
+
+    const globalAvg = sampleCount ? sampleTotal / sampleCount : 0;
+    let estimatedBytes = 0;
+    const catNames = Object.keys(counts);
+    for (let i = 0; i < catNames.length; i++) {
+      const cat = catNames[i];
+      const avg = avgBytes[cat] || globalAvg || 0;
+      estimatedBytes += counts[cat] * avg;
+    }
+
+    return json({
+      ok: true,
+      now: now,
+      accounts: {
+        total: counts.account,
+        online: presence.onlineCount,
+        offline: Math.max(0, counts.account - presence.onlineCount),
+        presenceKeys: counts.presence
+      },
+      rooms: {
+        total: counts.room,
+        messages: messages,
+        counted: roomReadCodes.length
+      },
+      kv: {
+        keys: kvKeys,
+        byCategory: counts,
+        estimatedBytes: Math.round(estimatedBytes),
+        sampledKeys: sampleCount,
+        estimate: true
+      },
+      limits: {
+        onlineWindow: ONLINE_WINDOW,
+        presenceTtl: PRESENCE_TTL,
+        listPageMax: STATS_PAGES * STATS_PAGE_SIZE,
+        roomReadMax: STATS_ROOM_READ_MAX
+      },
+      truncated: keysTruncated || roomCodes.length > roomReadCodes.length || !!presence.truncated
     });
   }
 

@@ -6,6 +6,8 @@
 
 <!-- 主题引导 + 全站共享主题样式（明亮模式在 <head> 最早应用，避免闪烁） -->
 <script src="theme.js"></script>
+<!-- 在线心跳：登录态下每 60 秒静默上报一次，失败忽略 -->
+<script src="presence.js"></script>
 <link rel="stylesheet" href="theme.css">
 <title data-i18n="title.account">账号 - Cealin</title>
 <style>
@@ -855,6 +857,10 @@
               sessionStorage.setItem(SID_KEY, data.id || id);
               sessionStorage.setItem(SNAME_KEY, data.name || '');
             } catch (e) {}
+            // 登录成功立即补一次在线心跳（失败静默），并开启 60 秒周期上报
+            try {
+              if (w.cealinPresence && w.cealinPresence.start) w.cealinPresence.start();
+            } catch (e) {}
             setBtnLabel(btnLogin, 'acc.loginBtn');
             setMsg(loginMsg, 'acc.loginOk', 'ok');
             setTimeout(function () { w.location.href = 'guest.html'; }, 800);
@@ -1089,6 +1095,10 @@
           sessionStorage.removeItem(SNAME_KEY);
         } catch (e) {}
         sessionId = '';
+        // 退出登录后停止在线心跳，避免会话失效后继续上报
+        try {
+          if (w.cealinPresence && w.cealinPresence.stop) w.cealinPresence.stop();
+        } catch (e) {}
         setMsg(logoutMsg, 'acc.logoutOk', 'ok');
         setTimeout(function () { w.location.href = 'index.html'; }, 500);
         // 万一跳转被拦截，2.5 秒后恢复按钮，避免卡死
