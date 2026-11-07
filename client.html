@@ -1,0 +1,337 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+<!-- 运行环境识别：必须最先执行（客户端访问本页以外的入口页会被改道到本页） -->
+<script src="client-detect.js"></script>
+<!-- 未登录守卫：登录态由客户端 preload 注入，正常不会触发跳转 -->
+<script src="guard.js"></script>
+<script src="theme.js"></script>
+<script src="presence.js"></script>
+<link rel="stylesheet" href="theme.css">
+<title data-i18n="client.title">桌面客户端 - Cealin</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  html, body { height: 100%; }
+
+  body {
+    color: var(--fg);
+    font-family: "Helvetica Neue", "PingFang SC", "Microsoft YaHei", Arial, sans-serif;
+    -webkit-font-smoothing: antialiased;
+    overflow-y: auto;
+    background: var(--page-bg);
+  }
+
+  .art-bg {
+    position: fixed;
+    inset: 0;
+    z-index: 0;
+    background-image: url('assets/bg.jpg');
+    background-size: cover;
+    background-position: center;
+    filter: var(--art-filter);
+  }
+
+  .glow {
+    position: fixed;
+    inset: 0;
+    z-index: 1;
+    pointer-events: none;
+    background:
+      radial-gradient(ellipse 55% 42% at 50% 46%, rgba(255, 196, 120, 0.18), transparent 62%),
+      radial-gradient(ellipse 40% 35% at 50% 60%, rgba(230, 170, 90, 0.10), transparent 70%),
+      linear-gradient(180deg, rgba(var(--veil-rgb), 0.30) 0%, rgba(var(--veil-rgb), 0) 30%, rgba(var(--veil-rgb), 0.20) 78%, rgba(var(--veil-rgb), 0.55) 100%);
+  }
+
+  .grain {
+    position: fixed;
+    inset: 0;
+    z-index: 2;
+    pointer-events: none;
+    opacity: var(--grain-opacity);
+    mix-blend-mode: overlay;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='180' height='180'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+  }
+
+  /* ========== 顶部导航 ========== */
+  .topbar {
+    position: relative;
+    z-index: 5;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 24px;
+    padding: 22px 44px;
+  }
+  .logo {
+    font-size: 19px;
+    font-weight: 600;
+    letter-spacing: 0.22em;
+    color: var(--fg);
+    text-decoration: none;
+  }
+  .nav-right { display: flex; align-items: center; gap: 22px; }
+  .menu {
+    display: flex;
+    align-items: center;
+    gap: 26px;
+    list-style: none;
+  }
+  .menu a {
+    font-size: 13.5px;
+    letter-spacing: 0.08em;
+    color: var(--muted);
+    text-decoration: none;
+    transition: color 0.28s ease;
+  }
+  .menu a:hover, .menu a.active { color: var(--fg); }
+  .avatar {
+    width: 30px;
+    height: 30px;
+    border-radius: 50%;
+    border: 1px solid rgba(var(--line-rgb), 0.28);
+    background: rgba(var(--line-rgb), 0.10);
+    display: block;
+  }
+  .avatar:hover { border-color: var(--gold); }
+
+  /* ========== 主体 ========== */
+  .main {
+    position: relative;
+    z-index: 4;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: 42px 24px 72px;
+    text-align: center;
+  }
+  .title {
+    font-size: clamp(44px, 7vw, 76px);
+    font-weight: 300;
+    letter-spacing: 0.16em;
+    color: var(--fg);
+    text-shadow: 0 8px 40px rgba(var(--shadow-rgb), 0.45);
+  }
+  .badge {
+    display: inline-block;
+    margin-top: 14px;
+    padding: 5px 14px;
+    font-size: 11.5px;
+    letter-spacing: 0.16em;
+    color: var(--gold);
+    border: 1px solid rgba(200, 169, 110, 0.5);
+    border-radius: 999px;
+    background: rgba(200, 169, 110, 0.12);
+  }
+  .page-sub {
+    margin-top: 14px;
+    font-size: 13.5px;
+    letter-spacing: 0.1em;
+    color: var(--muted);
+  }
+
+  .card {
+    width: min(680px, 92vw);
+    margin-top: 30px;
+    padding: 22px 26px;
+    border-radius: 18px;
+    text-align: left;
+    background: linear-gradient(135deg, rgba(var(--line-rgb), 0.14), rgba(var(--line-rgb), 0.05) 48%, rgba(200, 169, 110, 0.08));
+    -webkit-backdrop-filter: blur(20px) saturate(170%);
+    backdrop-filter: blur(20px) saturate(170%);
+    border: 1px solid rgba(var(--line-rgb), 0.16);
+    box-shadow: 0 12px 36px rgba(var(--shadow-rgb), 0.28), inset 0 1px 0 rgba(var(--line-rgb), 0.22);
+  }
+  .card-title {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    font-size: 14.5px;
+    font-weight: 600;
+    letter-spacing: 0.06em;
+    color: var(--fg);
+  }
+  .tag {
+    padding: 2px 9px;
+    font-size: 10.5px;
+    font-weight: 400;
+    letter-spacing: 0.1em;
+    color: var(--muted);
+    border: 1px solid rgba(var(--line-rgb), 0.22);
+    border-radius: 999px;
+  }
+  .tag.gold { color: var(--gold); border-color: rgba(200, 169, 110, 0.5); }
+
+  .account-row {
+    display: flex;
+    align-items: baseline;
+    gap: 12px;
+    margin-top: 14px;
+    flex-wrap: wrap;
+  }
+  .account-name { font-size: 16px; letter-spacing: 0.04em; color: var(--fg); }
+  .account-id { font-size: 12.5px; letter-spacing: 0.08em; color: var(--muted); font-variant-numeric: tabular-nums; }
+
+  .notice-text {
+    margin-top: 14px;
+    font-size: 13.5px;
+    line-height: 1.85;
+    letter-spacing: 0.03em;
+    color: var(--fg);
+    white-space: pre-wrap;
+  }
+
+  .entries {
+    display: flex;
+    gap: 14px;
+    flex-wrap: wrap;
+    justify-content: center;
+    margin-top: 32px;
+  }
+  .entry-btn {
+    display: inline-block;
+    padding: 12px 30px;
+    border-radius: 999px;
+    border: 1px solid rgba(200, 169, 110, 0.5);
+    background: rgba(200, 169, 110, 0.16);
+    color: var(--fg);
+    font-size: 13.5px;
+    letter-spacing: 0.12em;
+    text-decoration: none;
+    transition: background 0.25s cubic-bezier(0.22, 1, 0.36, 1), transform 0.2s cubic-bezier(0.22, 1, 0.36, 1), box-shadow 0.25s cubic-bezier(0.22, 1, 0.36, 1);
+  }
+  .entry-btn:hover { background: rgba(200, 169, 110, 0.3); transform: translateY(-1px); box-shadow: 0 6px 22px rgba(200, 169, 110, 0.18); }
+
+  .web-link {
+    margin-top: 34px;
+    font-size: 12.5px;
+    letter-spacing: 0.08em;
+    color: var(--muted);
+    text-decoration: none;
+    border-bottom: 1px solid rgba(var(--fg-rgb), 0.22);
+    padding-bottom: 3px;
+    transition: color 0.3s ease, border-color 0.3s ease;
+  }
+  .web-link:hover { color: var(--fg); border-color: var(--fg); }
+
+  @media (max-width: 720px) {
+    .topbar { padding: 18px 20px; flex-direction: column; align-items: flex-start; gap: 14px; }
+    .menu { flex-wrap: wrap; gap: 16px; }
+  }
+</style>
+  <script src="notice-link.js"></script>
+  <script src="i18n.js"></script>
+</head>
+<body>
+
+  <div class="art-bg"></div>
+  <div class="glow"></div>
+  <div class="grain"></div>
+
+  <!-- 顶部导航 -->
+  <header class="topbar">
+    <a class="logo" href="client.html">Cealin</a>
+    <div class="nav-right">
+      <ul class="menu">
+        <li><a href="client.html" class="active" data-i18n="client.navHome">首页</a></li>
+        <li><a href="project.html" data-i18n="nav.project">项目</a></li>
+        <li><a href="platform.html" data-i18n="nav.platform">平台</a></li>
+        <li><a href="chat.html" data-i18n="nav.chat">聊天室</a></li>
+        <li><a href="friends.html" data-i18n="nav.friends">好友</a></li>
+        <li><a href="articles.html" data-i18n="nav.articles">文章</a></li>
+        <li><a href="suggestion.html" data-i18n="nav.suggestion">建议</a></li>
+        <li><a href="guest.html" data-i18n="nav.notice">公告</a></li>
+        <li><a href="mine.html" data-i18n="nav.mine">我的</a></li>
+      </ul>
+      <a class="avatar" href="settings.html" title="设置" data-i18n-title="nav.settings"></a>
+    </div>
+  </header>
+
+  <!-- 客户端主页 -->
+  <main class="main">
+    <h1 class="title">Cealin</h1>
+    <span class="badge" data-i18n="client.badge">桌面客户端</span>
+    <p class="page-sub" data-i18n="client.sub">已登录，可直接浏览 Cealin</p>
+
+    <!-- 当前账号（登录一次，全站免登） -->
+    <section class="card">
+      <h2 class="card-title">
+        <span data-i18n="client.account">当前账号</span>
+        <span class="tag gold" id="officialTag" style="display:none" data-i18n="client.official">官方</span>
+      </h2>
+      <div class="account-row">
+        <span class="account-name" id="accountName">—</span>
+        <span class="account-id" id="accountId"></span>
+      </div>
+    </section>
+
+    <!-- 公告（只读，与网页版同源） -->
+    <section class="card">
+      <h2 class="card-title">
+        <span data-i18n="client.notice">公告</span>
+        <span class="tag" data-i18n="client.readonly">只读</span>
+      </h2>
+      <p class="notice-text" id="noticeText">加载中…</p>
+    </section>
+
+    <div class="entries">
+      <a class="entry-btn" href="chat.html" data-i18n="client.enterChat">进入聊天室</a>
+      <a class="entry-btn" href="friends.html" data-i18n="client.friends">好友</a>
+      <a class="entry-btn" href="articles.html" data-i18n="client.articles">文章</a>
+    </div>
+
+    <a class="web-link" href="https://cealin.pages.dev/" target="_blank" rel="noopener" data-i18n="client.webVersion">在浏览器中打开网页版</a>
+  </main>
+
+  <script>
+    (function () {
+      // 浏览器直接打开本页：桌面客户端专属页，改道网页版入口
+      if (!window.CEALIN_IS_CLIENT) {
+        try { window.location.replace('index.html'); } catch (e) { window.location.href = 'index.html'; }
+        return;
+      }
+
+      // 客户端会话内不残留管理员身份（管理员身份只在 Cealin-admin 客户端内）
+      try { sessionStorage.removeItem('cealin_admin'); } catch (e) {}
+      try { sessionStorage.removeItem('cealin_admin_pwd'); } catch (e) {}
+
+      // 账号信息
+      function get(k) {
+        try { return String(sessionStorage.getItem(k) || ''); } catch (e) { return ''; }
+      }
+      var name = get('cealin_account_name');
+      var id = get('cealin_account_id');
+      var official = get('cealin_account_official');
+      var nameEl = document.getElementById('accountName');
+      var idEl = document.getElementById('accountId');
+      var officialEl = document.getElementById('officialTag');
+      nameEl.textContent = name || cealinT('client.anon');
+      idEl.textContent = id ? 'ID ' + id : '';
+      if (official === '1') officialEl.style.display = '';
+
+      // 公告：后端保存时已按语言翻译，按当前界面语言取译文，缺失回退中文
+      var noticeData = null;
+      function renderNotice() {
+        var textEl = document.getElementById('noticeText');
+        if (!textEl) return;
+        var byLang = (noticeData && noticeData.noticeByLang) || {};
+        var lang = (window.cealinLang ? cealinLang() : 'zh') || 'zh';
+        textEl.textContent = byLang[lang] || byLang.zh || (noticeData && noticeData.notice) || cealinT('guest.noticeFallback');
+      }
+      fetch('/api/notice')
+        .then(function (resp) { return resp.json(); })
+        .then(function (data) {
+          if (data && data.ok) noticeData = data;
+          renderNotice();
+        })
+        .catch(function () { renderNotice(); });
+      if (window.cealinOnLangChange) {
+        cealinOnLangChange(function () { renderNotice(); });
+      }
+    })();
+  </script>
+
+</body>
+</html>

@@ -77,6 +77,20 @@
     'idx.visitor': { zh: '访客留言 →', en: 'Guest messages →', ja: 'ゲストのメッセージ →', ko: '게스트 메시지 →', es: 'Mensajes de invitados →' },
     'idx.visitorCount': { zh: '访客留言 {n} 条 →', en: '{n} guest messages →', ja: 'ゲストのメッセージ {n} 件 →', ko: '게스트 메시지 {n}개 →', es: '{n} mensajes de invitados →' },
 
+    /* ---------- 桌面客户端页（client.html） ---------- */
+    'client.navHome': { zh: '首页', en: 'Home', ja: 'ホーム', ko: '홈', es: 'Inicio' },
+    'client.badge': { zh: '桌面客户端', en: 'Desktop client', ja: 'デスクトップ版', ko: '데스크톱 클라이언트', es: 'Cliente de escritorio' },
+    'client.sub': { zh: '已登录，可直接浏览 Cealin', en: 'Signed in — browse Cealin right away', ja: 'ログイン済みですぐに閲覧できます', ko: '로그인되어 바로 둘러볼 수 있습니다', es: 'Sesión iniciada: explora Cealin al instante' },
+    'client.account': { zh: '当前账号', en: 'Current account', ja: '現在のアカウント', ko: '현재 계정', es: 'Cuenta actual' },
+    'client.anon': { zh: '未知账号', en: 'Unknown account', ja: '不明なアカウント', ko: '알 수 없는 계정', es: 'Cuenta desconocida' },
+    'client.official': { zh: '官方', en: 'Official', ja: '公式', ko: '공식', es: 'Oficial' },
+    'client.notice': { zh: '公告', en: 'Notices', ja: 'お知らせ', ko: '공지사항', es: 'Anuncios' },
+    'client.readonly': { zh: '只读', en: 'read-only', ja: '閲覧のみ', ko: '읽기 전용', es: 'solo lectura' },
+    'client.enterChat': { zh: '进入聊天室', en: 'Enter the chat', ja: 'チャットに参加', ko: '채팅방 들어가기', es: 'Entrar al chat' },
+    'client.friends': { zh: '好友', en: 'Friends', ja: '友達', ko: '친구', es: 'Amigos' },
+    'client.articles': { zh: '文章', en: 'Articles', ja: '記事', ko: '글', es: 'Artículos' },
+    'client.webVersion': { zh: '在浏览器中打开网页版', en: 'Open the web version in a browser', ja: 'ブラウザでWeb版を開く', ko: '브라우저에서 웹 버전 열기', es: 'Abrir la versión web en el navegador' },
+
     /* ---------- 游客页 ---------- */
     'guest.title': { zh: '游客界面', en: 'Guest area', ja: 'ゲストページ', ko: '게스트 페이지', es: 'Zona de invitados' },
     'guest.sub': { zh: '以游客身份浏览 Cealin', en: 'Browsing Cealin as a guest', ja: 'ゲストとして Cealin を閲覧中', ko: '게스트로 Cealin 둘러보기', es: 'Explorando Cealin como invitado' },
