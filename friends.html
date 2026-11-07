@@ -1,0 +1,813 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+<!-- 未登录守卫：必须在任何内容渲染前执行 -->
+<script src="guard.js"></script>
+<!-- 主题引导 + 全站共享主题样式（明亮模式在 <head> 最早应用，避免闪烁） -->
+<script src="theme.js"></script>
+<!-- 在线心跳：登录态下按 presence.js 的配置（10 分钟 + 随机抖动）静默上报一次，失败忽略 -->
+<script src="presence.js"></script>
+<link rel="stylesheet" href="theme.css">
+<title data-i18n="title.friends">好友 - Cealin</title>
+<style>
+  /* 主题变量统一由 theme.css 提供（含明亮模式），此处不再覆盖 */
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  html, body { height: 100%; }
+
+  body {
+    color: var(--fg);
+    font-family: "Helvetica Neue", "PingFang SC", "Microsoft YaHei", Arial, sans-serif;
+    -webkit-font-smoothing: antialiased;
+    overflow-y: auto;
+    background: var(--page-bg);
+  }
+
+  .art-bg {
+    position: fixed;
+    inset: 0;
+    z-index: 0;
+    background-image: url('assets/bg.jpg');
+    background-size: cover;
+    background-position: center;
+  }
+
+  .glow {
+    position: fixed;
+    inset: 0;
+    z-index: 1;
+    pointer-events: none;
+    background:
+      radial-gradient(ellipse 55% 42% at 50% 46%, rgba(255, 196, 120, 0.20), transparent 62%),
+      radial-gradient(ellipse 40% 35% at 50% 60%, rgba(230, 170, 90, 0.10), transparent 70%),
+      linear-gradient(180deg, rgba(var(--veil-rgb), 0.30) 0%, rgba(var(--veil-rgb), 0) 30%, rgba(var(--veil-rgb), 0.20) 78%, rgba(var(--veil-rgb), 0.55) 100%);
+  }
+
+  .grain {
+    position: fixed;
+    inset: 0;
+    z-index: 2;
+    pointer-events: none;
+    opacity: 0.07;
+    mix-blend-mode: overlay;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='180' height='180'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+  }
+
+  /* ========== 顶部导航栏（苹果液态玻璃） ========== */
+  .topbar {
+    position: fixed;
+    top: 14px;
+    left: 20px;
+    right: 20px;
+    z-index: 10;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 12px 26px;
+    border-radius: 22px;
+    background: linear-gradient(135deg, rgba(var(--line-rgb), 0.16), rgba(var(--line-rgb), 0.06) 48%, rgba(200, 169, 110, 0.08));
+    -webkit-backdrop-filter: blur(20px) saturate(170%);
+    backdrop-filter: blur(20px) saturate(170%);
+    border: 1px solid rgba(var(--line-rgb), 0.18);
+    box-shadow:
+      0 12px 36px rgba(var(--shadow-rgb), 0.30),
+      inset 0 1px 0 rgba(var(--line-rgb), 0.25),
+      inset 0 -1px 0 rgba(var(--line-rgb), 0.05);
+  }
+  .logo { font-size: 22px; font-weight: 800; letter-spacing: 0.06em; color: var(--fg); text-decoration: none; }
+  .nav-right { display: flex; align-items: center; gap: 26px; }
+  .menu { display: flex; gap: 22px; list-style: none; }
+  .menu a { font-size: 15px; font-weight: 500; color: var(--muted); text-decoration: none; transition: color 0.3s ease; }
+  .menu a:hover { color: var(--fg); }
+  .menu a.active { color: var(--fg); }
+  .menu a.active::after { content: ""; display: block; height: 1px; margin-top: 3px; background: rgba(var(--fg-rgb), 0.45); }
+  .avatar {
+    width: 34px; height: 34px; border-radius: 50%;
+    border: 1.5px solid rgba(var(--hl-rgb), 0.35);
+    background: radial-gradient(circle at 35% 30%, rgba(var(--hl-rgb), 0.35), transparent 40%), linear-gradient(135deg, #7d8a7a, #3a4038);
+    cursor: pointer; position: relative; display: block;
+  }
+  .avatar::after { content: ""; position: absolute; inset: 4px; border-radius: 50%; border: 1px solid rgba(var(--hl-rgb), 0.15); }
+
+  /* ========== 页面主体 ========== */
+  .hero {
+    position: relative;
+    z-index: 5;
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    text-align: center;
+    padding: 110px 24px 70px;
+  }
+  .title {
+    font-size: clamp(40px, 7vw, 84px);
+    font-weight: 800;
+    letter-spacing: 0.10em;
+    text-indent: 0.10em;
+    line-height: 1;
+    color: var(--fg);
+    text-shadow: 0 4px 60px rgba(var(--shadow-rgb), 0.45);
+    user-select: none;
+    animation: fadeIn 0.85s cubic-bezier(0.22, 1, 0.36, 1) both;
+  }
+  .page-sub {
+    margin-top: 22px;
+    max-width: 560px;
+    font-size: 14px;
+    line-height: 1.8;
+    letter-spacing: 0.1em;
+    color: var(--muted);
+    opacity: 0;
+    animation: fadeIn 0.85s cubic-bezier(0.22, 1, 0.36, 1) 0.4s forwards;
+  }
+
+  .card {
+    margin-top: 28px;
+    width: min(620px, 94vw);
+    background: rgba(var(--panel-rgb), 0.5);
+    border: 1px solid rgba(var(--line-rgb), 0.1);
+    border-radius: 18px;
+    backdrop-filter: blur(12px);
+    box-shadow: 0 24px 80px rgba(var(--shadow-rgb), 0.45);
+    padding: 24px 26px 26px;
+    text-align: left;
+    opacity: 0;
+    animation: fadeIn 0.85s cubic-bezier(0.22, 1, 0.36, 1) forwards;
+  }
+  .card.c1 { animation-delay: 0.45s; }
+  .card.c2 { animation-delay: 0.55s; }
+  .card.c3 { animation-delay: 0.65s; }
+
+  .card-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    margin-bottom: 14px;
+  }
+  .sec-title {
+    margin: 0;
+    font-size: 13px;
+    font-weight: 500;
+    letter-spacing: 0.14em;
+    color: var(--gold-light);
+  }
+  .sec-count {
+    font-size: 11px;
+    letter-spacing: 0.1em;
+    color: var(--muted);
+  }
+
+  .field { display: flex; flex-direction: column; gap: 7px; margin-bottom: 14px; }
+  .field label { font-size: 12px; letter-spacing: 0.1em; color: var(--muted); }
+  .field input {
+    width: 100%;
+    padding: 11px 14px;
+    border-radius: 10px;
+    border: 1px solid rgba(var(--line-rgb), 0.14);
+    background: rgba(var(--line-rgb), 0.05);
+    color: var(--fg);
+    font-size: 14px;
+    font-family: inherit;
+    outline: none;
+    transition: border-color 0.3s ease;
+  }
+  .field input:focus { border-color: var(--gold); }
+  .field input::placeholder { color: var(--muted); }
+
+  .search-row { display: flex; gap: 10px; align-items: flex-end; }
+  .search-row .field { flex: 1; margin-bottom: 14px; }
+
+  .primary-btn {
+    display: inline-block;
+    padding: 11px 26px;
+    border-radius: 999px;
+    border: 1px solid rgba(200, 169, 110, 0.55);
+    background: rgba(200, 169, 110, 0.18);
+    color: var(--fg);
+    font-family: inherit;
+    font-size: 13px;
+    letter-spacing: 0.1em;
+    cursor: pointer;
+    white-space: nowrap;
+    transition: background 0.25s cubic-bezier(0.22, 1, 0.36, 1), transform 0.2s cubic-bezier(0.22, 1, 0.36, 1), box-shadow 0.25s cubic-bezier(0.22, 1, 0.36, 1);
+  }
+  .primary-btn:hover:not(:disabled) { background: rgba(200, 169, 110, 0.34); transform: translateY(-1px); box-shadow: 0 6px 22px rgba(200, 169, 110, 0.18); }
+  .primary-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+
+  .ghost-btn {
+    display: inline-block;
+    padding: 7px 16px;
+    border-radius: 999px;
+    border: 1px solid rgba(var(--line-rgb), 0.18);
+    background: rgba(var(--line-rgb), 0.05);
+    color: var(--muted);
+    font-family: inherit;
+    font-size: 12px;
+    letter-spacing: 0.08em;
+    cursor: pointer;
+    white-space: nowrap;
+    transition: color 0.3s ease, border-color 0.3s ease, transform 0.2s ease;
+  }
+  .ghost-btn:hover:not(:disabled) { color: var(--fg); border-color: var(--gold); transform: translateY(-1px); }
+  .ghost-btn:disabled { opacity: 0.55; cursor: not-allowed; }
+
+  .msg { min-height: 18px; margin-top: 10px; font-size: 12px; line-height: 1.7; letter-spacing: 0.05em; color: var(--err); }
+  .msg.ok { color: var(--ok); }
+
+  .empty { padding: 16px 2px; font-size: 12px; letter-spacing: 0.06em; color: var(--muted); }
+
+  /* 官方账号标识：金色渐变胶囊 + 对勾（与聊天室 V 标同一套视觉） */
+  .msg-official {
+    display: inline-flex;
+    align-items: center;
+    gap: 3px;
+    padding: 1px 7px 1px 5px;
+    border-radius: 999px;
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: 0.06em;
+    color: #2b2417;
+    background: linear-gradient(145deg, #f0cf8f, #c8a96e 55%, #a8874f);
+    box-shadow: 0 1px 7px rgba(200, 169, 110, 0.5), inset 0 1px 0 rgba(var(--line-rgb), 0.45);
+    vertical-align: 1px;
+    white-space: nowrap;
+  }
+  .msg-official svg { display: block; width: 9px; height: 9px; }
+
+  /* 搜索结果卡 */
+  .result {
+    margin-top: 4px;
+    padding: 14px 16px;
+    border-radius: 14px;
+    border: 1px dashed rgba(200, 169, 110, 0.5);
+    background: rgba(200, 169, 110, 0.08);
+    display: none;
+  }
+  .result.show { display: block; }
+  .r-top { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+  .r-name { font-size: 15px; font-weight: 600; color: var(--fg); }
+  .r-id { font-size: 12px; letter-spacing: 0.1em; color: var(--muted); font-family: "SFMono-Regular", Menlo, Consolas, "Courier New", monospace; }
+  .r-state { font-size: 12px; color: var(--gold-light); letter-spacing: 0.06em; }
+  .r-actions { margin-top: 12px; display: flex; gap: 10px; flex-wrap: wrap; }
+
+  /* 在线状态点 */
+  .dot {
+    display: inline-block;
+    width: 7px; height: 7px;
+    border-radius: 50%;
+    background: rgba(var(--fg-rgb), 0.28);
+    vertical-align: 1px;
+    margin-right: 4px;
+  }
+  .dot.online { background: var(--ok); box-shadow: 0 0 6px rgba(159, 198, 154, 0.8); }
+
+  /* 好友 / 申请行 */
+  .row {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 12px 4px;
+    border-top: 1px solid rgba(var(--line-rgb), 0.1);
+  }
+  .row:first-of-type { border-top: none; }
+  .row-main { flex: 1; min-width: 0; cursor: pointer; text-align: left; background: none; border: none; color: inherit; font: inherit; padding: 0; }
+  .row-name { font-size: 14px; font-weight: 500; color: var(--fg); display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+  .row-sub { margin-top: 3px; font-size: 11px; letter-spacing: 0.06em; color: var(--muted); }
+  .row-last {
+    margin-top: 4px;
+    font-size: 12px;
+    color: var(--muted);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .row-side { display: flex; flex-direction: column; align-items: flex-end; gap: 8px; flex-shrink: 0; }
+  .unread {
+    min-width: 20px;
+    height: 20px;
+    padding: 0 6px;
+    border-radius: 999px;
+    background: var(--danger);
+    color: #fff;
+    font-size: 11px;
+    font-weight: 700;
+    line-height: 20px;
+    text-align: center;
+  }
+  .row-time { font-size: 10px; color: var(--muted); letter-spacing: 0.05em; }
+
+  .req-msg {
+    margin-top: 5px;
+    font-size: 12px;
+    line-height: 1.6;
+    color: var(--fg);
+    padding: 6px 10px;
+    border-radius: 8px;
+    background: rgba(var(--line-rgb), 0.05);
+    border: 1px solid rgba(var(--line-rgb), 0.08);
+  }
+
+  @media (max-width: 480px) {
+    .search-row { flex-direction: column; align-items: stretch; }
+    .search-row .field { margin-bottom: 6px; }
+    .primary-btn { width: 100%; text-align: center; }
+    .row-sub, .row-last { font-size: 11px; }
+  }
+
+  .back-home {
+    margin-top: 30px;
+    font-size: 13px;
+    letter-spacing: 0.08em;
+    color: var(--muted);
+    text-decoration: none;
+    border-bottom: 1px solid rgba(var(--fg-rgb), 0.22);
+    padding-bottom: 3px;
+    transition: color 0.3s ease, border-color 0.3s ease;
+    opacity: 0;
+    animation: fadeIn 0.85s cubic-bezier(0.22, 1, 0.36, 1) 0.75s forwards;
+  }
+  .back-home:hover { color: var(--fg); border-color: var(--fg); }
+
+  @keyframes fadeIn {
+    from { opacity: 0; transform: translateY(14px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+</style>
+  <script src="notice-link.js"></script>
+  <script src="i18n.js"></script>
+  <script src="notify.js"></script>
+</head>
+<body>
+
+  <div class="art-bg"></div>
+  <div class="glow"></div>
+  <div class="grain"></div>
+
+  <!-- 顶部导航 -->
+  <header class="topbar">
+    <a class="logo" href="index.html">Cealin</a>
+    <div class="nav-right">
+      <ul class="menu">
+        <li><a href="index.html" data-i18n="nav.home">首页</a></li>
+        <li><a href="project.html" data-i18n="nav.project">项目</a></li>
+        <li><a href="platform.html" data-i18n="nav.platform">平台</a></li>
+        <li><a href="chat.html" data-i18n="nav.chat">聊天室</a></li>
+        <li><a href="friends.html" class="active" data-i18n="nav.friends">好友</a></li>
+        <li><a href="articles.html" data-i18n="nav.articles">文章</a></li>
+        <li><a href="suggestion.html" data-i18n="nav.suggestion">建议</a></li>
+        <li><a href="notice-admin.html" data-i18n="nav.notice">公告</a></li>
+        <li><a href="mine.html" data-i18n="nav.mine">我的</a></li>
+      </ul>
+      <a class="avatar" href="settings.html" title="设置" data-i18n-title="nav.settings"></a>
+    </div>
+  </header>
+
+  <main class="hero">
+    <h1 class="title" data-i18n="fr.title">好友</h1>
+    <p class="page-sub" data-i18n="fr.sub">用编号找到彼此，对方同意后即可私聊</p>
+
+    <!-- 添加好友 -->
+    <section class="card c1">
+      <div class="card-head">
+        <h2 class="sec-title" data-i18n="fr.searchTitle">添加好友</h2>
+      </div>
+      <div class="search-row">
+        <div class="field">
+          <label for="searchInput" data-i18n="fr.searchLabel">对方账号编号</label>
+          <input id="searchInput" type="text" maxlength="8" autocomplete="off" spellcheck="false" data-i18n-ph="fr.searchPh" placeholder="输入完整编号，如 ABCD2345">
+        </div>
+        <button type="button" class="primary-btn" id="btnSearch" data-i18n="fr.searchBtn">搜索</button>
+      </div>
+      <div class="result" id="searchResult"></div>
+      <p class="msg" id="searchMsg"></p>
+    </section>
+
+    <!-- 待处理申请 -->
+    <section class="card c2" id="reqCard">
+      <div class="card-head">
+        <h2 class="sec-title" data-i18n="fr.reqTitle">待处理申请</h2>
+        <span class="sec-count" id="reqCount"></span>
+      </div>
+      <div id="reqList"><p class="empty" data-i18n="fr.noReq">暂无待处理申请</p></div>
+      <p class="msg" id="reqMsg"></p>
+    </section>
+
+    <!-- 好友列表 -->
+    <section class="card c3">
+      <div class="card-head">
+        <h2 class="sec-title" data-i18n="fr.listTitle">好友列表</h2>
+        <button type="button" class="ghost-btn" id="btnNotify" data-i18n="fr.notifyOn">开启新消息通知</button>
+      </div>
+      <div id="friendList"><p class="empty" data-i18n="fr.loading">加载中…</p></div>
+      <p class="msg" id="listMsg"></p>
+    </section>
+
+    <a class="back-home" href="index.html" data-i18n="common.backHome">返回首页</a>
+  </main>
+
+  <script>
+    (function (w, d) {
+      'use strict';
+
+      var API = '/api/friends';
+      var SID_KEY = 'cealin_account_id';
+      var SNAME_KEY = 'cealin_account_name';
+
+      // 轮询节奏（按 KV 免费额度标定：轮询全程只读，不产生任何写入）
+      //   前台：30 秒 + 0~10 秒抖动；后台：120 秒 + 0~30 秒抖动（只为推送通知，降低频率省流量）
+      var POLL_VISIBLE = 30000;
+      var POLL_VISIBLE_JITTER = 10000;
+      var POLL_HIDDEN = 120000;
+      var POLL_HIDDEN_JITTER = 30000;
+
+      var T = function (k, p) { return w.cealinT ? w.cealinT(k, p) : k; };
+      function el(id) { return d.getElementById(id); }
+      function esc(s) {
+        return String(s === undefined || s === null ? '' : s)
+          .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+          .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+      }
+
+      var myId = '';
+      var myName = '';
+      try {
+        myId = String(sessionStorage.getItem(SID_KEY) || '').trim();
+        myName = String(sessionStorage.getItem(SNAME_KEY) || '').trim();
+      } catch (e) { myId = ''; myName = ''; }
+
+      var friendCount = 0;
+      var searching = false;
+      var lastLookup = null;   // 最近一次搜索结果，语言切换后原地重绘
+      var noticePeer = '';
+      var pollTimer = null;
+
+      /* ---------------- 请求封装 ---------------- */
+      function post(payload) {
+        payload.id = myId;
+        return fetch(API, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload),
+          cache: 'no-store',
+          credentials: 'same-origin'
+        }).then(function (resp) {
+          return resp.json().then(function (data) {
+            return (data && typeof data === 'object') ? data : { ok: false, code: 'server' };
+          }, function () {
+            return { ok: false, code: 'server' };
+          });
+        }, function () {
+          return { ok: false, code: 'network' };
+        });
+      }
+
+      // 错误码 → 多语言文案；后端中文文案只作兜底（动态错误不翻译）
+      function errKey(code) {
+        if (!code) return '';
+        var k = 'fr.err.' + code;
+        return T(k) !== k ? k : '';
+      }
+
+      function setMsg(node, code, fallbackKey, ok) {
+        node.className = ok ? 'msg ok' : 'msg';
+        var k = errKey(code);
+        if (k) { node.setAttribute('data-msg-key', k); node.textContent = T(k); return; }
+        node.removeAttribute('data-msg-key');
+        node.textContent = T(fallbackKey);
+      }
+
+      /* ---------------- 时间显示 ---------------- */
+      function pad2(n) { return (n < 10 ? '0' : '') + n; }
+      function fmtTime(iso) {
+        if (!iso) return '';
+        var dt = new Date(iso);
+        if (isNaN(dt.getTime())) return '';
+        var now = new Date();
+        var sameDay = dt.getFullYear() === now.getFullYear() && dt.getMonth() === now.getMonth() && dt.getDate() === now.getDate();
+        if (sameDay) return pad2(dt.getHours()) + ':' + pad2(dt.getMinutes());
+        return pad2(dt.getMonth() + 1) + '-' + pad2(dt.getDate()) + ' ' + pad2(dt.getHours()) + ':' + pad2(dt.getMinutes());
+      }
+
+      /* ---------------- 好友列表渲染 ---------------- */
+      function friendRow(f) {
+        var officialHtml = f.official
+          ? '<span class="msg-official" title="' + esc(T('fr.official')) + '">' +
+            '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20 6L9 17l-5-5" fill="none" stroke="currentColor" stroke-width="3.4" stroke-linecap="round" stroke-linejoin="round"/></svg>' +
+            esc(T('fr.official')) + '</span>'
+          : '';
+        var lastHtml = '';
+        if (f.last) {
+          var body = f.last.img ? '[' + esc(T('fr.image')) + ']' : esc(f.last.text || '');
+          var prefix = f.last.from === myId ? esc(T('fr.mine')) + ' ' : '';
+          lastHtml = '<div class="row-last">' + prefix + body + '</div>';
+        }
+        var unreadHtml = f.unread > 0 ? '<span class="unread">' + (f.unread > 99 ? '99+' : f.unread) + '</span>' : '';
+        return '<div class="row" data-id="' + esc(f.id) + '">' +
+          '<button type="button" class="row-main" data-act="open" data-id="' + esc(f.id) + '">' +
+            '<div class="row-name"><span class="dot' + (f.online ? ' online' : '') + '"></span>' +
+              esc(f.name) + officialHtml + '</div>' +
+            '<div class="row-sub">' + esc(f.id) + ' · ' + esc(f.online ? T('fr.online') : T('fr.offline')) + '</div>' +
+            lastHtml +
+          '</button>' +
+          '<div class="row-side">' + unreadHtml +
+            '<span class="row-time">' + esc(f.last ? fmtTime(f.last.time) : '') + '</span>' +
+            '<button type="button" class="ghost-btn" data-act="remove" data-id="' + esc(f.id) + '" data-name="' + esc(f.name) + '">' + esc(T('fr.delete')) + '</button>' +
+          '</div>' +
+        '</div>';
+      }
+
+      function renderFriends(list) {
+        friendCount = list.length;
+        var box = el('friendList');
+        if (!list.length) {
+          box.innerHTML = '<p class="empty">' + esc(T('fr.empty')) + '</p>';
+          return;
+        }
+        box.innerHTML = list.map(friendRow).join('');
+      }
+
+      function renderRequests(list) {
+        var box = el('reqList');
+        var cnt = el('reqCount');
+        if (!list.length) {
+          box.innerHTML = '<p class="empty">' + esc(T('fr.noReq')) + '</p>';
+          cnt.textContent = '';
+          return;
+        }
+        cnt.textContent = list.length + ' ' + T('fr.pending');
+        box.innerHTML = list.map(function (r) {
+          var officialHtml = r.official
+            ? '<span class="msg-official" title="' + esc(T('fr.official')) + '"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20 6L9 17l-5-5" fill="none" stroke="currentColor" stroke-width="3.4" stroke-linecap="round" stroke-linejoin="round"/></svg>' + esc(T('fr.official')) + '</span>'
+            : '';
+          var msgHtml = r.msg ? '<div class="req-msg">' + esc(r.msg) + '</div>' : '';
+          return '<div class="row">' +
+            '<div class="row-main" style="cursor:default">' +
+              '<div class="row-name">' + esc(r.name) + officialHtml + '</div>' +
+              '<div class="row-sub">' + esc(r.id) + ' · ' + esc(fmtTime(r.ts)) + '</div>' +
+              msgHtml +
+            '</div>' +
+            '<div class="row-side">' +
+              '<button type="button" class="primary-btn" style="padding:7px 16px;font-size:12px;" data-act="accept" data-id="' + esc(r.id) + '">' + esc(T('fr.accept')) + '</button>' +
+              '<button type="button" class="ghost-btn" data-act="reject" data-id="' + esc(r.id) + '">' + esc(T('fr.reject')) + '</button>' +
+            '</div>' +
+          '</div>';
+        }).join('');
+      }
+
+      /* ---------------- 通知：新消息（页面不在前台时） ---------------- */
+      function notifyFromList(friends) {
+        if (!w.cealinNotify) return;
+        for (var i = 0; i < friends.length; i++) {
+          var f = friends[i];
+          if (!f.last || !f.last.time) continue;
+          w.cealinNotify.watch({
+            key: 'dm:' + f.id,
+            msgs: [{ from: f.last.from, name: f.name, text: f.last.text, img: f.last.img, time: f.last.time }],
+            selfId: myId,
+            title: f.name,
+            imgText: T('fr.image'),
+            url: 'dm.html?peer=' + encodeURIComponent(f.id)
+          });
+        }
+      }
+
+      /* ---------------- 拉取列表 ---------------- */
+      function loadList(silent) {
+        return post({ action: 'list' }).then(function (data) {
+          if (!data || !data.ok) {
+            if (!silent) setMsg(el('listMsg'), data && data.code, 'fr.err.server', false);
+            return false;
+          }
+          el('listMsg').textContent = '';
+          renderFriends(data.friends || []);
+          renderRequests(data.requests || []);
+          notifyFromList(data.friends || []);
+          return true;
+        }, function () {
+          if (!silent) setMsg(el('listMsg'), 'network', 'fr.err.server', false);
+          return false;
+        });
+      }
+
+      /* ---------------- 轮询调度：前台 30 秒、后台 120 秒，均带抖动 ---------------- */
+      function nextDelay() {
+        var hidden = false;
+        try { hidden = !!(d.hidden || d.visibilityState === 'hidden'); } catch (e) { hidden = false; }
+        if (hidden) return POLL_HIDDEN + Math.floor(Math.random() * (POLL_HIDDEN_JITTER + 1));
+        return POLL_VISIBLE + Math.floor(Math.random() * (POLL_VISIBLE_JITTER + 1));
+      }
+
+      function schedulePoll() {
+        if (pollTimer) clearTimeout(pollTimer);
+        pollTimer = setTimeout(function () {
+          pollTimer = null;
+          loadList(true).then(function () { schedulePoll(); }, function () { schedulePoll(); });
+        }, nextDelay());
+      }
+
+      /* ---------------- 搜索并添加 ---------------- */
+      function renderSearchResult(user, relation) {
+        var box = el('searchResult');
+        lastLookup = { user: user || {}, relation: relation || 'none' };
+        var officialHtml = user.official
+          ? '<span class="msg-official" title="' + esc(T('fr.official')) + '"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20 6L9 17l-5-5" fill="none" stroke="currentColor" stroke-width="3.4" stroke-linecap="round" stroke-linejoin="round"/></svg>' + esc(T('fr.official')) + '</span>'
+          : '';
+        var stateHtml = '';
+        var actions = '';
+        if (relation === 'self') {
+          stateHtml = '<span class="r-state">' + esc(T('fr.self')) + '</span>';
+        } else if (relation === 'friend') {
+          stateHtml = '<span class="r-state">' + esc(T('fr.friend')) + '</span>';
+          actions = '<button type="button" class="primary-btn" data-act="open" data-id="' + esc(user.id) + '">' + esc(T('fr.goChat')) + '</button>';
+        } else if (relation === 'outgoing') {
+          stateHtml = '<span class="r-state">' + esc(T('fr.outgoing')) + '</span>';
+        } else if (relation === 'incoming') {
+          stateHtml = '<span class="r-state">' + esc(T('fr.incoming')) + '</span>';
+        } else {
+          actions = '<div class="field" style="margin-bottom:0;flex:1;min-width:200px;">' +
+            '<label for="verifyInput">' + esc(T('fr.verifyLabel')) + '</label>' +
+            '<input id="verifyInput" type="text" maxlength="60" autocomplete="off" placeholder="' + esc(T('fr.verifyPh')) + '"></div>' +
+            '<button type="button" class="primary-btn" data-act="request" data-id="' + esc(user.id) + '">' + esc(T('fr.sendReq')) + '</button>';
+        }
+        box.innerHTML = '<div class="r-top">' +
+            '<span class="dot' + (user.online ? ' online' : '') + '"></span>' +
+            '<span class="r-name">' + esc(user.name) + '</span>' + officialHtml +
+            stateHtml +
+          '</div>' +
+          '<div class="r-sub" style="margin-top:6px;font-size:12px;color:var(--muted);">' +
+            esc(user.id) + ' · ' + esc(user.online ? T('fr.online') : T('fr.offline')) +
+          '</div>' +
+          (actions ? '<div class="r-actions">' + actions + '</div>' : '');
+        box.className = 'result show';
+      }
+
+      function doSearch() {
+        if (searching) return;
+        var id = String(el('searchInput').value || '').replace(/^\s+|\s+$/g, '');
+        el('searchMsg').textContent = '';
+        el('searchResult').className = 'result';
+        if (!/^[A-Za-z0-9@]{6,8}$/.test(id)) {
+          setMsg(el('searchMsg'), 'noid', 'fr.err.noid', false);
+          return;
+        }
+        searching = true;
+        el('btnSearch').disabled = true;
+        post({ action: 'search', to: id }).then(function (data) {
+          searching = false;
+          el('btnSearch').disabled = false;
+          if (!data || !data.ok) {
+            setMsg(el('searchMsg'), data && data.code, 'fr.err.server', false);
+            return;
+          }
+          renderSearchResult(data.user || {}, data.relation || 'none');
+        }, function () {
+          searching = false;
+          el('btnSearch').disabled = false;
+          setMsg(el('searchMsg'), 'network', 'fr.err.server', false);
+        });
+      }
+
+      function sendRequest(btn, to) {
+        if (btn.disabled) return;
+        var input = el('verifyInput');
+        var msg = input ? String(input.value || '') : '';
+        btn.disabled = true;
+        post({ action: 'request', to: to, msg: msg }).then(function (data) {
+          btn.disabled = false;
+          if (!data || !data.ok) {
+            setMsg(el('searchMsg'), data && data.code, 'fr.err.server', false);
+            return;
+          }
+          setMsg(el('searchMsg'), '', 'fr.reqSent', true);
+          doSearch();
+        }, function () {
+          btn.disabled = false;
+          setMsg(el('searchMsg'), 'network', 'fr.err.server', false);
+        });
+      }
+
+      /* ---------------- 申请处理 / 删除好友 ---------------- */
+      function decide(btn, act, from) {
+        if (btn.disabled) return;
+        btn.disabled = true;
+        post({ action: act, from: from }).then(function (data) {
+          if (!data || !data.ok) {
+            setMsg(el('reqMsg'), data && data.code, 'fr.err.server', false);
+            btn.disabled = false;
+            return;
+          }
+          setMsg(el('reqMsg'), '', act === 'accept' ? 'fr.accepted' : 'fr.rejected', true);
+          loadList(false);
+        }, function () {
+          btn.disabled = false;
+          setMsg(el('reqMsg'), 'network', 'fr.err.server', false);
+        });
+      }
+
+      function removeFriend(btn, peer, name) {
+        var ask = T('fr.delConfirm', { name: name || peer });
+        var sure = false;
+        try { sure = w.confirm(ask); } catch (e) { sure = false; }
+        if (!sure) return;
+        btn.disabled = true;
+        post({ action: 'remove', peer: peer }).then(function (data) {
+          if (!data || !data.ok) {
+            setMsg(el('listMsg'), data && data.code, 'fr.err.server', false);
+            btn.disabled = false;
+            return;
+          }
+          setMsg(el('listMsg'), '', 'fr.delOk', true);
+          loadList(false);
+        }, function () {
+          btn.disabled = false;
+          setMsg(el('listMsg'), 'network', 'fr.err.server', false);
+        });
+      }
+
+      /* ---------------- 通知权限按钮 ---------------- */
+      function refreshNotifyBtn() {
+        var btn = el('btnNotify');
+        if (!btn) return;
+        if (!w.cealinNotify || !w.cealinNotify.supported()) {
+          btn.textContent = T('fr.notifyUnsupported');
+          btn.disabled = true;
+          return;
+        }
+        var perm = w.cealinNotify.permission();
+        if (perm === 'granted') {
+          btn.textContent = T('fr.notifyGranted');
+          btn.setAttribute('data-i18n', 'fr.notifyGranted');
+          btn.disabled = true;
+        } else if (perm === 'denied') {
+          btn.textContent = T('fr.notifyDenied');
+          btn.setAttribute('data-i18n', 'fr.notifyDenied');
+          btn.disabled = true;
+        } else {
+          btn.textContent = T('fr.notifyOn');
+          btn.setAttribute('data-i18n', 'fr.notifyOn');
+          btn.disabled = false;
+        }
+      }
+
+      /* ---------------- 事件绑定 ---------------- */
+      el('btnSearch').addEventListener('click', doSearch);
+      el('searchInput').addEventListener('keydown', function (e) {
+        if (e && e.keyCode === 13) { e.preventDefault(); doSearch(); }
+      });
+
+      el('btnNotify').addEventListener('click', function () {
+        if (!w.cealinNotify) return;
+        w.cealinNotify.request(function () { refreshNotifyBtn(); });
+      });
+
+      d.addEventListener('click', function (e) {
+        var t = e.target;
+        while (t && t !== d.body && !t.getAttribute) t = t.parentNode;
+        if (!t || !t.getAttribute) return;
+        var act = t.getAttribute('data-act');
+        if (!act) return;
+        var id = t.getAttribute('data-id') || '';
+        if (act === 'open') {
+          if (id) w.location.href = 'dm.html?peer=' + encodeURIComponent(id);
+          return;
+        }
+        if (act === 'request') { sendRequest(t, id); return; }
+        if (act === 'accept') { decide(t, 'accept', id); return; }
+        if (act === 'reject') { decide(t, 'reject', id); return; }
+        if (act === 'remove') { removeFriend(t, id, t.getAttribute('data-name')); return; }
+      });
+
+      // 页面可见性变化：立即刷新一次（把后台期间的新消息/新申请补回来），并重置排期
+      d.addEventListener('visibilitychange', function () {
+        loadList(true).then(function () { schedulePoll(); }, function () { schedulePoll(); });
+      });
+
+      /* ---------------- 多语言重绘 ---------------- */
+      function repaint() {
+        refreshNotifyBtn();
+        // 搜索结果面板（在线状态、按钮文案）随语言原地重绘，并保留已输入的验证语
+        var box = el('searchResult');
+        if (lastLookup && box && /(^|\s)show(\s|$)/.test(box.className || '')) {
+          var keep = '';
+          var vin = el('verifyInput');
+          if (vin) keep = String(vin.value || '');
+          renderSearchResult(lastLookup.user, lastLookup.relation);
+          var vin2 = el('verifyInput');
+          if (vin2 && keep) vin2.value = keep;
+        }
+        // 列表内容多为动态生成，语言切换后重新拉一次即可整体刷新
+        loadList(true);
+      }
+      if (w.cealinOnLangChange) w.cealinOnLangChange(repaint);
+
+      /* ---------------- 初始化 ---------------- */
+      refreshNotifyBtn();
+      loadList(false).then(function () { schedulePoll(); }, function () { schedulePoll(); });
+    })(window, document);
+  </script>
+</body>
+</html>

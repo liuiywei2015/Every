@@ -669,6 +669,7 @@
         <li><a href="project.html" data-i18n="nav.project">项目</a></li>
         <li><a href="platform.html" data-i18n="nav.platform">平台</a></li>
         <li><a href="chat.html" class="active" data-i18n="nav.chat">聊天室</a></li>
+        <li><a href="friends.html" data-i18n="nav.friends">好友</a></li>
         <li><a href="articles.html" data-i18n="nav.articles">文章</a></li>
         <li><a href="suggestion.html" data-i18n="nav.suggestion">建议</a></li>
         <li><a href="notice-admin.html" data-i18n="nav.notice">公告</a></li>
@@ -741,6 +742,7 @@
         <div class="settings-panel">
           <div class="settings-title" data-i18n="chat.settingsTitle">聊天室设置</div>
           <button type="button" class="settings-item" id="reportBtn" onclick="reportRoom()" data-i18n="chat.report">举报房间</button>
+          <button type="button" class="settings-item" id="notifyBtn" onclick="enableNotify()" data-i18n="chat.notifyBtn">开启消息通知</button>
           <button type="button" class="settings-item" onclick="toggleRenameRow()" data-i18n="chat.rename">给聊天室起名</button>
           <div id="renameRow" style="display:none;margin-bottom:10px;">
             <input id="roomNameInput" class="room-input" type="text" maxlength="20" autocomplete="off" placeholder="输入房间显示名称（留空则恢复显示代码）" style="letter-spacing:0.08em;margin-bottom:8px;" data-i18n-ph="chat.renamePh">
@@ -775,6 +777,10 @@
       // 消息轮询节奏：基准 6 秒；失败时按倍数退避到上限 60 秒，成功后恢复基准
       var POLL_INTERVAL = 6000;
       var POLL_BACKOFF_MAX = 60000;
+      // 页面不可见时不停表，改为低频轮询（90 秒 + 0~30 秒抖动）：仅用于新消息通知，
+      // 避免切后台后收不到消息，同时把请求频率压到最低（KV 读免费额度充裕）
+      var POLL_HIDDEN = 90000;
+      var POLL_HIDDEN_JITTER = 30000;
       var pollTimer = null;
       var pollDelay = POLL_INTERVAL;
       var currentCode = '';
@@ -1082,6 +1088,27 @@
       };
 
       // 设置面板：收纳举报房间与更改代码
+      // 消息通知：必须在用户点击手势里申请权限；已授权则按钮改为状态展示
+      window.enableNotify = function () {
+        if (!window.cealinNotify) return;
+        cealinNotify.request(function (perm) { syncNotifyBtn(perm); });
+      };
+
+      function syncNotifyBtn(perm) {
+        var btn = el('notifyBtn');
+        if (!btn) return;
+        var p = perm || (window.cealinNotify ? cealinNotify.permission() : 'unsupported');
+        if (p === 'granted') {
+          btn.textContent = cealinT('chat.notifyOn');
+          btn.disabled = true;
+        } else {
+          btn.textContent = cealinT('chat.notifyBtn');
+          btn.disabled = false;
+        }
+      }
+
+      if (window.cealinNotify) syncNotifyBtn();
+
       window.openSettings = function () {
         var m = el('settingsMask');
         m.classList.remove('closing');
@@ -1230,7 +1257,7 @@
       };
 
       /* ---------------- 消息轮询调度 ----------------
-       * 基准 6 秒；页面不可见（切标签页 / 切后台）时完全暂停，恢复可见时立即拉取一次再恢复定时；
+       * 基准 6 秒；页面不可见（切标签页 / 切后台）时降为低频（90 秒 + 抖动）继续轮询以便推送通知，恢复可见时立即拉取一次再恢复定时；
        * 单次失败按 2 倍退避（6s → 12s → 24s → 48s → 上限 60s），下一次成功即回到基准，
        * 避免接口异常时按固定节奏持续打请求。 */
       function stopPolling() {
@@ -1240,9 +1267,19 @@
         }
       }
 
+      function isHidden() {
+        try { return !!(document.hidden || document.visibilityState === 'hidden'); } catch (e) { return false; }
+      }
+
+      // 下次轮询间隔：前台按退避后的基准，后台固定低频 + 随机抖动
+      function nextPollDelay() {
+        if (isHidden()) return POLL_HIDDEN + Math.floor(Math.random() * (POLL_HIDDEN_JITTER + 1));
+        return pollDelay;
+      }
+
       function schedulePoll(delay) {
         stopPolling();
-        if (!currentCode || document.hidden) return;
+        if (!currentCode) return;
         pollTimer = setTimeout(function () {
           pollTimer = null;
           runPollOnce();
@@ -1250,7 +1287,7 @@
       }
 
       function runPollOnce() {
-        if (!currentCode || document.hidden) return;
+        if (!currentCode) return;
         loadMessages()
           .then(function (ok) {
             pollDelay = ok ? POLL_INTERVAL : Math.min(pollDelay * 2, POLL_BACKOFF_MAX);
@@ -1259,19 +1296,21 @@
             pollDelay = Math.min(pollDelay * 2, POLL_BACKOFF_MAX);
           })
           .then(function () {
-            schedulePoll(pollDelay);
+            schedulePoll(nextPollDelay());
           });
       }
 
       function startPolling() {
         pollDelay = POLL_INTERVAL;
-        schedulePoll(POLL_INTERVAL);
+        schedulePoll(nextPollDelay());
       }
 
       document.addEventListener('visibilitychange', function () {
         if (!currentCode) return;
-        if (document.hidden) {
-          stopPolling();
+        if (isHidden()) {
+          // 切到后台不再停表：改为低频轮询，保持新消息通知能力
+          pollDelay = POLL_INTERVAL;
+          schedulePoll(nextPollDelay());
           return;
         }
         // 恢复可见：立即补一次，把离开期间的增量一次拉回来，再按结果决定下次间隔（失败同样退避）
@@ -1284,7 +1323,7 @@
             pollDelay = Math.min(pollDelay * 2, POLL_BACKOFF_MAX);
           })
           .then(function () {
-            schedulePoll(pollDelay);
+            schedulePoll(nextPollDelay());
           });
       });
 
@@ -1311,6 +1350,17 @@
               }
             }
             var list = data.messages;
+            // 页面不在前台时，聊天室新消息弹系统通知；同一条消息只通知一次（notify.js 内按时间基准去重）
+            if (window.cealinNotify) {
+              cealinNotify.watch({
+                key: 'room:' + currentCode,
+                msgs: list,
+                selfId: currentAccId || accountId,
+                title: currentRoomName || currentCode,
+                imgText: cealinT('fr.image'),
+                url: 'chat.html?code=' + encodeURIComponent(currentCode)
+              });
+            }
             var wrap = el('msgList');
             if (!list.length) {
               wrap.innerHTML = '<div class="msg-empty">' + cealinT('chat.empty') + '</div>';
@@ -1383,8 +1433,23 @@
           if (box) box.placeholder = currentBanned ? cealinT('chat.msgPhBanned') : cealinT('chat.msgPh');
           var rbtn = el('reportBtn');
           if (rbtn && rbtn.className.indexOf('done') < 0) rbtn.textContent = cealinT('chat.report');
+          syncNotifyBtn();
         });
       }
+
+      // 通知点击回跳：带 ?code=XXXX 打开时自动预填并进入该房间（无参数则保持原有手动输入流程）
+      (function autoJoinFromUrl() {
+        var code = '';
+        try {
+          var qs = String(location.search || '');
+          var m = qs.match(/[?&]code=([^&#]*)/);
+          if (m) code = decodeURIComponent(m[1]).replace(/[^A-Za-z0-9]/g, '').toUpperCase().slice(0, 4);
+        } catch (e) { code = ''; }
+        if (!code) return;
+        el('codeInput').value = code;
+        // 昵称已就绪（登录账号会自动带昵称）才自动进入；否则只预填代码，等用户填昵称后手动进入
+        if (nickValue()) joinRoom();
+      })();
 
       // 回车快捷操作
       el('codeInput').addEventListener('keydown', function (ev) {

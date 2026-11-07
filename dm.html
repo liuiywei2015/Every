@@ -1,0 +1,689 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+<!-- 未登录守卫：必须在任何内容渲染前执行 -->
+<script src="guard.js"></script>
+<!-- 主题引导 + 全站共享主题样式 -->
+<script src="theme.js"></script>
+<!-- 在线心跳 -->
+<script src="presence.js"></script>
+<link rel="stylesheet" href="theme.css">
+<title data-i18n="title.dm">私聊 - Cealin</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  html, body { height: 100%; }
+
+  body {
+    color: var(--fg);
+    font-family: "Helvetica Neue", "PingFang SC", "Microsoft YaHei", Arial, sans-serif;
+    -webkit-font-smoothing: antialiased;
+    overflow: hidden;
+    background: var(--page-bg);
+  }
+
+  .art-bg {
+    position: fixed; inset: 0; z-index: 0;
+    background-image: url('assets/bg.jpg');
+    background-size: cover; background-position: center;
+  }
+  .glow {
+    position: fixed; inset: 0; z-index: 1; pointer-events: none;
+    background:
+      radial-gradient(ellipse 55% 42% at 50% 46%, rgba(255, 196, 120, 0.18), transparent 62%),
+      radial-gradient(ellipse 40% 35% at 50% 60%, rgba(230, 170, 90, 0.10), transparent 70%),
+      linear-gradient(180deg, rgba(var(--veil-rgb), 0.30) 0%, rgba(var(--veil-rgb), 0) 30%, rgba(var(--veil-rgb), 0.20) 78%, rgba(var(--veil-rgb), 0.55) 100%);
+  }
+  .grain {
+    position: fixed; inset: 0; z-index: 2; pointer-events: none;
+    opacity: 0.07; mix-blend-mode: overlay;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='180' height='180'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+  }
+
+  /* 顶部导航：只保留返回好友列表 + 会话对象信息，避免与聊天室页重复堆叠菜单 */
+  .topbar {
+    position: fixed; top: 14px; left: 20px; right: 20px; z-index: 10;
+    display: flex; align-items: center; gap: 14px;
+    padding: 12px 20px; border-radius: 22px;
+    background: linear-gradient(135deg, rgba(var(--line-rgb), 0.16), rgba(var(--line-rgb), 0.06) 48%, rgba(200, 169, 110, 0.08));
+    -webkit-backdrop-filter: blur(20px) saturate(170%);
+    backdrop-filter: blur(20px) saturate(170%);
+    border: 1px solid rgba(var(--line-rgb), 0.18);
+    box-shadow: 0 12px 36px rgba(var(--shadow-rgb), 0.30), inset 0 1px 0 rgba(var(--line-rgb), 0.25);
+  }
+  .back-btn {
+    display: inline-flex; align-items: center; gap: 6px;
+    padding: 7px 14px; border-radius: 999px;
+    border: 1px solid rgba(var(--line-rgb), 0.18);
+    background: rgba(var(--line-rgb), 0.05);
+    color: var(--muted); font-family: inherit; font-size: 12px; letter-spacing: 0.08em;
+    text-decoration: none; white-space: nowrap; cursor: pointer;
+    transition: color 0.3s ease, border-color 0.3s ease;
+  }
+  .back-btn:hover { color: var(--fg); border-color: var(--gold); }
+  .peer-info { display: flex; align-items: center; gap: 8px; min-width: 0; flex: 1; }
+  .peer-name { font-size: 16px; font-weight: 600; color: var(--fg); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .peer-sub { font-size: 11px; letter-spacing: 0.08em; color: var(--muted); white-space: nowrap; }
+
+  .msg-official {
+    display: inline-flex; align-items: center; gap: 3px;
+    padding: 1px 7px 1px 5px; border-radius: 999px;
+    font-size: 10px; font-weight: 700; letter-spacing: 0.06em;
+    color: #2b2417;
+    background: linear-gradient(145deg, #f0cf8f, #c8a96e 55%, #a8874f);
+    box-shadow: 0 1px 7px rgba(200, 169, 110, 0.5), inset 0 1px 0 rgba(var(--line-rgb), 0.45);
+    white-space: nowrap;
+  }
+  .msg-official svg { display: block; width: 9px; height: 9px; }
+
+  .dot { display: inline-block; width: 7px; height: 7px; border-radius: 50%; background: rgba(var(--fg-rgb), 0.28); }
+  .dot.online { background: var(--ok); box-shadow: 0 0 6px rgba(159, 198, 154, 0.8); }
+
+  main {
+    position: relative; z-index: 5;
+    height: 100vh;
+    display: flex; flex-direction: column;
+    padding: 96px 16px 16px;
+  }
+
+  .chat-card {
+    flex: 1; min-height: 0;
+    width: min(760px, 100%);
+    margin: 0 auto;
+    display: flex; flex-direction: column;
+    background: rgba(var(--panel-rgb), 0.5);
+    border: 1px solid rgba(var(--line-rgb), 0.1);
+    border-radius: 18px;
+    backdrop-filter: blur(12px);
+    box-shadow: 0 24px 80px rgba(var(--shadow-rgb), 0.45);
+    overflow: hidden;
+  }
+
+  .msg-list {
+    flex: 1; min-height: 0;
+    overflow-y: auto;
+    padding: 18px 16px 8px;
+    display: flex; flex-direction: column; gap: 12px;
+    scroll-behavior: smooth;
+  }
+  .msg-list::-webkit-scrollbar { width: 6px; }
+  .msg-list::-webkit-scrollbar-thumb { background: rgba(var(--fg-rgb), 0.18); border-radius: 3px; }
+
+  .chat-empty { margin: auto; font-size: 12px; letter-spacing: 0.08em; color: var(--muted); }
+
+  .msg-item { display: flex; flex-direction: column; align-items: flex-start; max-width: 78%; }
+  .msg-item.mine { align-self: flex-end; align-items: flex-end; }
+  .msg-meta {
+    display: flex; align-items: center; gap: 6px;
+    font-size: 10px; letter-spacing: 0.06em; color: var(--muted);
+    margin-bottom: 4px;
+  }
+  .msg-text {
+    padding: 9px 13px;
+    border-radius: 14px 14px 14px 4px;
+    background: rgba(var(--line-rgb), 0.08);
+    border: 1px solid rgba(var(--line-rgb), 0.1);
+    font-size: 14px; line-height: 1.6;
+    color: var(--fg);
+    word-break: break-word;
+    white-space: pre-wrap;
+    text-align: left;
+  }
+  /* 本人消息高亮：金色描边 + 暖色底 */
+  .msg-item.mine .msg-text {
+    border-radius: 14px 14px 4px 14px;
+    background: linear-gradient(145deg, rgba(200, 169, 110, 0.30), rgba(200, 169, 110, 0.16));
+    border: 1px solid rgba(200, 169, 110, 0.5);
+    color: var(--fg);
+  }
+  .msg-item img.msg-img {
+    max-width: 240px; max-height: 240px;
+    border-radius: 12px; display: block;
+    border: 1px solid rgba(var(--line-rgb), 0.14);
+    background: rgba(var(--line-rgb), 0.05);
+    cursor: pointer;
+  }
+  .msg-item.mine img.msg-img { border-color: rgba(200, 169, 110, 0.5); }
+  .img-loading {
+    width: 120px; height: 80px; border-radius: 12px;
+    background: rgba(var(--line-rgb), 0.06);
+    border: 1px solid rgba(var(--line-rgb), 0.1);
+    display: flex; align-items: center; justify-content: center;
+    font-size: 11px; color: var(--muted);
+  }
+
+  .chat-input-row {
+    display: flex; align-items: center; gap: 8px;
+    padding: 12px 14px;
+    border-top: 1px solid rgba(var(--line-rgb), 0.1);
+    background: rgba(var(--panel-rgb), 0.35);
+  }
+  .chat-input {
+    flex: 1; min-width: 0;
+    padding: 10px 14px; border-radius: 999px;
+    border: 1px solid rgba(var(--line-rgb), 0.14);
+    background: rgba(var(--line-rgb), 0.05);
+    color: var(--fg); font-size: 14px; font-family: inherit; outline: none;
+    transition: border-color 0.3s ease;
+  }
+  .chat-input:focus { border-color: var(--gold); }
+  .chat-input::placeholder { color: var(--muted); }
+
+  .icon-btn {
+    flex-shrink: 0;
+    width: 38px; height: 38px; border-radius: 50%;
+    border: 1px solid rgba(var(--line-rgb), 0.16);
+    background: rgba(var(--line-rgb), 0.05);
+    color: var(--muted); cursor: pointer; font-family: inherit; font-size: 16px;
+    line-height: 1; display: inline-flex; align-items: center; justify-content: center;
+    transition: color 0.3s ease, border-color 0.3s ease;
+  }
+  .icon-btn:hover:not(:disabled) { color: var(--fg); border-color: var(--gold); }
+  .icon-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+
+  .send-btn {
+    flex-shrink: 0;
+    padding: 10px 22px; border-radius: 999px;
+    border: 1px solid rgba(200, 169, 110, 0.55);
+    background: rgba(200, 169, 110, 0.18);
+    color: var(--fg); font-family: inherit; font-size: 13px; letter-spacing: 0.1em;
+    cursor: pointer; transition: background 0.25s ease, transform 0.2s ease;
+  }
+  .send-btn:hover:not(:disabled) { background: rgba(200, 169, 110, 0.34); transform: translateY(-1px); }
+  .send-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+
+  .tip-line {
+    padding: 0 16px 10px;
+    font-size: 11px; line-height: 1.6; letter-spacing: 0.05em;
+    color: var(--err);
+    min-height: 0;
+  }
+  .tip-line.ok { color: var(--ok); }
+
+  @media (max-width: 480px) {
+    .peer-sub { display: none; }
+    main { padding: 92px 10px 10px; }
+    .msg-item { max-width: 86%; }
+  }
+</style>
+  <script src="notice-link.js"></script>
+  <script src="i18n.js"></script>
+  <script src="notify.js"></script>
+</head>
+<body>
+
+  <div class="art-bg"></div>
+  <div class="glow"></div>
+  <div class="grain"></div>
+
+  <header class="topbar">
+    <a class="back-btn" href="friends.html" id="backBtn" data-i18n="dm.back">返回好友列表</a>
+    <div class="peer-info">
+      <span class="dot" id="peerDot"></span>
+      <span class="peer-name" id="peerName">—</span>
+      <span id="peerOfficial"></span>
+      <span class="peer-sub" id="peerSub"></span>
+    </div>
+    <button type="button" class="icon-btn" id="btnNotify" title="开启新消息通知" style="width:34px;height:34px;font-size:13px;">🔔</button>
+  </header>
+
+  <main>
+    <section class="chat-card">
+      <div class="msg-list" id="msgList"><p class="chat-empty" data-i18n="fr.loading">加载中…</p></div>
+      <p class="tip-line" id="tipLine"></p>
+      <div class="chat-input-row">
+        <button type="button" class="icon-btn" id="btnImg" title="发送图片" data-i18n-title="dm.img">＋</button>
+        <input id="imgInput" type="file" accept="image/*" style="display:none;">
+        <input id="msgInput" class="chat-input" type="text" maxlength="1000" autocomplete="off" placeholder="输入消息…" data-i18n-ph="dm.ph">
+        <button type="button" class="send-btn" id="btnSend" data-i18n="dm.send">发送</button>
+      </div>
+    </section>
+  </main>
+
+  <script>
+    (function (w, d) {
+      'use strict';
+
+      var API = '/api/dm';
+      var SID_KEY = 'cealin_account_id';
+      var SNAME_KEY = 'cealin_account_name';
+
+      // 轮询节奏（按 KV 免费额度标定：轮询全程只读）
+      //   前台：15 秒 + 0~5 秒抖动（会话内需要更及时）；后台：90 秒 + 0~30 秒抖动（只用于推通知）
+      var POLL_VISIBLE = 15000;
+      var POLL_VISIBLE_JITTER = 5000;
+      var POLL_HIDDEN = 90000;
+      var POLL_HIDDEN_JITTER = 30000;
+
+      // 图片压缩：单张上限与文章区保持一致（300KB），宽高上限 1200px，质量优先
+      var IMG_MAX_BYTES = 300 * 1024;
+      var IMG_MAX_SIDE = 1200;
+      var IMG_MAX_ROUND = 14;
+
+      // 已读回写节流：仅在可见状态下收到新消息时写，最多每 3 分钟一次，避免高频写 KV
+      var READ_WRITE_GAP = 180000;
+
+      var T = function (k, p) { return w.cealinT ? w.cealinT(k, p) : k; };
+      function el(id) { return d.getElementById(id); }
+      function esc(s) {
+        return String(s === undefined || s === null ? '' : s)
+          .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+          .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+      }
+
+      var myId = '', myName = '', peerId = '';
+      try {
+        myId = String(sessionStorage.getItem(SID_KEY) || '').trim();
+        myName = String(sessionStorage.getItem(SNAME_KEY) || '').trim();
+      } catch (e) { myId = ''; myName = ''; }
+
+      try {
+        var sp = new URLSearchParams(w.location.search);
+        peerId = String(sp.get('peer') || '').trim();
+      } catch (e) { peerId = ''; }
+
+      var messages = [];
+      var lastTime = '';
+      var pollTimer = null;
+      var sending = false;
+      var lastReadWrite = 0;
+      var imgCache = {};   // 消息 id → dataURL，避免重复取图
+      var lastPeer = null; // 最近一次拉到的对端资料，用于语言切换后重绘头部
+
+      var officialHtml = function (on) {
+        if (!on) return '';
+        return '<span class="msg-official" title="' + esc(T('fr.official')) + '">' +
+          '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20 6L9 17l-5-5" fill="none" stroke="currentColor" stroke-width="3.4" stroke-linecap="round" stroke-linejoin="round"/></svg>' +
+          esc(T('fr.official')) + '</span>';
+      };
+
+      /* 头部资料统一渲染：语言切换后可原地重绘（名称/编号/在线状态/官方标识） */
+      function applyPeer(peer) {
+        if (!peer) return;
+        el('peerName').textContent = peer.name || peer.id;
+        el('peerDot').className = 'dot' + (peer.online ? ' online' : '');
+        el('peerOfficial').innerHTML = officialHtml(peer.official);
+        el('peerSub').textContent = peer.id + ' · ' + T(peer.online ? 'fr.online' : 'fr.offline');
+        d.title = (peer.name || peer.id) + ' - Cealin';
+      }
+
+      /* ---------------- 请求封装 ---------------- */
+      function call(payload) {
+        payload.id = myId;
+        return fetch(API, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload),
+          cache: 'no-store',
+          credentials: 'same-origin'
+        }).then(function (resp) {
+          return resp.json().then(function (data) {
+            return (data && typeof data === 'object') ? data : { ok: false, code: 'server' };
+          }, function () { return { ok: false, code: 'server' }; });
+        }, function () { return { ok: false, code: 'network' }; });
+      }
+
+      function errText(code) {
+        if (!code) return '';
+        var k = 'dm.err.' + code;
+        if (T(k) !== k) return T(k);
+        var k2 = 'fr.err.' + code;
+        if (T(k2) !== k2) return T(k2);
+        return '';
+      }
+
+      function tip(text, ok) {
+        var node = el('tipLine');
+        node.textContent = text || '';
+        node.className = ok ? 'tip-line ok' : 'tip-line';
+      }
+
+      /* ---------------- 时间 ---------------- */
+      function pad2(n) { return (n < 10 ? '0' : '') + n; }
+      function fmtTime(iso) {
+        if (!iso) return '';
+        var dt = new Date(iso);
+        if (isNaN(dt.getTime())) return '';
+        var now = new Date();
+        var sameDay = dt.getFullYear() === now.getFullYear() && dt.getMonth() === now.getMonth() && dt.getDate() === now.getDate();
+        var hm = pad2(dt.getHours()) + ':' + pad2(dt.getMinutes());
+        if (sameDay) return hm;
+        return pad2(dt.getMonth() + 1) + '-' + pad2(dt.getDate()) + ' ' + hm;
+      }
+
+      /* ---------------- 渲染 ---------------- */
+      function msgHtml(m) {
+        var mine = m.from === myId;
+        var meta = '<div class="msg-meta">' +
+          (mine ? esc(T('dm.me')) : esc(m.name || m.from || '')) +
+          (m.time ? ' · ' + esc(fmtTime(m.time)) : '') + '</div>';
+        var body = '';
+        if (m.img) {
+          var cached = imgCache[m.id];
+          if (cached) {
+            body = '<img class="msg-img" src="' + cached + '" alt="' + esc(T('fr.image')) + '" data-k="' + esc(m.id) + '">';
+          } else {
+            body = '<div class="img-loading" data-k="' + esc(m.id) + '">' + esc(T('dm.imgLoading')) + '</div>';
+          }
+        }
+        if (m.text) {
+          body += '<div class="msg-text">' + esc(m.text) + '</div>';
+        }
+        return '<div class="msg-item' + (mine ? ' mine' : '') + '" data-mid="' + esc(m.id) + '">' + meta + body + '</div>';
+      }
+
+      function renderAll() {
+        var box = el('msgList');
+        if (!messages.length) {
+          box.innerHTML = '<p class="chat-empty">' + esc(T('dm.empty')) + '</p>';
+          return;
+        }
+        box.innerHTML = messages.map(msgHtml).join('');
+        loadImgs();
+        scrollBottom();
+      }
+
+      function appendMsgs(list) {
+        var box = el('msgList');
+        var empty = box.querySelector('.chat-empty');
+        if (empty) box.innerHTML = '';
+        for (var i = 0; i < list.length; i++) {
+          var wrap = d.createElement('div');
+          wrap.innerHTML = msgHtml(list[i]);
+          var node = wrap.firstChild;
+          if (node) box.appendChild(node);
+        }
+        loadImgs();
+        scrollBottom();
+      }
+
+      function scrollBottom() {
+        var box = el('msgList');
+        box.scrollTop = box.scrollHeight;
+      }
+
+      // 图片按需异步取回（只在会话双方可见，服务端会校验归属）
+      function loadImgs() {
+        var nodes = d.querySelectorAll('[data-k]');
+        for (var i = 0; i < nodes.length; i++) {
+          (function (node) {
+            var k = node.getAttribute('data-k');
+            if (!k || imgCache[k]) return;
+            if (node.getAttribute('data-loading') === '1') return;
+            node.setAttribute('data-loading', '1');
+            fetch(API + '?action=img&id=' + encodeURIComponent(myId) + '&peer=' + encodeURIComponent(peerId) + '&k=' + encodeURIComponent(k), {
+              cache: 'force-cache',
+              credentials: 'same-origin'
+            }).then(function (r) { return r.json(); }).then(function (data) {
+              if (!data || !data.ok || !data.data) return;
+              var url = 'data:' + (data.type || 'image/jpeg') + ';base64,' + data.data;
+              imgCache[k] = url;
+              var img = d.createElement('img');
+              img.className = 'msg-img';
+              img.alt = T('fr.image');
+              img.setAttribute('data-k', k);
+              img.src = url;
+              if (node.parentNode) node.parentNode.replaceChild(img, node);
+            }, function () { /* 取图失败保留占位，下次轮询可见新渲染时重试 */ });
+          })(nodes[i]);
+        }
+      }
+
+      /* ---------------- 已读回写（进入会话清零未读） ---------------- */
+      function markRead(force) {
+        var now = Date.now();
+        if (!force && now - lastReadWrite < READ_WRITE_GAP) return;
+        lastReadWrite = now;
+        call({ action: 'read', peer: peerId });
+      }
+
+      /* ---------------- 拉取消息 ---------------- */
+      function loadMessages(silent) {
+        return call({ action: 'messages', peer: peerId, since: lastTime }).then(function (data) {
+          if (!data || !data.ok) {
+            if (!silent) tip(errText(data && data.code) || T('dm.err.server'));
+            if (data && (data.code === 'notfriend' || data.code === 'notfound')) {
+              if (pollTimer) { clearTimeout(pollTimer); pollTimer = null; }
+            }
+            return false;
+          }
+          if (data.peer) {
+            lastPeer = data.peer;
+            applyPeer(lastPeer);
+          }
+          var batch = data.messages || [];
+          var hasFresh = false;
+          if (batch.length) {
+            var fresh = [];
+            for (var i = 0; i < batch.length; i++) {
+              var m = batch[i];
+              if (!m || !m.id) continue;
+              var dup = false;
+              for (var j = 0; j < messages.length; j++) {
+                if (messages[j].id === m.id) { dup = true; break; }
+              }
+              if (!dup) { messages.push(m); fresh.push(m); }
+              if (!lastTime || String(m.time) > lastTime) lastTime = String(m.time);
+            }
+            if (fresh.length) {
+              hasFresh = true;
+              if (messages.length > 1 || el('msgList').querySelector('.msg-item')) {
+                appendMsgs(fresh);
+              } else {
+                renderAll();
+              }
+            }
+          }
+          // 通知：只在页面不在前台时弹，同一条消息不重复通知
+          if (w.cealinNotify) {
+            w.cealinNotify.watch({
+              key: 'dm:' + peerId,
+              msgs: messages,
+              selfId: myId,
+              title: (data.peer && data.peer.name) || peerId,
+              imgText: T('fr.image'),
+              url: 'dm.html?peer=' + encodeURIComponent(peerId)
+            });
+          }
+          // 前台确有新消息时才回写已读（节流：最多每 3 分钟写一次，且空闲轮询完全不写 KV）
+          var hidden = false;
+          try { hidden = !!(d.hidden || d.visibilityState === 'hidden'); } catch (e) { hidden = false; }
+          if (!hidden && hasFresh) markRead(false);
+          return true;
+        }, function () {
+          if (!silent) tip(T('dm.err.server'));
+          return false;
+        });
+      }
+
+      /* ---------------- 轮询调度 ---------------- */
+      function nextDelay() {
+        var hidden = false;
+        try { hidden = !!(d.hidden || d.visibilityState === 'hidden'); } catch (e) { hidden = false; }
+        if (hidden) return POLL_HIDDEN + Math.floor(Math.random() * (POLL_HIDDEN_JITTER + 1));
+        return POLL_VISIBLE + Math.floor(Math.random() * (POLL_VISIBLE_JITTER + 1));
+      }
+
+      function schedulePoll() {
+        if (pollTimer) clearTimeout(pollTimer);
+        pollTimer = setTimeout(function () {
+          pollTimer = null;
+          loadMessages(true).then(function () { schedulePoll(); }, function () { schedulePoll(); });
+        }, nextDelay());
+      }
+
+      /* ---------------- 图片压缩（与文章区同一口径：单张 ≤300KB） ---------------- */
+      function base64Bytes(b64) {
+        if (!b64) return 0;
+        var pad = 0;
+        if (b64.charAt(b64.length - 1) === '=') pad++;
+        if (b64.length > 1 && b64.charAt(b64.length - 2) === '=') pad++;
+        return Math.floor((b64.length * 3) / 4) - pad;
+      }
+
+      function compressImage(file, cb) {
+        if (!file || !/^image\//.test(file.type || '')) { cb('type'); return; }
+        var reader = new FileReader();
+        reader.onload = function () {
+          var img = new Image();
+          img.onload = function () {
+            var w0 = img.width || 1;
+            var h0 = img.height || 1;
+            var scale = Math.min(1, IMG_MAX_SIDE / Math.max(w0, h0));
+            var cw = Math.max(1, Math.round(w0 * scale));
+            var ch = Math.max(1, Math.round(h0 * scale));
+            var canvas = d.createElement('canvas');
+            var ctx = canvas.getContext('2d');
+            var quality = 0.8;
+            var round = 0;
+            (function attempt() {
+              canvas.width = cw;
+              canvas.height = ch;
+              ctx.clearRect(0, 0, cw, ch);
+              ctx.drawImage(img, 0, 0, cw, ch);
+              var dataUrl = canvas.toDataURL('image/jpeg', quality);
+              var b64 = String(dataUrl.split(',')[1] || '');
+              var bytes = base64Bytes(b64);
+              if (bytes > 0 && bytes <= IMG_MAX_BYTES) {
+                cb(null, { data: b64, type: 'image/jpeg', bytes: bytes });
+                return;
+              }
+              round++;
+              if (round > IMG_MAX_ROUND) { cb('big'); return; }
+              if (quality > 0.3) {
+                quality = Math.max(0.3, quality - 0.1);
+              } else {
+                cw = Math.max(1, Math.round(cw * 0.8));
+                ch = Math.max(1, Math.round(ch * 0.8));
+              }
+              attempt();
+            })();
+          };
+          img.onerror = function () { cb('read'); };
+          img.src = reader.result;
+        };
+        reader.onerror = function () { cb('read'); };
+        reader.readAsDataURL(file);
+      }
+
+      /* ---------------- 发送 ---------------- */
+      function pushSent(msg) {
+        if (!msg || !msg.id) return;
+        messages.push(msg);
+        if (!lastTime || String(msg.time) > lastTime) lastTime = String(msg.time);
+        if (el('msgList').querySelector('.msg-item')) {
+          appendMsgs([msg]);
+        } else {
+          renderAll();
+        }
+      }
+
+      function send(text, imgPayload) {
+        if (sending) return;
+        sending = true;
+        el('btnSend').disabled = true;
+        el('btnImg').disabled = true;
+        var payload = { action: 'send', to: peerId, text: text || '' };
+        if (imgPayload) payload.img = { data: imgPayload.data, type: imgPayload.type };
+        call(payload).then(function (data) {
+          sending = false;
+          el('btnSend').disabled = false;
+          el('btnImg').disabled = false;
+          if (!data || !data.ok) {
+            tip(errText(data && data.code) || T('dm.sendFail'));
+            return;
+          }
+          tip('');
+          pushSent(data.msg);
+          // 发言本身已写一次 KV，此处不再额外回写已读基准，节省 KV 写配额
+        }, function () {
+          sending = false;
+          el('btnSend').disabled = false;
+          el('btnImg').disabled = false;
+          tip(T('dm.sendFail'));
+        });
+      }
+
+      function sendText() {
+        var input = el('msgInput');
+        var text = String(input.value || '').replace(/^\s+|\s+$/g, '');
+        if (!text) { tip(T('dm.needText')); return; }
+        input.value = '';
+        send(text, null);
+      }
+
+      /* ---------------- 事件绑定 ---------------- */
+      el('btnSend').addEventListener('click', sendText);
+      el('msgInput').addEventListener('keydown', function (e) {
+        if (e && e.keyCode === 13 && !e.shiftKey) { e.preventDefault(); sendText(); }
+      });
+
+      el('btnImg').addEventListener('click', function () {
+        el('imgInput').click();
+      });
+
+      el('imgInput').addEventListener('change', function () {
+        var input = el('imgInput');
+        var file = input.files && input.files[0];
+        input.value = '';
+        if (!file) return;
+        tip(T('dm.compress'), true);
+        el('btnImg').disabled = true;
+        compressImage(file, function (errCode, payload) {
+          if (errCode) {
+            el('btnImg').disabled = false;
+            tip(errCode === 'big' ? T('dm.imgBig') : T('dm.imgFail'));
+            return;
+          }
+          tip('');
+          send('', payload);
+        });
+      });
+
+      el('btnNotify').addEventListener('click', function () {
+        if (!w.cealinNotify) return;
+        w.cealinNotify.request(function () {
+          var perm = w.cealinNotify.permission();
+          tip(perm === 'granted' ? T('fr.notifyGranted') : (perm === 'denied' ? T('fr.notifyDenied') : ''), perm === 'granted');
+        });
+      });
+
+      d.addEventListener('visibilitychange', function () {
+        var hidden = false;
+        try { hidden = !!(d.hidden || d.visibilityState === 'hidden'); } catch (e) { hidden = false; }
+        // 回到前台：立刻补拉一次 + 回写已读基准（节流执行，避免反复切换标签页刷写 KV）
+        if (!hidden) markRead(false);
+        loadMessages(true).then(function () { schedulePoll(); }, function () { schedulePoll(); });
+      });
+
+      // 点击图片可用新窗口看原图
+      el('msgList').addEventListener('click', function (e) {
+        var t = e.target;
+        if (t && t.tagName === 'IMG' && t.className.indexOf('msg-img') !== -1) {
+          try { w.open(t.src, '_blank'); } catch (err) { /* ignore */ }
+        }
+      });
+
+      if (w.cealinOnLangChange) {
+        w.cealinOnLangChange(function () {
+          applyPeer(lastPeer);
+          renderAll();
+        });
+      }
+
+      /* ---------------- 初始化 ---------------- */
+      if (!/^[A-Za-z0-9@]{6,8}$/.test(peerId)) {
+        el('msgList').innerHTML = '<p class="chat-empty">' + esc(T('dm.badPeer')) + '</p>';
+        el('btnSend').disabled = true;
+        el('btnImg').disabled = true;
+        return;
+      }
+
+      markRead(true);
+      loadMessages(false).then(function () { schedulePoll(); }, function () { schedulePoll(); });
+    })(window, document);
+  </script>
+</body>
+</html>
