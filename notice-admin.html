@@ -249,22 +249,23 @@
 
   .char-count.over { color: var(--err); }
 
-  /* ========== 管理员登录面板 ========== */
-  .pwd-input {
+  /* ========== 公告展示 / 管理员提示 ========== */
+  .notice-view {
     width: 100%;
     background: rgba(var(--line-rgb), 0.07);
     border: 1px solid rgba(var(--line-rgb), 0.12);
     border-radius: 10px;
     color: var(--fg);
     font-size: 15px;
-    padding: 12px 16px;
-    outline: none;
-    letter-spacing: 0.12em;
-    transition: border-color 0.3s ease;
+    line-height: 1.8;
+    letter-spacing: 0.04em;
+    padding: 14px 18px;
+    white-space: pre-wrap;
+    word-break: break-word;
+    max-height: 46vh;
+    overflow-y: auto;
   }
-  .pwd-input::placeholder { color: rgba(var(--fg-rgb), 0.35); letter-spacing: 0.12em; }
-  .pwd-input:focus { border-color: var(--gold); }
-  .pwd-hint {
+  .notice-hint {
     font-size: 12px;
     letter-spacing: 0.08em;
     color: var(--muted);
@@ -310,15 +311,11 @@
     <h1 class="title" data-i18n="na.title">公告管理</h1>
     <p class="page-sub" data-i18n="na.sub">在线编辑 · 保存后即时生效</p>
 
-    <!-- 管理员登录门禁 -->
+    <!-- 管理员身份由 Cealin-admin 客户端注入，网页端不再提供管理员登录入口 -->
     <section id="loginBox" class="notice-box">
-      <p class="notice-label" data-i18n="na.loginTip">仅管理员可编辑公告，请输入密码后进入编辑界面</p>
-      <input id="adminPwd" class="pwd-input" type="password" maxlength="50" autocomplete="off" placeholder="管理员密码" data-i18n-ph="idx.gate.pwd">
-      <div class="notice-foot">
-        <button class="save-btn" onclick="doLogin()" data-i18n="na.verify">验证身份</button>
-        <span class="save-msg" id="loginMsg"></span>
-      </div>
-      <p class="pwd-hint" data-i18n="na.pwdHint">管理员密码不对外公开，如需修改可在 KV 键 admin_pwd 中调整</p>
+      <p class="notice-label" data-i18n="na.viewTitle">当前公告</p>
+      <div class="notice-view" id="noticeView" data-i18n="common.loading">加载中…</div>
+      <p class="notice-hint" data-i18n="na.clientOnly">公告管理仅在 Cealin-admin 管理员客户端内开放，请使用管理员专用客户端进入。</p>
     </section>
 
     <!-- 公告编辑面板（登录后显示） -->
@@ -339,7 +336,7 @@
       var PWD_KEY = 'cealin_admin_pwd';
       var loginBox = document.getElementById('loginBox');
       var editBox = document.getElementById('editBox');
-      var loginMsg = document.getElementById('loginMsg');
+      var noticeView = document.getElementById('noticeView');
       var textarea = document.getElementById('noticeTextArea');
       var msg = document.getElementById('saveMsg');
       var charCount = document.getElementById('charCount');
@@ -357,16 +354,31 @@
         try { return sessionStorage.getItem(PWD_KEY) || ''; } catch (e) { return ''; }
       }
 
-      // 预填当前公告
+      // 预填当前公告：只读展示区与编辑区共用同一份数据
       function loadNotice() {
         fetch('/api/notice')
           .then(function (res) { return res.json(); })
           .then(function (data) {
-            if (data && data.ok && typeof data.notice === 'string') textarea.value = data.notice;
+            var text = data && data.ok && typeof data.notice === 'string' ? data.notice : '';
+            if (text) {
+              if (noticeView) {
+                noticeView.removeAttribute('data-i18n');
+                noticeView.textContent = text;
+              }
+              textarea.value = text;
+            } else if (noticeView) {
+              noticeView.removeAttribute('data-i18n');
+              noticeView.textContent = cealinT('na.viewEmpty');
+            }
             refreshCount();
           })
           .catch(function () {
-            showMsg(msg, cealinT('na.msg.deploy'), 'err');
+            if (noticeView && !isAdmin()) {
+              noticeView.removeAttribute('data-i18n');
+              noticeView.textContent = cealinT('na.msg.deploy');
+            } else {
+              showMsg(msg, cealinT('na.msg.deploy'), 'err');
+            }
             refreshCount();
           });
       }
@@ -395,33 +407,13 @@
         msg.style.opacity = '0';
       });
 
-      // 页面加载：已有管理员标记则直接进入编辑区，否则先密码登录
-      if (isAdmin() && getAdminPwd()) { showEdit(); } else { showLogin(); }
-
-      window.doLogin = function () {
-        var pwd = document.getElementById('adminPwd').value;
-        if (!pwd) { showMsg(loginMsg, cealinT('na.msg.pwdEmpty'), 'err'); return; }
-        fetch('/api/notice', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ action: 'login', password: pwd })
-        })
-          .then(function (res) { return res.json(); })
-          .then(function (data) {
-            if (data && data.ok && data.role === 'admin') {
-              try {
-                sessionStorage.setItem(ADMIN_KEY, '1');
-                sessionStorage.setItem(PWD_KEY, pwd);
-              } catch (e) {}
-              showEdit();
-            } else {
-              showMsg(loginMsg, (data && data.error) || cealinT('idx.gate.pwdWrong'), 'err');
-            }
-          })
-          .catch(function () {
-            showMsg(loginMsg, cealinT('na.msg.deployLogin'), 'err');
-          });
-      };
+      // 页面加载：管理员客户端注入了身份则进入编辑区；否则只读展示当前公告
+      if (isAdmin() && getAdminPwd()) {
+        showEdit();
+      } else {
+        showLogin();
+        loadNotice();
+      }
 
       window.saveNotice = function () {
         var notice = textarea.value;

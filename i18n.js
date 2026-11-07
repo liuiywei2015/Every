@@ -65,7 +65,7 @@
     /* ---------- 首页 ---------- */
     'idx.gate.title': { zh: '欢迎来到Cealin生态系统', en: 'Welcome to the Cealin ecosystem', ja: 'Cealin エコシステムへようこそ', ko: 'Cealin 생태계에 오신 것을 환영합니다', es: 'Bienvenido al ecosistema Cealin' },
     'idx.gate.titleAdmin': { zh: '欢迎来到Cealin管理员系统', en: 'Welcome to the Cealin admin console', ja: 'Cealin 管理システムへようこそ', ko: 'Cealin 관리자 시스템에 오신 것을 환영합니다', es: 'Bienvenido al panel de administración de Cealin' },
-    'idx.gate.sub': { zh: '请选择登录身份', en: 'Choose how you’d like to sign in', ja: 'ログイン方法を選択してください', ko: '로그인 방식을 선택해 주세요', es: 'Elige cómo quieres entrar' },
+    'idx.gate.sub': { zh: '登录后即可浏览站内全部内容', en: 'Sign in to browse everything on the site', ja: 'ログインするとサイト内のすべてを閲覧できます', ko: '로그인하면 사이트의 모든 콘텐츠를 볼 수 있습니다', es: 'Inicia sesión para ver todo el sitio' },
     'idx.gate.guest': { zh: '游客登录', en: 'Continue as guest', ja: 'ゲストとしてログイン', ko: '게스트로 로그인', es: 'Entrar como invitado' },
     'idx.gate.admin': { zh: '管理员登录', en: 'Admin sign-in', ja: '管理者としてログイン', ko: '관리자 로그인', es: 'Entrar como administrador' },
     'idx.gate.pwd': { zh: '管理员密码', en: 'Admin password', ja: '管理者パスワード', ko: '관리자 비밀번호', es: 'Contraseña de administrador' },
@@ -145,6 +145,9 @@
     'na.title': { zh: '公告管理', en: 'Notice management', ja: 'お知らせ管理', ko: '공지사항 관리', es: 'Gestión de anuncios' },
     'na.sub': { zh: '在线编辑 · 保存后即时生效', en: 'Edit online—changes go live as soon as you save', ja: 'オンラインで編集 · 保存するとすぐ反映されます', ko: '온라인 편집 · 저장하면 바로 반영됩니다', es: 'Edita en línea: los cambios se publican al guardar' },
     'na.loginTip': { zh: '仅管理员可编辑公告，请输入密码后进入编辑界面', en: 'Only admins can edit the notice. Enter the password to continue.', ja: 'お知らせを編集できるのは管理者のみです。パスワードを入力して進んでください。', ko: '공지사항은 관리자만 수정할 수 있습니다. 비밀번호를 입력하고 진행해 주세요.', es: 'Solo los administradores pueden editar el anuncio. Introduce la contraseña para continuar.' },
+    'na.clientOnly': { zh: '公告管理仅在 Cealin-admin 管理员客户端内开放，请使用管理员专用客户端进入。', en: 'Notice management is available only inside the Cealin-admin client. Please use the admin app.', ja: 'お知らせ管理は Cealin-admin クライアント内でのみ利用できます。管理者専用アプリから入ってください。', ko: '공지사항 관리는 Cealin-admin 클라이언트에서만 사용할 수 있습니다. 관리자 전용 앱으로 접속해 주세요.', es: 'La gestión de anuncios solo está disponible en el cliente Cealin-admin. Usa la app de administración.' },
+    'na.viewTitle': { zh: '当前公告', en: 'Current notice', ja: '現在のお知らせ', ko: '현재 공지사항', es: 'Anuncio actual' },
+    'na.viewEmpty': { zh: '暂无公告', en: 'No notice yet', ja: 'お知らせはまだありません', ko: '등록된 공지사항이 없습니다', es: 'Todavía no hay anuncios' },
     'na.pwdPh': { zh: '管理员密码', en: 'Admin password', ja: '管理者パスワード', ko: '관리자 비밀번호', es: 'Contraseña de administrador' },
     'na.verify': { zh: '验证身份', en: 'Verify', ja: '認証する', ko: '인증하기', es: 'Verificar' },
     'na.pwdHint': { zh: '管理员密码不对外公开，如需修改可在 KV 键 admin_pwd 中调整', en: 'The admin password is private; to change it, edit the admin_pwd key in KV', ja: '管理者パスワードは公開していません。変更する場合は KV の admin_pwd キーを編集してください', ko: '관리자 비밀번호는 공개되지 않습니다. 변경하려면 KV의 admin_pwd 키를 수정하세요', es: 'La contraseña de administrador no es pública; para cambiarla, edita la clave admin_pwd en KV' },

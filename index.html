@@ -356,11 +356,6 @@
       <p class="login-gate-sub" data-i18n="idx.gate.sub">请选择登录身份</p>
       <div class="login-gate-actions">
         <button type="button" class="login-btn login-gate-btn" onclick="loginAsGuest()" data-i18n="idx.gate.guest">游客登录</button>
-        <button type="button" class="login-btn login-gate-btn" onclick="loginAsAdmin()" data-i18n="idx.gate.admin">管理员登录</button>
-      </div>
-      <div class="login-gate-pwd-row" id="loginGatePwdRow">
-        <input id="loginGatePwd" class="login-pwd" type="password" maxlength="50" autocomplete="off" placeholder="管理员密码" data-i18n-ph="idx.gate.pwd">
-        <button type="button" class="login-btn login-gate-btn" onclick="confirmAdminLogin()" data-i18n="idx.gate.confirm">验证并进入</button>
       </div>
       <p class="login-gate-err" id="loginGateErr"></p>
     </div>
@@ -442,7 +437,7 @@
         /* 云端拉取失败，保持本地数据 */
       });
 
-      // ===== 登录分流：游客 / 管理员 =====
+      // ===== 登录分流：游客（管理员身份只在 Cealin-admin 客户端内注入，网页不再提供管理员登录）=====
       window.loginAsGuest = function () {
         // 游客登录前清除管理员会话标记，防止残留身份让游客进入公告编辑区
         try { sessionStorage.removeItem('cealin_admin'); } catch (e) {}
@@ -455,40 +450,6 @@
         window.location.href = loggedId ? 'guest.html' : 'account.html';
       };
 
-      window.loginAsAdmin = function () {
-        var t = document.getElementById('loginGateTitle');
-        if (t) { t.textContent = cealinT('idx.gate.titleAdmin'); }
-        document.getElementById('loginGatePwdRow').style.display = 'flex';
-        document.getElementById('loginGateErr').textContent = '';
-        document.getElementById('loginGatePwd').focus();
-      };
-
-      window.confirmAdminLogin = async function () {
-        var pwd = document.getElementById('loginGatePwd').value.trim();
-        var err = document.getElementById('loginGateErr');
-        if (!pwd) { err.textContent = cealinT('idx.gate.pwdEmpty'); return; }
-        try {
-          var resp = await fetch('/api/notice', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ action: 'login', password: pwd })
-          });
-          var data = null;
-          try { data = await resp.json(); } catch (e) {}
-          if (!resp.ok || !data || !data.ok) {
-            throw new Error(data && data.error ? data.error : cealinT('idx.gate.pwdWrong'));
-          }
-          try {
-            sessionStorage.setItem('cealin_admin', '1');
-            sessionStorage.setItem('cealin_admin_pwd', pwd);
-          } catch (e) {}
-          window.location.href = 'admin.html';
-        } catch (errObj) {
-          err.textContent = errObj.message || cealinT('idx.gate.pwdWrong');
-          document.getElementById('loginGatePwd').value = '';
-          document.getElementById('loginGatePwd').focus();
-        }
-      };
     })();
   </script>
 
