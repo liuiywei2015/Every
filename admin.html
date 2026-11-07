@@ -2133,7 +2133,8 @@
             saveBtn.disabled = false;
             var data = res.data || {};
             if (data.ok) {
-              showMsg(cealinT('na.msg.saved'), true);
+              // 保存成功即已写入；翻译未全成功只影响前台回退，不算保存失败
+              showMsg(data.translated ? cealinT('ad.noticeTranslated') : cealinT('ad.noticeTranslateFail'), true);
             } else if (res.status === 401 || data.error === '密码错误') {
               showMsg(cealinT('ad.pwdExpired'), false);
             } else {

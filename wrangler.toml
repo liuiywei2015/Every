@@ -29,3 +29,11 @@ pages_build_output_dir = "."
 [[kv_namespaces]]
 binding = "GUESTBOOK"
 id = "40dc020509814a3a8322d426cf52a87a"
+
+# ============ Workers AI（可选，公告自动翻译优先使用） ============
+# 若账号已开通 Workers AI，取消下面两行注释并重新部署，functions/api/notice.js
+# 会自动优先用 env.AI 翻译公告；未绑定时该脚本自动降级为免费公共翻译接口，
+# 不会影响公告保存。
+#
+# [ai]
+# binding = "AI"

@@ -145,6 +145,8 @@
     'na.msg.expired': { zh: '管理员身份已过期，请刷新页面重新登录', en: 'Your admin session has expired. Refresh the page and sign in again.', ja: '管理者の認証が切れました。ページを再読み込みしてログインし直してください。', ko: '관리자 인증이 만료되었습니다. 페이지를 새로 고친 뒤 다시 로그인해 주세요.', es: 'Tu sesión de administrador ha caducado. Actualiza la página y vuelve a entrar.' },
     'na.msg.saved': { zh: '公告已保存', en: 'Notice saved', ja: 'お知らせを保存しました', ko: '공지사항을 저장했습니다', es: 'Anuncio guardado' },
     'na.msg.saveFailed': { zh: '保存失败', en: 'Couldn’t save', ja: '保存に失敗しました', ko: '저장하지 못했습니다', es: 'No se pudo guardar' },
+    'na.msg.translated': { zh: '公告已保存，并已自动翻译为 5 种语言', en: 'Notice saved and auto-translated into 5 languages', ja: 'お知らせを保存し、5 言語に自動翻訳しました', ko: '공지사항을 저장하고 5개 언어로 자동 번역했습니다', es: 'Anuncio guardado y traducido automáticamente a 5 idiomas' },
+    'na.msg.translateFail': { zh: '公告已保存，但部分语言翻译失败，这些语言将显示中文原文', en: 'Notice saved, but some translations failed—those languages will show the Chinese original', ja: 'お知らせは保存しましたが、一部の言語の翻訳に失敗しました。その言語では中国語の原文を表示します', ko: '공지사항은 저장했지만 일부 언어 번역에 실패했습니다. 해당 언어에서는 중국어 원문이 표시됩니다', es: 'Anuncio guardado, pero algunas traducciones fallaron; esos idiomas mostrarán el original en chino' },
 
     /* ---------- 建议页 ---------- */
     'sug.title': { zh: '建议', en: 'Feedback', ja: 'ご意見', ko: '의견', es: 'Sugerencias' },
@@ -222,6 +224,8 @@
     'ad.noticeTooLong': { zh: '公告内容不能超过2000字', en: 'The notice cannot exceed 2,000 characters', ja: 'お知らせは 2,000 文字以内で入力してください', ko: '공지사항은 2,000자를 넘을 수 없습니다', es: 'El anuncio no puede superar los 2000 caracteres' },
     'ad.noticeSaved': { zh: '公告已保存', en: 'Notice saved', ja: 'お知らせを保存しました', ko: '공지사항을 저장했습니다', es: 'Anuncio guardado' },
     'ad.noticeSaveFailed': { zh: '保存失败，请稍后重试', en: 'Couldn’t save—please try again in a moment', ja: '保存に失敗しました。しばらくしてから再度お試しください', ko: '저장하지 못했습니다. 잠시 후 다시 시도해 주세요', es: 'No se pudo guardar; inténtalo de nuevo en un momento' },
+    'ad.noticeTranslated': { zh: '公告已保存，并已自动翻译为 5 种语言', en: 'Notice saved and auto-translated into 5 languages', ja: 'お知らせを保存し、5 言語に自動翻訳しました', ko: '공지사항을 저장하고 5개 언어로 자동 번역했습니다', es: 'Anuncio guardado y traducido automáticamente a 5 idiomas' },
+    'ad.noticeTranslateFail': { zh: '公告已保存，但部分语言翻译失败，这些语言将显示中文原文', en: 'Notice saved, but some translations failed—those languages will show the Chinese original', ja: 'お知らせは保存しましたが、一部の言語の翻訳に失敗しました。その言語では中国語の原文を表示します', ko: '공지사항은 저장했지만 일부 언어 번역에 실패했습니다. 해당 언어에서는 중국어 원문이 표시됩니다', es: 'Anuncio guardado, pero algunas traducciones fallaron; esos idiomas mostrarán el original en chino' },
     'ad.netSave': { zh: '网络异常，保存失败', en: 'Network error—nothing was saved', ja: '通信エラーで保存できませんでした', ko: '네트워크 오류로 저장하지 못했습니다', es: 'Error de red: no se guardó nada' },
     'ad.noticeFallback': { zh: '欢迎来到 Cealin，请文明交流。', en: 'Welcome to Cealin. Please keep the conversation friendly.', ja: 'Cealin へようこそ。お互い気持ちよくやり取りしましょう。', ko: 'Cealin에 오신 것을 환영합니다. 서로 배려하며 대화해 주세요.', es: 'Bienvenido a Cealin. Mantengamos una conversación respetuosa.' },
     'ad.offTitle': { zh: '官方账号', en: 'Official accounts', ja: '公式アカウント', ko: '공식 계정', es: 'Cuentas oficiales' },

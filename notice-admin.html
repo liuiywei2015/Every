@@ -438,7 +438,9 @@
           .then(function (res) { return res.json(); })
           .then(function (data) {
             if (data && data.ok) {
-              showMsg(msg, cealinT('na.msg.saved'), 'ok');
+              // 保存成功即已写入；翻译未全成功只影响前台回退，不算保存失败
+              if (data.translated) showMsg(msg, cealinT('na.msg.translated'), 'ok');
+              else showMsg(msg, cealinT('na.msg.translateFail'), 'ok');
             } else {
               showMsg(msg, (data && data.error) || cealinT('na.msg.saveFailed'), 'err');
             }

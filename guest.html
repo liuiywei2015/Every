@@ -399,17 +399,26 @@
       // 游客身份兜底清除管理员会话标记，杜绝残留身份导致误入公告编辑态
       try { sessionStorage.removeItem('cealin_admin'); } catch (e) {}
       try { sessionStorage.removeItem('cealin_admin_pwd'); } catch (e) {}
-      // 加载公告（游客只读展示）
-      var fallback = cealinT('guest.noticeFallback');
+      // 公告：后端保存时已翻译成多语言，按当前界面语言取对应译文，缺失一律回退中文原文
+      var noticeData = null;
+      function renderNotice() {
+        var textEl = document.getElementById('noticeText');
+        if (!textEl) return;
+        var byLang = (noticeData && noticeData.noticeByLang) || {};
+        var lang = (window.cealinLang ? cealinLang() : 'zh') || 'zh';
+        textEl.textContent = byLang[lang] || byLang.zh || (noticeData && noticeData.notice) || cealinT('guest.noticeFallback');
+      }
       fetch('/api/notice')
         .then(function (resp) { return resp.json(); })
         .then(function (data) {
-          var textEl = document.getElementById('noticeText');
-          textEl.textContent = (data && data.ok && data.notice) ? data.notice : fallback;
+          if (data && data.ok) noticeData = data;
+          renderNotice();
         })
-        .catch(function () {
-          document.getElementById('noticeText').textContent = fallback;
-        });
+        .catch(function () { renderNotice(); });
+      // 切换语言时公告正文无刷新切换（无需重新请求）
+      if (window.cealinOnLangChange) {
+        cealinOnLangChange(function () { renderNotice(); });
+      }
     })();
   </script>
 

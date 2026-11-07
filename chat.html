@@ -815,16 +815,30 @@
       }
       function el(id) { return document.getElementById(id); }
 
+      // 公告：后端保存时已翻译成多语言，这里按当前界面语言取对应译文；
+      // 该语种缺失或翻译失败时一律回退中文原文，绝不显示空白
+      var noticeData = null;
+      function noticePick() {
+        if (!noticeData) return '';
+        var byLang = noticeData.noticeByLang || {};
+        var lang = (window.cealinLang ? cealinLang() : 'zh') || 'zh';
+        return byLang[lang] || byLang.zh || noticeData.notice || '';
+      }
+      function renderNotice() {
+        var textEl = el('noticeText');
+        if (!textEl) return;
+        textEl.textContent = noticePick() || cealinT('chat.noticeFallback');
+      }
       // 加载公告（每次进入页面自动展示；本地双击打开时静默降级为默认文案）
       function loadNotice() {
         var textEl = el('noticeText');
-        var fallback = cealinT('chat.noticeFallback');
         fetch('/api/notice')
           .then(function (resp) { return resp.json(); })
           .then(function (data) {
-            textEl.textContent = (data && data.ok && data.notice) ? data.notice : fallback;
+            if (data && data.ok) { noticeData = data; renderNotice(); return; }
+            textEl.textContent = cealinT('chat.noticeFallback');
           })
-          .catch(function () { textEl.textContent = fallback; });
+          .catch(function () { textEl.textContent = cealinT('chat.noticeFallback'); });
       }
       loadNotice();
 
@@ -1351,6 +1365,8 @@
       // 语言切换后刷新脚本生成的界面文案（消息、昵称、房间名等动态数据不翻译）
       if (window.cealinOnLangChange) {
         cealinOnLangChange(function () {
+          // 公告正文随界面语言无刷新切换（无需重新请求）
+          renderNotice();
           // 进入页账号提示（未进房时也需重绘）
           var hint = el('accHint');
           if (hint && hint.style.display !== 'none' && isAccount) {
