@@ -1002,6 +1002,24 @@
       <p class="notice-msg" id="artMsg"></p>
     </section>
 
+    <!-- 举报审核区 -->
+    <section class="notice-card" id="reportAdminCard" style="display:none;">
+      <h2 class="notice-title" data-i18n="rp.adminTitle">举报审核</h2>
+      <p class="notice-tip" data-i18n="rp.adminTip">查看用户提交的举报，可逐条通过或驳回。通过后：文章举报将驳回并下架该文章，聊天室举报将封禁该房间，账号举报仅记录处理结果、不作封号处理。</p>
+      <div class="notice-meta">
+        <span class="notice-count" id="reportCount" data-i18n="common.loading">加载中…</span>
+        <select id="reportStatus" class="art-select" onchange="loadReports()">
+          <option value="" data-i18n="rp.stAll">全部状态</option>
+          <option value="pending" data-i18n="rp.stPending">待处理</option>
+          <option value="passed" data-i18n="rp.stPassed">已通过</option>
+          <option value="rejected" data-i18n="rp.stRejected">已驳回</option>
+        </select>
+        <button type="button" class="save-btn" id="refreshReportsBtn" onclick="loadReports()" data-i18n="ad.refresh">刷新列表</button>
+      </div>
+      <div id="reportList" class="room-list"></div>
+      <p class="notice-msg" id="reportMsg"></p>
+    </section>
+
     <!-- 入口 -->
     <div class="entries">
       <a class="entry-btn" href="chat.html" data-i18n="guest.enterChat">进入聊天室</a>
@@ -1670,6 +1688,12 @@
       var artPageInfo = document.getElementById('artPageInfo');
       var artPrevBtn = document.getElementById('artPrevBtn');
       var artNextBtn = document.getElementById('artNextBtn');
+      // 举报审核区节点
+      var reportCard = document.getElementById('reportAdminCard');
+      var reportList = document.getElementById('reportList');
+      var reportCountEl = document.getElementById('reportCount');
+      var reportMsgEl = document.getElementById('reportMsg');
+      var reportStatusSel = document.getElementById('reportStatus');
 
       var ART_CACHE_MS = 30000;
       var artPendCacheAt = 0;
@@ -2058,6 +2082,146 @@
           .catch(function () { artMsg(cealinT('ad.netOp'), false); });
       };
 
+      // ---------- 举报审核：列表 / 处理（POST /api/reports） ----------
+      var RP_REASON_MAP = {
+        spam: 'rp.rSpam', abuse: 'rp.rAbuse', porn: 'rp.rPorn',
+        illegal: 'rp.rIllegal', copyright: 'rp.rCopyright', room: 'rp.rRoom', other: 'rp.rOther'
+      };
+
+      function rpMsg(text, ok) {
+        reportMsgEl.textContent = text || '';
+        reportMsgEl.classList.toggle('ok', !!ok);
+      }
+
+      function rpTypeText(t) {
+        if (t === 'article') return cealinT('rp.typeArticle');
+        if (t === 'room') return cealinT('rp.typeRoom');
+        if (t === 'account') return cealinT('rp.typeAccount');
+        return t || '';
+      }
+
+      function rpReasonText(r) {
+        var key = RP_REASON_MAP[r];
+        if (key) return cealinT(key);
+        return r || cealinT('rp.rOther');
+      }
+
+      function rpStatusText(st) {
+        if (st === 'passed') return cealinT('rp.stPassed');
+        if (st === 'rejected') return cealinT('rp.stRejected');
+        return cealinT('rp.stPending');
+      }
+
+      function rpEffectText(e) {
+        if (e === 'article_rejected') return cealinT('rp.effArticle');
+        if (e === 'article_missing') return cealinT('rp.effArticleMissing');
+        if (e === 'room_banned') return cealinT('rp.effRoom');
+        if (e === 'account_noted') return cealinT('rp.effAccount');
+        return cealinT('rp.effNone');
+      }
+
+      // 单条举报：对象类型 / 对象标识 / 理由 / 补充说明 / 时间 / 举报人 / 状态 + 通过、驳回
+      function rpItemHtml(it) {
+        var pending = (it.status || 'pending') === 'pending';
+        var metaHtml = rpReasonText(it.reason) + ' · ' + fmtRoomTime(it.createdAt) + ' · '
+          + (it.reporterId ? cealinT('rp.by', { id: it.reporterId }) : cealinT('rp.byAnon'));
+        var opsHtml = '<span class="room-ops">'
+          + '<button type="button" class="op-btn verify" onclick="handleReport(\'' + escHtml(it.id) + '\',\'pass\')"' + (pending ? '' : ' disabled') + '>' + cealinT('rp.pass') + '</button>'
+          + '<button type="button" class="op-btn ban" onclick="handleReport(\'' + escHtml(it.id) + '\',\'reject\')"' + (pending ? '' : ' disabled') + '>' + cealinT('rp.reject') + '</button>'
+          + '</span>';
+        var detailHtml = it.detail ? '<div class="room-names">' + escHtml(it.detail) + '</div>' : '';
+        var noteHtml = it.note ? '<div class="room-names">' + cealinT('rp.noteLine', { n: it.note }) + '</div>' : '';
+        return '<div class="room-item" data-id="' + escHtml(it.id) + '">'
+          + '<div class="room-item-head">'
+          + '<span class="room-code-wrap">'
+          + '<span class="room-code">' + escHtml(rpTypeText(it.targetType)) + '</span>'
+          + '<span class="room-code">' + escHtml(it.targetId) + '</span>'
+          + '<span class="room-meta">' + rpStatusText(it.status) + '</span>'
+          + '</span>'
+          + '<span class="room-meta">' + metaHtml + '</span>'
+          + opsHtml
+          + '</div>'
+          + detailHtml + noteHtml
+          + '</div>';
+      }
+
+      var rpData = null;
+
+      function renderReports(d) {
+        var list = (d && d.reports) || [];
+        var counts = (d && d.counts) || {};
+        reportCountEl.textContent = cealinT('rp.count', { n: list.length, p: counts.pending || 0 });
+        if (!list.length) {
+          reportList.innerHTML = '<div class="room-empty">' + cealinT('rp.empty') + '</div>';
+          return;
+        }
+        var html = '';
+        for (var i = 0; i < list.length; i++) html += rpItemHtml(list[i]);
+        reportList.innerHTML = html;
+      }
+
+      function loadReports() {
+        if (!pwd || !adminFlag) {
+          reportMsgEl.textContent = cealinT('ad.relogin');
+          return;
+        }
+        var status = reportStatusSel ? (reportStatusSel.value || '') : '';
+        reportCountEl.textContent = cealinT('common.loading');
+        reportMsgEl.textContent = '';
+        reportMsgEl.classList.remove('ok');
+        var payload = { action: 'list', password: pwd };
+        if (status) payload.status = status;
+        fetch('/api/reports', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload)
+        })
+          .then(function (resp) { return resp.json(); })
+          .then(function (data) {
+            var d = (data && data.data) || {};
+            if (!data || !data.ok) {
+              reportCountEl.textContent = '';
+              reportList.innerHTML = '';
+              reportMsgEl.textContent = (data && data.error) || cealinT('ad.opFailed');
+              return;
+            }
+            rpData = d;
+            renderReports(d);
+          })
+          .catch(function () {
+            reportCountEl.textContent = '';
+            reportMsgEl.textContent = cealinT('ad.netQuery');
+          });
+      }
+      window.loadReports = loadReports;
+
+      // 通过 / 驳回：通过时后端按对象类型联动（文章下架 / 房间封禁 / 账号仅记录）
+      window.handleReport = function (id, decision) {
+        if (!pwd || !adminFlag) { rpMsg(cealinT('ad.relogin'), false); return; }
+        var isPass = decision === 'pass';
+        if (!window.confirm(isPass ? cealinT('rp.confirmPass') : cealinT('rp.confirmReject'))) return;
+        var note = window.prompt(cealinT('rp.notePrompt'), '');
+        if (note === null) note = '';
+        rpMsg('');
+        reportMsgEl.classList.remove('ok');
+        fetch('/api/reports', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ action: 'handle', id: id, decision: decision, note: note, password: pwd })
+        })
+          .then(function (resp) { return resp.json(); })
+          .then(function (data) {
+            if (!data || !data.ok) {
+              rpMsg((data && data.error) || cealinT('ad.opFailed'), false);
+              return;
+            }
+            var d = data.data || {};
+            rpMsg(cealinT('rp.handled', { e: rpEffectText(d.effect) }), true);
+            loadReports();
+          })
+          .catch(function () { rpMsg(cealinT('ad.netOp'), false); });
+      };
+
       bindArtList(artPendList);
       bindArtList(artAllList);
 
@@ -2091,6 +2255,9 @@
         artCard.style.display = 'block';
         loadArticlePending();
         loadArticleAll(1);
+        // 举报审核面板：默认展示全部举报，待处理在前计数
+        reportCard.style.display = 'block';
+        loadReports();
         fetch('/api/notice')
           .then(function (resp) { return resp.json(); })
           .then(function (data) {
@@ -2160,6 +2327,8 @@
           // 文章列表用最近一次数据重绘（不重复请求，避免浪费 KV 读配额）
           if (artPendData && artPendList && artPendList.children.length) renderArtPending(artPendData);
           if (artAllData && artAllList && artAllList.children.length) renderArtAll(artAllData);
+          // 举报列表同样用最近一次数据重绘，避免重复请求
+          if (rpData && reportList && reportList.children.length) renderReports(rpData);
           // 概览用最近一次数据重绘（不重复请求），账号列表按当前查询词重拉
           if (ovData) renderStats(ovData);
           renderQuota();

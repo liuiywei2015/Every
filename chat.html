@@ -1069,6 +1069,7 @@
       }
 
       // 举报当前聊天室：POST /api/rooms/report，举报后后台记录为被举报状态
+      // 同时写入举报队列（POST /api/reports），供管理后台「举报审核」处理
       window.reportRoom = function () {
         if (!currentCode) return;
         var btn = el('reportBtn');
@@ -1079,6 +1080,7 @@
             if (data && data.ok) {
               btn.textContent = cealinT('chat.reportDone');
               showTip(cealinT('chat.reportOk'), true);
+              submitRoomReport(currentCode);
             } else {
               btn.disabled = false;
               showTip((data && data.error) || cealinT('chat.reportFailed'), false);
@@ -1089,6 +1091,23 @@
             showTip(err && err.status ? err.message : cealinT('chat.reportFailed'), false);
           });
       };
+
+      // 举报队列写入：targetType=room；失败静默，不影响原有的房间被举报标记
+      function submitRoomReport(code) {
+        if (!code) return;
+        fetch('/api/reports', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            action: 'submit',
+            targetType: 'room',
+            targetId: String(code).toUpperCase(),
+            reason: 'room',
+            detail: '',
+            reporterId: currentAccId || ''
+          })
+        }).catch(function () {});
+      }
 
       // 设置面板：收纳举报房间与更改代码
       // 消息通知：必须在用户点击手势里申请权限；已授权则按钮改为状态展示

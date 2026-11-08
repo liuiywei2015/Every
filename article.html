@@ -350,6 +350,73 @@
     box-shadow: 0 30px 90px rgba(0, 0, 0, 0.6);
   }
 
+  /* ========== 举报弹层 ========== */
+  .rp-mask {
+    position: fixed;
+    inset: 0;
+    z-index: 120;
+    display: none;
+    align-items: center;
+    justify-content: center;
+    padding: 24px;
+    background: rgba(0, 0, 0, 0.72);
+  }
+  .rp-mask.open { display: flex; }
+  .rp-panel {
+    width: min(460px, 92vw);
+    padding: 26px 24px 20px;
+    border-radius: 16px;
+    border: 1px solid var(--panel-border);
+    background: var(--panel-bg);
+    box-shadow: 0 30px 90px rgba(var(--shadow-rgb), 0.55);
+    backdrop-filter: blur(14px);
+  }
+  .rp-title {
+    font-size: 15px;
+    font-weight: 500;
+    letter-spacing: 0.12em;
+    color: var(--fg);
+    margin-bottom: 10px;
+  }
+  .rp-tip {
+    font-size: 12px;
+    line-height: 1.7;
+    color: var(--muted);
+    letter-spacing: 0.04em;
+    margin-bottom: 16px;
+  }
+  .rp-label {
+    display: block;
+    font-size: 12px;
+    letter-spacing: 0.08em;
+    color: var(--muted);
+    margin: 0 0 6px;
+  }
+  .rp-select, .rp-textarea {
+    width: 100%;
+    padding: 9px 12px;
+    margin-bottom: 14px;
+    border-radius: 10px;
+    border: 1px solid var(--panel-border);
+    background: var(--input-bg);
+    color: var(--fg);
+    font-family: inherit;
+    font-size: 13px;
+    letter-spacing: 0.04em;
+    outline: none;
+  }
+  .rp-textarea { resize: vertical; min-height: 72px; line-height: 1.6; }
+  .rp-select:focus, .rp-textarea:focus { border-color: rgba(200, 169, 110, 0.55); }
+  .rp-msg {
+    min-height: 18px;
+    margin-bottom: 12px;
+    font-size: 12px;
+    letter-spacing: 0.04em;
+    color: var(--err);
+  }
+  .rp-msg.ok { color: var(--ok); }
+  .rp-actions { display: flex; gap: 10px; justify-content: flex-end; }
+
   @keyframes fadeIn {
     from { opacity: 0; transform: translateY(14px); }
     to { opacity: 1; transform: translateY(0); }
@@ -414,6 +481,7 @@
       <div class="action-row">
         <a class="btn ghost" href="articles.html" data-i18n="artd.back">返回文章区</a>
         <a class="btn" href="#" id="editBtn" style="display:none;" data-i18n="artd.edit">编辑本文</a>
+        <button type="button" class="btn ghost" id="reportBtn" data-i18n="rp.entry">举报本文</button>
       </div>
     </article>
 
@@ -421,6 +489,30 @@
   </main>
 
   <div class="lightbox" id="lightbox"><img id="lightboxImg" alt=""></div>
+
+  <!-- 举报弹层：选择原因 + 补充说明，POST /api/reports action=submit -->
+  <div class="rp-mask" id="rpMask">
+    <div class="rp-panel">
+      <div class="rp-title" data-i18n="rp.formTitle">举报本文</div>
+      <p class="rp-tip" data-i18n="rp.formTip">请选择举报原因并补充必要说明，提交后由管理员审核处理。</p>
+      <label class="rp-label" for="rpReason" data-i18n="rp.reasonLabel">举报原因</label>
+      <select id="rpReason" class="rp-select">
+        <option value="spam" data-i18n="rp.rSpam">垃圾广告</option>
+        <option value="abuse" data-i18n="rp.rAbuse">辱骂攻击</option>
+        <option value="porn" data-i18n="rp.rPorn">色情低俗</option>
+        <option value="illegal" data-i18n="rp.rIllegal">违法违规</option>
+        <option value="copyright" data-i18n="rp.rCopyright">侵权盗用</option>
+        <option value="other" data-i18n="rp.rOther">其他</option>
+      </select>
+      <label class="rp-label" for="rpDetail" data-i18n="rp.detailLabel">补充说明（可选）</label>
+      <textarea id="rpDetail" class="rp-textarea" rows="3" maxlength="300" data-i18n-ph="rp.detailPh"></textarea>
+      <p class="rp-msg" id="rpMsg"></p>
+      <div class="rp-actions">
+        <button type="button" class="btn ghost" id="rpCancelBtn" data-i18n="common.cancel">取消</button>
+        <button type="button" class="btn" id="rpSubmitBtn" data-i18n="rp.submit">提交举报</button>
+      </div>
+    </div>
+  </div>
 
   <script>
     (function () {
@@ -440,6 +532,13 @@
       var editBtn = document.getElementById('editBtn');
       var lightbox = document.getElementById('lightbox');
       var lightboxImg = document.getElementById('lightboxImg');
+      var reportBtn = document.getElementById('reportBtn');
+      var rpMask = document.getElementById('rpMask');
+      var rpReason = document.getElementById('rpReason');
+      var rpDetail = document.getElementById('rpDetail');
+      var rpMsg = document.getElementById('rpMsg');
+      var rpSubmitBtn = document.getElementById('rpSubmitBtn');
+      var rpCancelBtn = document.getElementById('rpCancelBtn');
 
       var params = new URLSearchParams(window.location.search);
       var articleId = params.get('id') || '';
@@ -652,6 +751,65 @@
           lightbox.className = 'lightbox';
           lightboxImg.src = '';
         }
+      });
+
+      // ---------- 举报本文 ----------
+      function setRpMsg(text, ok) {
+        rpMsg.textContent = text || '';
+        rpMsg.classList.toggle('ok', !!ok);
+      }
+
+      function openReport() {
+        if (!articleId) return;
+        setRpMsg('', false);
+        rpMask.className = 'rp-mask open';
+      }
+
+      function closeReport() {
+        rpMask.className = 'rp-mask';
+        rpSubmitBtn.disabled = false;
+      }
+
+      // POST /api/reports action=submit（targetType=article，目标为当前文章）
+      function submitReport() {
+        if (!articleId || rpSubmitBtn.disabled) return;
+        rpSubmitBtn.disabled = true;
+        setRpMsg(cealinT('rp.submitting'), false);
+        fetch('/api/reports', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            action: 'submit',
+            targetType: 'article',
+            targetId: articleId,
+            reason: rpReason.value || 'other',
+            detail: rpDetail.value || '',
+            reporterId: authorId
+          })
+        })
+          .then(function (resp) { return resp.json(); })
+          .then(function (data) {
+            rpSubmitBtn.disabled = false;
+            if (data && data.ok) {
+              var d = data.data || {};
+              setRpMsg(d.duplicate ? cealinT('rp.duplicate') : cealinT('rp.submitOk'), true);
+              rpDetail.value = '';
+              setTimeout(closeReport, 1400);
+            } else {
+              setRpMsg((data && data.error) || cealinT('rp.submitFail'), false);
+            }
+          })
+          .catch(function () {
+            rpSubmitBtn.disabled = false;
+            setRpMsg(cealinT('rp.submitFail'), false);
+          });
+      }
+
+      reportBtn.addEventListener('click', openReport);
+      rpCancelBtn.addEventListener('click', closeReport);
+      rpSubmitBtn.addEventListener('click', submitReport);
+      rpMask.addEventListener('click', function (ev) {
+        if (ev.target === rpMask) closeReport();
       });
 
       // ---------- 初始化 ----------
