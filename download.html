@@ -172,9 +172,30 @@
     animation: fadeIn 0.85s cubic-bezier(0.22, 1, 0.36, 1) 0.35s forwards;
   }
 
+  /* ========== 分组标题 ========== */
+  .dl-group {
+    margin-top: 46px;
+    width: min(940px, 94vw);
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    font-size: 12px;
+    letter-spacing: 0.18em;
+    color: var(--muted);
+    opacity: 0;
+    animation: fadeIn 0.85s cubic-bezier(0.22, 1, 0.36, 1) 0.4s forwards;
+  }
+  .dl-group + .dl-group { margin-top: 34px; }
+  .dl-group::after {
+    content: "";
+    flex: 1;
+    height: 1px;
+    background: rgba(var(--line-rgb), 0.16);
+  }
+
   /* ========== 客户端卡片网格 ========== */
   .dl-grid {
-    margin-top: 46px;
+    margin-top: 16px;
     width: min(940px, 94vw);
     display: grid;
     grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -196,8 +217,10 @@
     opacity: 0;
     animation: fadeIn 0.85s cubic-bezier(0.22, 1, 0.36, 1) both;
   }
-  .dl-card:nth-child(1) { animation-delay: 0.5s; }
-  .dl-card:nth-child(2) { animation-delay: 0.6s; }
+  .dl-card:nth-child(1) { animation-delay: 0.45s; }
+  .dl-card:nth-child(2) { animation-delay: 0.55s; }
+  .dl-card:nth-child(3) { animation-delay: 0.65s; }
+  .dl-card:nth-child(4) { animation-delay: 0.75s; }
 
   .dl-name {
     font-size: 16px;
@@ -314,35 +337,71 @@
     <h1 class="title" data-i18n="dl.title">下载</h1>
     <p class="page-sub" data-i18n="dl.sub">选择适合你的平台与用途</p>
 
+    <div class="dl-group">
+      <span data-i18n="dl.groupUser">用户版</span>
+    </div>
+
     <section class="dl-grid">
 
-      <!-- Windows 客户端：体积较大，站内不提供直链，跳转外部云盘 -->
+      <!-- Windows 客户端：GitHub Releases 直链（仓库单文件限制无法入库） -->
       <article class="dl-card">
         <h2 class="dl-name" data-i18n="dl.winClient">Windows 客户端</h2>
-        <p class="dl-desc" data-i18n="dl.winClientDesc">桌面聊天客户端，登录一次全站免登，支持聊天室、好友与文章。</p>
+        <p class="dl-desc" data-i18n="dl.winClientDesc">桌面客户端，登录一次全站免登，支持聊天室、好友与文章。</p>
         <div class="dl-meta">
           <span data-i18n="dl.version">版本</span>
-          <span class="dl-ver">1.0.0</span>
+          <span class="dl-ver">26.11.8</span>
         </div>
-        <a class="dl-btn" href="https://1854681556.share.123pan.cn/123pan/8g3svd-B4Q6h" target="_blank" rel="noopener" data-i18n="dl.btn">前往下载</a>
-        <p class="dl-hint" data-i18n="dl.winHint">Windows 版体积较大，站内无法提供直链，请前往云盘页面下载。</p>
+        <a class="dl-btn" href="https://github.com/liuiywei2015/Every/releases/download/v26.11.8/Cealin-26.11.8-x64.exe" data-i18n="dl.btnExe">下载安装包</a>
+        <p class="dl-hint" data-i18n="dl.winHint">通过 GitHub 直链下载，安装时若提示未知发布者，请选择“仍要运行”。</p>
       </article>
 
       <!-- Android 客户端：站内直链，点击即下载 -->
       <article class="dl-card">
         <h2 class="dl-name" data-i18n="dl.androidClient">Android 客户端</h2>
-        <p class="dl-desc" data-i18n="dl.androidClientDesc">手机聊天客户端，支持图文消息与好友私聊。</p>
+        <p class="dl-desc" data-i18n="dl.androidClientDesc">手机客户端，支持图文消息与好友私聊。</p>
         <div class="dl-meta">
           <span data-i18n="dl.version">版本</span>
-          <span class="dl-ver">1.0.0</span>
+          <span class="dl-ver">26.11.8</span>
         </div>
-        <a class="dl-btn" href="downloads/Cealin-mobile-1.0.0.apk" download data-i18n="dl.btnAndroid">下载 APK</a>
+        <a class="dl-btn" href="downloads/Cealin-mobile-26.11.8.apk" download data-i18n="dl.btnAndroid">下载 APK</a>
         <p class="dl-hint" data-i18n="dl.androidHint">直接在此页面下载，无需跳转云盘。</p>
       </article>
 
     </section>
 
-    <p class="dl-note" data-i18n="dl.note">所有客户端当前版本均为 1.0.0。Android 版可直接下载 APK，Windows 版请前往云盘页面获取；安装时若提示未知来源，请按系统提示允许安装。</p>
+    <div class="dl-group">
+      <span data-i18n="dl.groupAdmin">管理员版</span>
+    </div>
+
+    <section class="dl-grid">
+
+      <!-- Windows 管理端：GitHub Releases 直链 -->
+      <article class="dl-card">
+        <h2 class="dl-name" data-i18n="dl.winAdmin">Windows 管理端</h2>
+        <p class="dl-desc" data-i18n="dl.winAdminDesc">站点后台管理客户端，集中处理公告、聊天室、建议、账号、文章与手机消息审核。</p>
+        <div class="dl-meta">
+          <span data-i18n="dl.version">版本</span>
+          <span class="dl-ver">26.11.8</span>
+        </div>
+        <a class="dl-btn" href="https://github.com/liuiywei2015/Every/releases/download/v26.11.8/Cealin-admin-26.11.8-x64.exe" data-i18n="dl.btnExe">下载安装包</a>
+        <p class="dl-hint" data-i18n="dl.adminHint">仅供站点管理员使用，打开后需输入管理员密码登录。</p>
+      </article>
+
+      <!-- Android 管理端：站内直链 -->
+      <article class="dl-card">
+        <h2 class="dl-name" data-i18n="dl.androidAdmin">Android 管理端</h2>
+        <p class="dl-desc" data-i18n="dl.androidAdminDesc">手机端后台管理，支持上拉菜单快速跳转到各管理模块。</p>
+        <div class="dl-meta">
+          <span data-i18n="dl.version">版本</span>
+          <span class="dl-ver">26.11.8</span>
+        </div>
+        <a class="dl-btn" href="downloads/Cealin-admin-mobile-26.11.8.apk" download data-i18n="dl.btnAndroid">下载 APK</a>
+        <p class="dl-hint" data-i18n="dl.adminHint">仅供站点管理员使用，打开后需输入管理员密码登录。</p>
+      </article>
+
+    </section>
+
+    <p class="dl-note" data-i18n="dl.note">所有客户端当前版本均为 26.11.8。Android 版可直接在此页面下载 APK，Windows 版走 GitHub Releases 直链；安装时若提示未知来源或未知发布者，请按系统提示允许安装。</p>
   </main>
 
 </body>
