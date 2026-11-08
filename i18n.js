@@ -712,7 +712,7 @@
     'rp.rCopyright': { zh: '侵权盗用', en: 'Copyright infringement', ja: '権利侵害・盗用', ko: '권리 침해·도용', es: 'Infracción de derechos' },
     'rp.rRoom': { zh: '聊天室违规', en: 'Room violation', ja: 'チャットルームの違反', ko: '채팅방 규정 위반', es: 'Sala con infracción' },
     'rp.rOther': { zh: '其他', en: 'Other', ja: 'その他', ko: '기타', es: 'Otro' },
-    'rp.adminTitle': { zh: '举报审核', en: 'Report review', ja: '通報の審査', ko: '신고 심사', es: 'Revisión de denuncias' },
+    'rp.adminTitle': { zh: '来自手机的消息', en: 'Messages from phone', ja: '携帯からのメッセージ', ko: '휴대폰에서 온 메시지', es: 'Mensajes desde el móvil' },
     'rp.adminTip': { zh: '查看用户提交的举报，可逐条通过或驳回。通过后：文章举报将驳回并下架该文章，聊天室举报将封禁该房间，账号举报仅记录处理结果、不作封号处理。', en: 'Review reports submitted by users and approve or dismiss each one. Approving rejects and takes down the article, bans the chat room, or — for accounts — only records the result without banning.', ja: 'ユーザーから提出された通報を確認し、承認または却下できます。承認すると、記事は却下して非公開、チャットルームは封鎖、アカウントは記録のみで凍結は行いません。', ko: '사용자가 제출한 신고를 확인하고 승인 또는 반려할 수 있습니다. 승인하면 글은 반려되어 내려가고, 채팅방은 차단되며, 계정은 기록만 하고 차단하지 않습니다.', es: 'Revisa las denuncias de los usuarios y apruébalas o recházalas. Al aprobar, el artículo se rechaza y se retira, la sala se bloquea y, en cuentas, solo se registra el resultado sin bloquear.' },
     'rp.stAll': { zh: '全部状态', en: 'All statuses', ja: 'すべての状態', ko: '전체 상태', es: 'Todos los estados' },
     'rp.stPending': { zh: '待处理', en: 'Pending', ja: '未処理', ko: '대기 중', es: 'Pendientes' },
