@@ -198,34 +198,12 @@
   }
   .dl-card:nth-child(1) { animation-delay: 0.5s; }
   .dl-card:nth-child(2) { animation-delay: 0.6s; }
-  .dl-card:nth-child(3) { animation-delay: 0.7s; }
-  .dl-card:nth-child(4) { animation-delay: 0.8s; }
 
-  .dl-head {
-    display: flex;
-    align-items: center;
-    gap: 10px;
-    flex-wrap: wrap;
-  }
   .dl-name {
     font-size: 16px;
     font-weight: 600;
     letter-spacing: 0.05em;
     color: var(--fg);
-  }
-  .dl-tag {
-    padding: 2px 9px;
-    font-size: 10.5px;
-    font-weight: 400;
-    letter-spacing: 0.1em;
-    color: var(--muted);
-    border: 1px solid rgba(var(--line-rgb), 0.22);
-    border-radius: 999px;
-  }
-  .dl-tag.dev {
-    color: var(--gold);
-    border-color: rgba(200, 169, 110, 0.5);
-    background: rgba(200, 169, 110, 0.12);
   }
 
   .dl-desc {
@@ -269,21 +247,9 @@
     box-shadow: 0 6px 22px rgba(200, 169, 110, 0.18);
   }
 
-  .dl-direct {
-    align-self: flex-start;
-    font-size: 12.5px;
-    letter-spacing: 0.06em;
-    color: var(--muted);
-    text-decoration: none;
-    border-bottom: 1px solid rgba(var(--fg-rgb), 0.22);
-    padding-bottom: 2px;
-    transition: color 0.3s ease, border-color 0.3s ease;
-  }
-  .dl-direct:hover { color: var(--fg); border-color: var(--fg); }
-
-  .dl-direct-hint {
+  .dl-hint {
     font-size: 11.5px;
-    line-height: 1.7;
+    line-height: 1.75;
     letter-spacing: 0.02em;
     color: var(--muted);
     opacity: 0.85;
@@ -350,69 +316,33 @@
 
     <section class="dl-grid">
 
-      <!-- Windows 客户端 -->
+      <!-- Windows 客户端：体积较大，站内不提供直链，跳转外部云盘 -->
       <article class="dl-card">
-        <div class="dl-head">
-          <h2 class="dl-name" data-i18n="dl.winClient">Windows 客户端</h2>
-          <span class="dl-tag" data-i18n="dl.tagClient">客户端</span>
-        </div>
+        <h2 class="dl-name" data-i18n="dl.winClient">Windows 客户端</h2>
         <p class="dl-desc" data-i18n="dl.winClientDesc">桌面聊天客户端，登录一次全站免登，支持聊天室、好友与文章。</p>
         <div class="dl-meta">
           <span data-i18n="dl.version">版本</span>
           <span class="dl-ver">1.0.0</span>
         </div>
         <a class="dl-btn" href="https://1854681556.share.123pan.cn/123pan/8g3svd-B4Q6h" target="_blank" rel="noopener" data-i18n="dl.btn">前往下载</a>
+        <p class="dl-hint" data-i18n="dl.winHint">Windows 版体积较大，站内无法提供直链，请前往云盘页面下载。</p>
       </article>
 
-      <!-- Windows 管理端 -->
+      <!-- Android 客户端：站内直链，点击即下载 -->
       <article class="dl-card">
-        <div class="dl-head">
-          <h2 class="dl-name" data-i18n="dl.winAdmin">Windows 管理端</h2>
-          <span class="dl-tag dev" data-i18n="dl.devOnly">仅供开发者使用</span>
-        </div>
-        <p class="dl-desc" data-i18n="dl.winAdminDesc">内容与账号管理客户端，包含公告、聊天室、建议与文章审核。</p>
-        <div class="dl-meta">
-          <span data-i18n="dl.version">版本</span>
-          <span class="dl-ver">1.0.0</span>
-        </div>
-        <a class="dl-btn" href="https://1854681556.share.123pan.cn/123pan/8g3svd-B4Q6h" target="_blank" rel="noopener" data-i18n="dl.btn">前往下载</a>
-      </article>
-
-      <!-- Android 客户端 -->
-      <article class="dl-card">
-        <div class="dl-head">
-          <h2 class="dl-name" data-i18n="dl.androidClient">Android 客户端</h2>
-          <span class="dl-tag" data-i18n="dl.tagClient">客户端</span>
-        </div>
+        <h2 class="dl-name" data-i18n="dl.androidClient">Android 客户端</h2>
         <p class="dl-desc" data-i18n="dl.androidClientDesc">手机聊天客户端，支持图文消息与好友私聊。</p>
         <div class="dl-meta">
           <span data-i18n="dl.version">版本</span>
           <span class="dl-ver">1.0.0</span>
         </div>
-        <a class="dl-btn" href="https://1854681556.share.123pan.cn/123pan/8g3svd-B4Q6h" target="_blank" rel="noopener" data-i18n="dl.btn">前往下载</a>
-        <a class="dl-direct" href="downloads/Cealin-mobile-1.0.0.apk" download data-i18n="dl.direct">站内直链下载 APK</a>
-        <p class="dl-direct-hint" data-i18n="dl.directHint">云盘页面加载较慢时，可用上面的站内直链直接下载。</p>
-      </article>
-
-      <!-- Android 管理端 -->
-      <article class="dl-card">
-        <div class="dl-head">
-          <h2 class="dl-name" data-i18n="dl.androidAdmin">Android 管理端</h2>
-          <span class="dl-tag dev" data-i18n="dl.devOnly">仅供开发者使用</span>
-        </div>
-        <p class="dl-desc" data-i18n="dl.androidAdminDesc">手机端管理后台，便于随时处理公告与审核。</p>
-        <div class="dl-meta">
-          <span data-i18n="dl.version">版本</span>
-          <span class="dl-ver">1.0.0</span>
-        </div>
-        <a class="dl-btn" href="https://1854681556.share.123pan.cn/123pan/8g3svd-B4Q6h" target="_blank" rel="noopener" data-i18n="dl.btn">前往下载</a>
-        <a class="dl-direct" href="downloads/Cealin-admin-mobile-1.0.0.apk" download data-i18n="dl.direct">站内直链下载 APK</a>
-        <p class="dl-direct-hint" data-i18n="dl.directHint">云盘页面加载较慢时，可用上面的站内直链直接下载。</p>
+        <a class="dl-btn" href="downloads/Cealin-mobile-1.0.0.apk" download data-i18n="dl.btnAndroid">下载 APK</a>
+        <p class="dl-hint" data-i18n="dl.androidHint">直接在此页面下载，无需跳转云盘。</p>
       </article>
 
     </section>
 
-    <p class="dl-note" data-i18n="dl.note">所有客户端当前版本均为 1.0.0。下载按钮会打开 123 云盘分享页，请按你的平台选择对应文件；管理端仅供开发者使用。</p>
+    <p class="dl-note" data-i18n="dl.note">所有客户端当前版本均为 1.0.0。Android 版可直接下载 APK，Windows 版请前往云盘页面获取；安装时若提示未知来源，请按系统提示允许安装。</p>
   </main>
 
 </body>
