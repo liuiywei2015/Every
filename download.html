@@ -1,0 +1,419 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+
+<!-- 运行环境识别（客户端 / 浏览器），必须最先执行 -->
+<script src="client-detect.js"></script><meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+<!-- 本页为公开页面：不引入 guard.js，未登录也可查看与下载 -->
+<!-- 主题引导 + 全站共享主题样式（明亮模式在 <head> 最早应用，避免闪烁） -->
+<script src="theme.js"></script>
+<link rel="stylesheet" href="theme.css">
+<title data-i18n="title.download">下载 - Cealin</title>
+<style>
+  /* 主题变量统一由 theme.css 提供（含明亮模式），此处不再覆盖 */
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  html, body { height: 100%; }
+
+  body {
+    color: var(--fg);
+    font-family: "Helvetica Neue", "PingFang SC", "Microsoft YaHei", Arial, sans-serif;
+    -webkit-font-smoothing: antialiased;
+    overflow-y: auto;
+    background: var(--page-bg);
+  }
+
+  /* ========== 全屏背景图 ========== */
+  .art-bg {
+    position: fixed;
+    inset: 0;
+    z-index: 0;
+    background-image: url('assets/bg.jpg');
+    background-size: cover;
+    background-position: center;
+    filter: var(--art-filter);
+  }
+
+  /* 暖金氛围光 */
+  .glow {
+    position: fixed;
+    inset: 0;
+    z-index: 1;
+    pointer-events: none;
+    background:
+      radial-gradient(ellipse 55% 42% at 50% 46%, rgba(255, 196, 120, 0.20), transparent 62%),
+      radial-gradient(ellipse 40% 35% at 50% 60%, rgba(230, 170, 90, 0.10), transparent 70%),
+      linear-gradient(180deg, rgba(var(--veil-rgb), 0.30) 0%, rgba(var(--veil-rgb), 0) 30%, rgba(var(--veil-rgb), 0.20) 78%, rgba(var(--veil-rgb), 0.55) 100%);
+  }
+
+  /* 油画噪点颗粒 */
+  .grain {
+    position: fixed;
+    inset: 0;
+    z-index: 2;
+    pointer-events: none;
+    opacity: var(--grain-opacity);
+    mix-blend-mode: overlay;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='180' height='180'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+  }
+
+  /* ========== 顶部导航栏（苹果液态玻璃） ========== */
+  .topbar {
+    position: fixed;
+    top: 14px;
+    left: 20px;
+    right: 20px;
+    z-index: 10;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 12px 26px;
+    border-radius: 22px;
+    background: linear-gradient(135deg, rgba(var(--line-rgb), 0.16), rgba(var(--line-rgb), 0.06) 48%, rgba(200, 169, 110, 0.08));
+    -webkit-backdrop-filter: blur(20px) saturate(170%);
+    backdrop-filter: blur(20px) saturate(170%);
+    border: 1px solid rgba(var(--line-rgb), 0.18);
+    box-shadow:
+      0 12px 36px rgba(var(--shadow-rgb), 0.30),
+      inset 0 1px 0 rgba(var(--line-rgb), 0.25),
+      inset 0 -1px 0 rgba(var(--line-rgb), 0.05);
+  }
+
+  .logo {
+    font-size: 22px;
+    font-weight: 800;
+    letter-spacing: 0.06em;
+    color: var(--fg);
+    text-decoration: none;
+  }
+
+  .nav-right {
+    display: flex;
+    align-items: center;
+    gap: 26px;
+  }
+
+  .menu {
+    display: flex;
+    gap: 22px;
+    list-style: none;
+  }
+  .menu a {
+    font-size: 15px;
+    font-weight: 500;
+    color: var(--muted);
+    text-decoration: none;
+    transition: color 0.3s ease;
+  }
+  .menu a:hover { color: var(--fg); }
+  .menu a.active { color: var(--fg); }
+  .menu a.active::after {
+    content: "";
+    display: block;
+    height: 1px;
+    margin-top: 3px;
+    background: rgba(var(--fg-rgb), 0.45);
+  }
+
+  .avatar {
+    width: 34px;
+    height: 34px;
+    border-radius: 50%;
+    border: 1.5px solid rgba(var(--hl-rgb), 0.35);
+    background:
+      radial-gradient(circle at 35% 30%, rgba(var(--hl-rgb), 0.35), transparent 40%),
+      linear-gradient(135deg, #7d8a7a, #3a4038);
+    cursor: pointer;
+    position: relative;
+    display: block;
+  }
+  .avatar::after {
+    content: "";
+    position: absolute;
+    inset: 4px;
+    border-radius: 50%;
+    border: 1px solid rgba(var(--hl-rgb), 0.15);
+  }
+
+  /* ========== 页面主体 ========== */
+  .hero {
+    position: relative;
+    z-index: 5;
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    text-align: center;
+    padding: 124px 24px 84px;
+  }
+
+  .title {
+    font-size: clamp(48px, 9vw, 104px);
+    font-weight: 800;
+    letter-spacing: 0.10em;
+    text-indent: 0.10em;
+    line-height: 1;
+    color: var(--fg);
+    text-shadow: 0 4px 60px rgba(var(--shadow-rgb), 0.45);
+    user-select: none;
+    animation: fadeIn 0.85s cubic-bezier(0.22, 1, 0.36, 1) both;
+  }
+
+  .page-sub {
+    margin-top: 22px;
+    font-size: 14px;
+    letter-spacing: 0.16em;
+    text-indent: 0.16em;
+    color: var(--muted);
+    opacity: 0;
+    animation: fadeIn 0.85s cubic-bezier(0.22, 1, 0.36, 1) 0.35s forwards;
+  }
+
+  /* ========== 客户端卡片网格 ========== */
+  .dl-grid {
+    margin-top: 46px;
+    width: min(940px, 94vw);
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 18px;
+    text-align: left;
+  }
+
+  .dl-card {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    padding: 22px 24px 24px;
+    border-radius: 18px;
+    background: linear-gradient(135deg, rgba(var(--line-rgb), 0.14), rgba(var(--line-rgb), 0.05) 48%, rgba(200, 169, 110, 0.08));
+    -webkit-backdrop-filter: blur(20px) saturate(170%);
+    backdrop-filter: blur(20px) saturate(170%);
+    border: 1px solid rgba(var(--line-rgb), 0.16);
+    box-shadow: 0 12px 36px rgba(var(--shadow-rgb), 0.28), inset 0 1px 0 rgba(var(--line-rgb), 0.22);
+    opacity: 0;
+    animation: fadeIn 0.85s cubic-bezier(0.22, 1, 0.36, 1) both;
+  }
+  .dl-card:nth-child(1) { animation-delay: 0.5s; }
+  .dl-card:nth-child(2) { animation-delay: 0.6s; }
+  .dl-card:nth-child(3) { animation-delay: 0.7s; }
+  .dl-card:nth-child(4) { animation-delay: 0.8s; }
+
+  .dl-head {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    flex-wrap: wrap;
+  }
+  .dl-name {
+    font-size: 16px;
+    font-weight: 600;
+    letter-spacing: 0.05em;
+    color: var(--fg);
+  }
+  .dl-tag {
+    padding: 2px 9px;
+    font-size: 10.5px;
+    font-weight: 400;
+    letter-spacing: 0.1em;
+    color: var(--muted);
+    border: 1px solid rgba(var(--line-rgb), 0.22);
+    border-radius: 999px;
+  }
+  .dl-tag.dev {
+    color: var(--gold);
+    border-color: rgba(200, 169, 110, 0.5);
+    background: rgba(200, 169, 110, 0.12);
+  }
+
+  .dl-desc {
+    font-size: 13px;
+    line-height: 1.75;
+    letter-spacing: 0.02em;
+    color: var(--muted);
+  }
+
+  .dl-meta {
+    display: flex;
+    align-items: baseline;
+    gap: 8px;
+    font-size: 12px;
+    letter-spacing: 0.1em;
+    color: var(--muted);
+  }
+  .dl-ver {
+    color: var(--fg);
+    font-variant-numeric: tabular-nums;
+    letter-spacing: 0.06em;
+  }
+
+  .dl-btn {
+    margin-top: 2px;
+    display: block;
+    text-align: center;
+    padding: 11px 26px;
+    border-radius: 999px;
+    border: 1px solid rgba(200, 169, 110, 0.55);
+    background: rgba(200, 169, 110, 0.18);
+    color: var(--fg);
+    font-size: 13px;
+    letter-spacing: 0.12em;
+    text-decoration: none;
+    transition: background 0.25s cubic-bezier(0.22, 1, 0.36, 1), transform 0.2s cubic-bezier(0.22, 1, 0.36, 1), box-shadow 0.25s cubic-bezier(0.22, 1, 0.36, 1);
+  }
+  .dl-btn:hover {
+    background: rgba(200, 169, 110, 0.34);
+    transform: translateY(-1px);
+    box-shadow: 0 6px 22px rgba(200, 169, 110, 0.18);
+  }
+
+  .dl-direct {
+    align-self: flex-start;
+    font-size: 12.5px;
+    letter-spacing: 0.06em;
+    color: var(--muted);
+    text-decoration: none;
+    border-bottom: 1px solid rgba(var(--fg-rgb), 0.22);
+    padding-bottom: 2px;
+    transition: color 0.3s ease, border-color 0.3s ease;
+  }
+  .dl-direct:hover { color: var(--fg); border-color: var(--fg); }
+
+  .dl-direct-hint {
+    font-size: 11.5px;
+    line-height: 1.7;
+    letter-spacing: 0.02em;
+    color: var(--muted);
+    opacity: 0.85;
+  }
+
+  .dl-note {
+    margin-top: 36px;
+    width: min(940px, 94vw);
+    font-size: 12.5px;
+    line-height: 1.9;
+    letter-spacing: 0.04em;
+    color: var(--muted);
+    opacity: 0;
+    animation: fadeIn 0.85s cubic-bezier(0.22, 1, 0.36, 1) 0.95s forwards;
+  }
+
+  @keyframes fadeIn {
+    from { opacity: 0; transform: translateY(14px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+
+  @media (max-width: 860px) {
+    .topbar { padding: 12px 18px; }
+    .menu { gap: 16px; }
+    .menu a { font-size: 13.5px; }
+    .dl-grid { grid-template-columns: 1fr; }
+    .hero { padding: 116px 20px 72px; }
+  }
+</style>
+  <script src="notice-link.js"></script>
+  <script src="i18n.js"></script>
+</head>
+<body>
+
+  <!-- 油画背景 -->
+  <div class="art-bg"></div>
+  <div class="glow"></div>
+  <div class="grain"></div>
+
+  <!-- 顶部导航 -->
+  <header class="topbar">
+    <a class="logo" href="index.html">Cealin</a>
+    <div class="nav-right">
+      <ul class="menu">
+        <li><a href="index.html" data-i18n="nav.home">首页</a></li>
+        <li><a href="project.html" data-i18n="nav.project">项目</a></li>
+        <li><a href="platform.html" data-i18n="nav.platform">平台</a></li>
+        <li><a href="chat.html" data-i18n="nav.chat">聊天室</a></li>
+        <li><a href="friends.html" data-i18n="nav.friends">好友</a></li>
+        <li><a href="articles.html" data-i18n="nav.articles">文章</a></li>
+        <li><a href="suggestion.html" data-i18n="nav.suggestion">建议</a></li>
+        <li><a href="notice-admin.html" data-i18n="nav.notice">公告</a></li>
+        <li><a href="download.html" class="active" data-i18n="nav.download">下载</a></li>
+        <li><a href="mine.html" data-i18n="nav.mine">我的</a></li>
+      </ul>
+      <a class="avatar" href="settings.html" title="设置" data-i18n-title="nav.settings"></a>
+    </div>
+  </header>
+
+  <!-- 页面主体 -->
+  <main class="hero">
+    <h1 class="title" data-i18n="dl.title">下载</h1>
+    <p class="page-sub" data-i18n="dl.sub">选择适合你的平台与用途</p>
+
+    <section class="dl-grid">
+
+      <!-- Windows 客户端 -->
+      <article class="dl-card">
+        <div class="dl-head">
+          <h2 class="dl-name" data-i18n="dl.winClient">Windows 客户端</h2>
+          <span class="dl-tag" data-i18n="dl.tagClient">客户端</span>
+        </div>
+        <p class="dl-desc" data-i18n="dl.winClientDesc">桌面聊天客户端，登录一次全站免登，支持聊天室、好友与文章。</p>
+        <div class="dl-meta">
+          <span data-i18n="dl.version">版本</span>
+          <span class="dl-ver">1.0.0</span>
+        </div>
+        <a class="dl-btn" href="https://1854681556.share.123pan.cn/123pan/8g3svd-B4Q6h" target="_blank" rel="noopener" data-i18n="dl.btn">前往下载</a>
+      </article>
+
+      <!-- Windows 管理端 -->
+      <article class="dl-card">
+        <div class="dl-head">
+          <h2 class="dl-name" data-i18n="dl.winAdmin">Windows 管理端</h2>
+          <span class="dl-tag dev" data-i18n="dl.devOnly">仅供开发者使用</span>
+        </div>
+        <p class="dl-desc" data-i18n="dl.winAdminDesc">内容与账号管理客户端，包含公告、聊天室、建议与文章审核。</p>
+        <div class="dl-meta">
+          <span data-i18n="dl.version">版本</span>
+          <span class="dl-ver">1.0.0</span>
+        </div>
+        <a class="dl-btn" href="https://1854681556.share.123pan.cn/123pan/8g3svd-B4Q6h" target="_blank" rel="noopener" data-i18n="dl.btn">前往下载</a>
+      </article>
+
+      <!-- Android 客户端 -->
+      <article class="dl-card">
+        <div class="dl-head">
+          <h2 class="dl-name" data-i18n="dl.androidClient">Android 客户端</h2>
+          <span class="dl-tag" data-i18n="dl.tagClient">客户端</span>
+        </div>
+        <p class="dl-desc" data-i18n="dl.androidClientDesc">手机聊天客户端，支持图文消息与好友私聊。</p>
+        <div class="dl-meta">
+          <span data-i18n="dl.version">版本</span>
+          <span class="dl-ver">1.0.0</span>
+        </div>
+        <a class="dl-btn" href="https://1854681556.share.123pan.cn/123pan/8g3svd-B4Q6h" target="_blank" rel="noopener" data-i18n="dl.btn">前往下载</a>
+        <a class="dl-direct" href="downloads/Cealin-mobile-1.0.0.apk" download data-i18n="dl.direct">站内直链下载 APK</a>
+        <p class="dl-direct-hint" data-i18n="dl.directHint">云盘页面加载较慢时，可用上面的站内直链直接下载。</p>
+      </article>
+
+      <!-- Android 管理端 -->
+      <article class="dl-card">
+        <div class="dl-head">
+          <h2 class="dl-name" data-i18n="dl.androidAdmin">Android 管理端</h2>
+          <span class="dl-tag dev" data-i18n="dl.devOnly">仅供开发者使用</span>
+        </div>
+        <p class="dl-desc" data-i18n="dl.androidAdminDesc">手机端管理后台，便于随时处理公告与审核。</p>
+        <div class="dl-meta">
+          <span data-i18n="dl.version">版本</span>
+          <span class="dl-ver">1.0.0</span>
+        </div>
+        <a class="dl-btn" href="https://1854681556.share.123pan.cn/123pan/8g3svd-B4Q6h" target="_blank" rel="noopener" data-i18n="dl.btn">前往下载</a>
+        <a class="dl-direct" href="downloads/Cealin-admin-mobile-1.0.0.apk" download data-i18n="dl.direct">站内直链下载 APK</a>
+        <p class="dl-direct-hint" data-i18n="dl.directHint">云盘页面加载较慢时，可用上面的站内直链直接下载。</p>
+      </article>
+
+    </section>
+
+    <p class="dl-note" data-i18n="dl.note">所有客户端当前版本均为 1.0.0。下载按钮会打开 123 云盘分享页，请按你的平台选择对应文件；管理端仅供开发者使用。</p>
+  </main>
+
+</body>
+</html>

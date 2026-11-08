@@ -33,6 +33,7 @@
     'title.suggestion': { zh: '建议 - Cealin', en: 'Feedback - Cealin', ja: 'ご意見 - Cealin', ko: '의견 - Cealin', es: 'Sugerencias - Cealin' },
     'title.account': { zh: '账号 - Cealin', en: 'Account - Cealin', ja: 'アカウント - Cealin', ko: '계정 - Cealin', es: 'Cuenta - Cealin' },
     'title.mine': { zh: '我的 - Cealin', en: 'Me - Cealin', ja: 'マイページ - Cealin', ko: '내 정보 - Cealin', es: 'Mi cuenta - Cealin' },
+    'title.download': { zh: '下载 - Cealin', en: 'Download - Cealin', ja: 'ダウンロード - Cealin', ko: '다운로드 - Cealin', es: 'Descargas - Cealin' },
 
     /* ---------- 导航与通用 ---------- */
     'nav.home': { zh: '首页', en: 'Home', ja: 'ホーム', ko: '홈', es: 'Inicio' },
@@ -42,6 +43,7 @@
     'nav.suggestion': { zh: '建议', en: 'Feedback', ja: 'ご意見', ko: '의견', es: 'Sugerencias' },
     'nav.notice': { zh: '公告', en: 'Notices', ja: 'お知らせ', ko: '공지사항', es: 'Anuncios' },
     'nav.mine': { zh: '我的', en: 'Me', ja: 'マイページ', ko: '내 정보', es: 'Mi cuenta' },
+    'nav.download': { zh: '下载', en: 'Downloads', ja: 'ダウンロード', ko: '다운로드', es: 'Descargas' },
     'nav.settingsTitle': { zh: '设置', en: 'Settings', ja: '設定', ko: '설정', es: 'Ajustes' },
     'nav.settings': { zh: '设置', en: 'Settings', ja: '設定', ko: '설정', es: 'Ajustes' },
 
@@ -677,6 +679,25 @@
     /* 聊天室通知开关 */
     'chat.notifyBtn': { zh: '开启消息通知', en: 'Enable notifications', ja: 'メッセージ通知をオンにする', ko: '메시지 알림 켜기', es: 'Activar notificaciones' },
     'chat.notifyOn': { zh: '通知已开启', en: 'Notifications on', ja: '通知はオンです', ko: '알림이 켜졌습니다', es: 'Notificaciones activadas' },
+
+    /* ---------- 下载页（download.html） ---------- */
+    'dl.title': { zh: '下载', en: 'Download', ja: 'ダウンロード', ko: '다운로드', es: 'Descargas' },
+    'dl.sub': { zh: '选择适合你的平台与用途', en: 'Pick the build that fits your platform', ja: 'プラットフォームと用途に合わせて選んでください', ko: '플랫폼과 용도에 맞게 선택하세요', es: 'Elige la versión según tu plataforma' },
+    'dl.tagClient': { zh: '客户端', en: 'Client', ja: 'クライアント', ko: '클라이언트', es: 'Cliente' },
+    'dl.devOnly': { zh: '仅供开发者使用', en: 'For developers only', ja: '開発者専用', ko: '개발자 전용', es: 'Solo para desarrolladores' },
+    'dl.version': { zh: '版本', en: 'Version', ja: 'バージョン', ko: '버전', es: 'Versión' },
+    'dl.btn': { zh: '前往下载', en: 'Download', ja: 'ダウンロードへ', ko: '다운로드하기', es: 'Ir a descargar' },
+    'dl.direct': { zh: '站内直链下载 APK', en: 'Direct APK download', ja: '直リンクで APK をダウンロード', ko: '사이트 직링크로 APK 다운로드', es: 'Descargar APK directo' },
+    'dl.directHint': { zh: '云盘页面加载较慢时，可用上面的站内直链直接下载。', en: 'If the cloud page loads slowly, use the direct link above.', ja: 'クラウドページの読み込みが遅い場合は、上の直リンクをご利用ください。', ko: '클라우드 페이지가 느리면 위의 직링크를 사용하세요.', es: 'Si la página de la nube va lenta, usa el enlace directo de arriba.' },
+    'dl.winClient': { zh: 'Windows 客户端', en: 'Windows client', ja: 'Windows クライアント', ko: 'Windows 클라이언트', es: 'Cliente para Windows' },
+    'dl.winClientDesc': { zh: '桌面聊天客户端，登录一次全站免登，支持聊天室、好友与文章。', en: 'Desktop chat client — sign in once and browse the whole site; supports chat rooms, friends and articles.', ja: 'デスクトップ版チャット。一度ログインすれば全サイトを閲覧でき、チャット・フレンド・記事に対応します。', ko: '데스크톱 채팅 클라이언트로 한 번 로그인하면 사이트 전체를 이용할 수 있으며 채팅방, 친구, 글을 지원합니다.', es: 'Cliente de chat de escritorio: inicia sesión una vez y usa todo el sitio; admite salas de chat, amigos y artículos.' },
+    'dl.winAdmin': { zh: 'Windows 管理端', en: 'Windows admin', ja: 'Windows 管理版', ko: 'Windows 관리자', es: 'Administración para Windows' },
+    'dl.winAdminDesc': { zh: '内容与账号管理客户端，包含公告、聊天室、建议与文章审核。', en: 'Content and account console: notices, chat rooms, feedback and article review.', ja: 'コンテンツとアカウントの管理アプリ。お知らせ・チャット・ご意見・記事審査を含みます。', ko: '콘텐츠와 계정 관리 앱으로 공지, 채팅방, 의견, 글 심사를 포함합니다.', es: 'Consola de contenido y cuentas: anuncios, salas de chat, sugerencias y revisión de artículos.' },
+    'dl.androidClient': { zh: 'Android 客户端', en: 'Android client', ja: 'Android クライアント', ko: 'Android 클라이언트', es: 'Cliente para Android' },
+    'dl.androidClientDesc': { zh: '手机聊天客户端，支持图文消息与好友私聊。', en: 'Mobile chat client with image messages and private chats.', ja: 'スマホ版チャット。画像メッセージと友達との個別チャットに対応します。', ko: '모바일 채팅 클라이언트로 이미지 메시지와 친구 1:1 채팅을 지원합니다.', es: 'Cliente de chat móvil con mensajes con imágenes y chats privados.' },
+    'dl.androidAdmin': { zh: 'Android 管理端', en: 'Android admin', ja: 'Android 管理版', ko: 'Android 관리자', es: 'Administración para Android' },
+    'dl.androidAdminDesc': { zh: '手机端管理后台，便于随时处理公告与审核。', en: 'Mobile admin console for handling notices and reviews on the go.', ja: 'スマホ用管理画面。外出先でもお知らせと審査を処理できます。', ko: '모바일 관리 콘솔로 언제든 공지와 심사를 처리할 수 있습니다.', es: 'Consola de administración móvil para gestionar anuncios y revisiones.' },
+    'dl.note': { zh: '所有客户端当前版本均为 1.0.0。下载按钮会打开 123 云盘分享页，请按你的平台选择对应文件；管理端仅供开发者使用。', en: 'All clients are at version 1.0.0. The download button opens a 123 Pan share page — pick the file for your platform; the admin builds are for developers only.', ja: 'すべてのクライアントはバージョン 1.0.0 です。ダウンロードボタンは 123 パンの共有ページを開きます。お使いのプラットフォームのファイルを選んでください。管理版は開発者専用です。', ko: '모든 클라이언트는 버전 1.0.0입니다. 다운로드 버튼을 누르면 123 클라우드 공유 페이지가 열리며, 사용하는 플랫폼의 파일을 선택하세요. 관리자 버전은 개발자 전용입니다.', es: 'Todos los clientes están en la versión 1.0.0. El botón abre la página compartida de 123 Pan: elige el archivo de tu plataforma; las versiones de administración son solo para desarrolladores.' },
   };
 
   var current = DEFAULT_LANG;
