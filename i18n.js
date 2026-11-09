@@ -745,6 +745,21 @@
     'rp.effRoom': { zh: '聊天室已封禁', en: 'Chat room banned', ja: 'チャットルームを封鎖しました', ko: '채팅방을 차단했습니다', es: 'Sala de chat bloqueada' },
     'rp.effAccount': { zh: '账号举报已记录（未封号）', en: 'Account report recorded (no ban)', ja: 'アカウント通報を記録（凍結なし）', ko: '계정 신고 기록됨(차단 없음)', es: 'Denuncia de cuenta registrada (sin bloqueo)' },
     'rp.effNone': { zh: '仅记录，未执行处置', en: 'Recorded only; no action taken', ja: '記録のみ、処置なし', ko: '기록만 하고 조치는 없음', es: 'Solo registrado, sin acción' },
+    'rp.aiBtn': { zh: 'AI 预审', en: 'AI pre-review', ja: 'AI 事前審査', ko: 'AI 사전 검토', es: 'Pre-revisión IA' },
+    'rp.aiRunning': { zh: 'AI 判定中…', en: 'AI reviewing…', ja: 'AI 判定中…', ko: 'AI 판정 중…', es: 'IA revisando…' },
+    'rp.aiConfirm': { zh: '将用 AI 预审 {n} 条待处理举报，仅生成建议，不会自动处置。继续？', en: 'Run AI pre-review on {n} pending reports? It only produces suggestions, no automatic action.', ja: '未処理の通報 {n} 件を AI で事前審査します。提案のみで自動処置は行いません。続行しますか？', ko: '대기 중인 신고 {n}건을 AI로 사전 검토합니다. 제안만 생성하며 자동 조치는 없습니다. 계속할까요?', es: '¿Pre-revisar {n} denuncias pendientes con IA? Solo genera sugerencias, sin acciones automáticas.' },
+    'rp.aiProgress': { zh: 'AI 判定中 {i}/{n}…', en: 'Reviewing {i}/{n}…', ja: '判定中 {i}/{n}…', ko: '판정 중 {i}/{n}…', es: 'Revisando {i}/{n}…' },
+    'rp.aiDone': { zh: 'AI 预审完成，共 {n} 条，请人工确认后处置', en: 'AI pre-review done for {n} report(s); please confirm manually', ja: 'AI 事前審査が完了しました（{n} 件）。人の確認後に処置してください', ko: 'AI 사전 검토 완료({n}건). 사람이 확인 후 처리하세요', es: 'Pre-revisión IA completada ({n}); confirma manualmente' },
+    'rp.aiDonePartial': { zh: 'AI 预审完成：成功 {n} 条，失败 {f} 条', en: 'AI pre-review done: {n} ok, {f} failed', ja: 'AI 事前審査完了：成功 {n} 件、失敗 {f} 件', ko: 'AI 사전 검토 완료: 성공 {n}건, 실패 {f}건', es: 'Pre-revisión IA: {n} correctas, {f} fallidas' },
+    'rp.aiNoPending': { zh: '没有待处理的举报', en: 'No pending reports', ja: '未処理の通報はありません', ko: '대기 중인 신고가 없습니다', es: 'No hay denuncias pendientes' },
+    'rp.aiNoSuggestion': { zh: '该举报暂无 AI 建议', en: 'No AI suggestion for this report', ja: 'この通報には AI 提案がありません', ko: '이 신고에는 AI 제안이 없습니다', es: 'Esta denuncia no tiene sugerencia de IA' },
+    'rp.aiNoBinding': { zh: '未启用 AI 审核：请先绑定 Workers AI（变量名 AI）', en: 'AI review unavailable: bind Workers AI as "AI" first', ja: 'AI 審査が未設定です：Workers AI（変数名 AI）を先にバインドしてください', ko: 'AI 검토가 비활성화되었습니다: Workers AI(변수명 AI)를 먼저 바인딩하세요', es: 'Revisión IA no disponible: vincula Workers AI como "AI"' },
+    'rp.aiPassVerdict': { zh: '疑似违规', en: 'Likely violating', ja: '違反の疑い', ko: '위반 의심', es: 'Posible infracción' },
+    'rp.aiRejectVerdict': { zh: '未见违规', en: 'No violation seen', ja: '違反なし', ko: '위반 없음', es: 'Sin infracción' },
+    'rp.aiLine': { zh: 'AI 建议：{v} · 置信度 {s}% · {r}', en: 'AI: {v} · confidence {s}% · {r}', ja: 'AI 提案：{v}・確信度 {s}%・{r}', ko: 'AI 제안: {v} · 신뢰도 {s}% · {r}', es: 'IA: {v} · confianza {s}% · {r}' },
+    'rp.aiAdopt': { zh: '采纳 AI 建议', en: 'Adopt AI suggestion', ja: 'AI 提案を採用', ko: 'AI 제안 채택', es: 'Adoptar sugerencia' },
+    'rp.aiNotePrefix': { zh: 'AI 预审：', en: 'AI pre-review: ', ja: 'AI 事前審査：', ko: 'AI 사전 검토: ', es: 'Pre-revisión IA: ' },
+    'rp.aiFailed': { zh: 'AI 判定失败：{r}', en: 'AI check failed: {r}', ja: 'AI 判定に失敗：{r}', ko: 'AI 판정 실패: {r}', es: 'Falló la IA: {r}' },
   };
 
   var current = DEFAULT_LANG;

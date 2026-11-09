@@ -39,6 +39,16 @@ const NOTE_MAX_LEN = 200;
 const TARGET_SET = { article: 1, room: 1, account: 1 };
 const STATUS_SET = { pending: 1, passed: 1, rejected: 1 };
 
+// ---------- AI 预审配置（Workers AI，见 wrangler.toml 的 [ai] binding="AI"） ----------
+const AI_MODEL = '@cf/meta/llama-3.3-70b-instruct-fp8-fast';
+const AI_BATCH_MAX = 3;      // 单次请求最多预审条数，避免函数超时
+const AI_TEXT_MAX = 700;     // 送模型的正文/举报文本上限
+const AI_REASON_MAX = 160;   // 回写 AI 理由长度上限
+
+function hasAI(env) {
+  return !!(env && env.AI && typeof env.AI.run === 'function');
+}
+
 function json(data, status = 200) {
   return new Response(JSON.stringify(data), {
     status,
@@ -330,6 +340,165 @@ async function handleHandle(env, body) {
   return ok({ report: item, effect: effect });
 }
 
+// ---------- AI 预审 ----------
+
+// 取被举报文章的标题与正文开头，作为判定依据
+async function readArticleBrief(env, id) {
+  try {
+    const art = await env.GUESTBOOK.get(PREFIX_ARTICLE + id, 'json');
+    if (!art || typeof art !== 'object') return '';
+    const title = trimStr(art.title).slice(0, 120);
+    let body = trimStr(art.content) || trimStr(art.body) || trimStr(art.text);
+    body = body.replace(/\s+/g, ' ').slice(0, AI_TEXT_MAX);
+    return [title, body].filter(Boolean).join('\n');
+  } catch (err) {
+    return '';
+  }
+}
+
+// 从模型输出里抠出第一个 JSON 对象，容忍前后多余文字
+function extractJson(text) {
+  if (!text) return null;
+  const s = String(text);
+  const i = s.indexOf('{');
+  const j = s.lastIndexOf('}');
+  if (i < 0 || j <= i) return null;
+  try {
+    return JSON.parse(s.slice(i, j + 1));
+  } catch (err) {
+    return null;
+  }
+}
+
+const AI_SYSTEM = [
+  '你是中文社区内容审核助手，负责判断用户举报是否成立。',
+  '判定口径：pass 表示举报成立、目标内容确实违规需要处置；reject 表示举报不成立或证据不足。',
+  '违规类型包括：垃圾广告与刷屏、辱骂人身攻击、色情低俗、违法违规、侵权盗用、聊天室违规。',
+  '信息不足时倾向 reject，并说明缺少什么证据。',
+  '只输出一行 JSON，不要解释、不要 markdown 代码块，格式：',
+  '{"verdict":"pass|reject","score":0-100,"reason":"不超过60字的中文理由"}'
+].join('\n');
+
+async function aiJudge(env, item) {
+  let ctx = '';
+  if (item.targetType === 'article') ctx = await readArticleBrief(env, item.targetId);
+
+  const lines = [
+    '举报对象类型：' + item.targetType,
+    '举报对象标识：' + item.targetId,
+    '举报理由：' + (item.reason || ''),
+    '举报补充说明：' + (item.detail || '（无）')
+  ];
+  if (ctx) lines.push('被举报内容：\n' + ctx);
+  else if (item.targetType === 'article') lines.push('被举报内容：未能读取到正文，仅依据举报描述判断');
+
+  const res = await env.AI.run(AI_MODEL, {
+    messages: [
+      { role: 'system', content: AI_SYSTEM },
+      { role: 'user', content: lines.join('\n') }
+    ],
+    max_tokens: 300,
+    temperature: 0.1
+  });
+
+  let text = '';
+  if (res && typeof res.response === 'string') text = res.response;
+  else if (res && typeof res.result === 'string') text = res.result;
+
+  const parsed = extractJson(text);
+  let verdict = 'reject';
+  let score = 50;
+  let reason = '';
+
+  if (parsed) {
+    const v = trimStr(parsed.verdict).toLowerCase();
+    if (v === 'pass' || v === 'reject') verdict = v;
+    const sc = Number(parsed.score);
+    if (!isNaN(sc)) score = Math.max(0, Math.min(100, Math.round(sc)));
+    reason = trimStr(parsed.reason).slice(0, AI_REASON_MAX);
+  } else {
+    reason = String(text || '').replace(/\s+/g, ' ').slice(0, AI_REASON_MAX);
+  }
+  if (!reason) reason = verdict === 'pass' ? '模型判定举报成立' : '模型判定举报不成立';
+
+  return { verdict: verdict, score: score, reason: reason, model: AI_MODEL, at: Date.now() };
+}
+
+async function handleAiReview(env, body) {
+  const denied = await requireAdmin(env, body);
+  if (denied) return denied;
+
+  if (!hasAI(env)) {
+    return fail(503, '未启用 AI 审核：缺少 Workers AI 绑定（变量名需为 AI）', 'no_ai');
+  }
+
+  const index = await readIndex(env);
+  const singleId = trimStr(body.id);
+  const ids = Array.isArray(body.ids) ? body.ids.map((x) => trimStr(x)).filter(Boolean) : [];
+
+  let targets = [];
+  if (singleId) {
+    targets = index.filter((it) => it && it.id === singleId);
+  } else if (ids.length) {
+    targets = index.filter((it) => it && ids.indexOf(it.id) >= 0);
+  } else {
+    targets = index.filter((it) => it && it.status === 'pending');
+  }
+  targets = targets.slice(0, AI_BATCH_MAX);
+
+  if (!targets.length) {
+    const counts = { total: index.length, pending: 0, passed: 0, rejected: 0 };
+    for (let i = 0; i < index.length; i++) {
+      const st = index[i] && index[i].status;
+      if (counts[st] !== undefined) counts[st] += 1;
+    }
+    return ok({ reviewed: 0, reports: index, counts: counts });
+  }
+
+  let reviewed = 0;
+  for (let i = 0; i < targets.length; i++) {
+    const target = targets[i];
+    let ai;
+    try {
+      ai = await aiJudge(env, target);
+    } catch (err) {
+      ai = {
+        verdict: '',
+        score: 0,
+        reason: 'AI 判定失败：' + String((err && err.message) || err).slice(0, 100),
+        model: AI_MODEL,
+        at: Date.now(),
+        error: true
+      };
+    }
+    if (!ai.error) reviewed += 1;
+
+    for (let k = 0; k < index.length; k++) {
+      if (index[k] && index[k].id === target.id) {
+        index[k].ai = ai;
+        break;
+      }
+    }
+  }
+
+  // 批量写回：索引 + 单条详情
+  await writeIndex(env, index);
+  const puts = [];
+  for (let i = 0; i < targets.length; i++) {
+    const fresh = index.filter((it) => it && it.id === targets[i].id)[0];
+    if (fresh) puts.push(env.GUESTBOOK.put(reportKey(fresh.id), JSON.stringify(fresh)));
+  }
+  if (puts.length) await Promise.all(puts);
+
+  const counts = { total: index.length, pending: 0, passed: 0, rejected: 0 };
+  for (let i = 0; i < index.length; i++) {
+    const st = index[i] && index[i].status;
+    if (counts[st] !== undefined) counts[st] += 1;
+  }
+
+  return ok({ reviewed: reviewed, reports: index, counts: counts });
+}
+
 // ---------- 入口 ----------
 
 export async function onRequest(context) {
@@ -357,6 +526,7 @@ export async function onRequest(context) {
     if (action === 'submit') return await handleSubmit(env, body);
     if (action === 'list') return await handleList(env, body);
     if (action === 'handle') return await handleHandle(env, body);
+    if (action === 'aiReview') return await handleAiReview(env, body);
   } catch (err) {
     return fail(500, '服务异常，请稍后重试', 'server');
   }

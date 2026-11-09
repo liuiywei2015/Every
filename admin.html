@@ -1015,6 +1015,7 @@
           <option value="rejected" data-i18n="rp.stRejected">已驳回</option>
         </select>
         <button type="button" class="save-btn" id="refreshReportsBtn" onclick="loadReports()" data-i18n="ad.refresh">刷新列表</button>
+        <button type="button" class="save-btn" id="aiReviewBtn" onclick="aiReviewReports()" data-i18n="rp.aiBtn">AI 预审</button>
       </div>
       <div id="reportList" class="room-list"></div>
       <p class="notice-msg" id="reportMsg"></p>
@@ -2120,6 +2121,22 @@
         return cealinT('rp.effNone');
       }
 
+      // AI 预审建议行：判定 + 置信度 + 理由，待处理时可一键采纳
+      function rpAiHtml(it) {
+        var ai = it.ai;
+        if (!ai) return '';
+        if (!ai.verdict) {
+          return '<div class="room-names">' + escHtml(cealinT('rp.aiFailed', { r: ai.reason || '' })) + '</div>';
+        }
+        var pending = (it.status || 'pending') === 'pending';
+        var verdictText = ai.verdict === 'pass' ? cealinT('rp.aiPassVerdict') : cealinT('rp.aiRejectVerdict');
+        var line = cealinT('rp.aiLine', { v: verdictText, s: ai.score || 0, r: ai.reason || '' });
+        var btn = pending
+          ? ' <button type="button" class="op-btn verify" onclick="adoptAi(\'' + escHtml(it.id) + '\')" data-i18n="rp.aiAdopt">' + cealinT('rp.aiAdopt') + '</button>'
+          : '';
+        return '<div class="room-names">' + escHtml(line) + btn + '</div>';
+      }
+
       // 单条举报：对象类型 / 对象标识 / 理由 / 补充说明 / 时间 / 举报人 / 状态 + 通过、驳回
       function rpItemHtml(it) {
         var pending = (it.status || 'pending') === 'pending';
@@ -2141,7 +2158,7 @@
           + '<span class="room-meta">' + metaHtml + '</span>'
           + opsHtml
           + '</div>'
-          + detailHtml + noteHtml
+          + detailHtml + noteHtml + rpAiHtml(it)
           + '</div>';
       }
 
@@ -2204,6 +2221,97 @@
         if (note === null) note = '';
         rpMsg('');
         reportMsgEl.classList.remove('ok');
+        fetch('/api/reports', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ action: 'handle', id: id, decision: decision, note: note, password: pwd })
+        })
+          .then(function (resp) { return resp.json(); })
+          .then(function (data) {
+            if (!data || !data.ok) {
+              rpMsg((data && data.error) || cealinT('ad.opFailed'), false);
+              return;
+            }
+            var d = data.data || {};
+            rpMsg(cealinT('rp.handled', { e: rpEffectText(d.effect) }), true);
+            loadReports();
+          })
+          .catch(function () { rpMsg(cealinT('ad.netOp'), false); });
+      };
+
+      // AI 预审：对待处理举报逐条串行判定（每次一条，避免函数超时）
+      window.aiReviewReports = function () {
+        if (!pwd || !adminFlag) { rpMsg(cealinT('ad.relogin'), false); return; }
+        var btn = document.getElementById('aiReviewBtn');
+        var list = (rpData && rpData.reports) || [];
+        var queue = [];
+        for (var i = 0; i < list.length; i++) {
+          if ((list[i].status || 'pending') === 'pending') queue.push(list[i]);
+        }
+        if (!queue.length) { rpMsg(cealinT('rp.aiNoPending'), false); return; }
+        if (!window.confirm(cealinT('rp.aiConfirm', { n: queue.length }))) return;
+
+        queue = queue.slice(0, 5);
+        var idx = 0;
+        var failed = 0;
+
+        function restore() {
+          if (btn) { btn.disabled = false; btn.textContent = cealinT('rp.aiBtn'); }
+        }
+
+        function next() {
+          if (idx >= queue.length) {
+            restore();
+            rpMsg(failed ? cealinT('rp.aiDonePartial', { n: queue.length - failed, f: failed }) : cealinT('rp.aiDone', { n: queue.length }), !failed);
+            loadReports();
+            return;
+          }
+          var cur = queue[idx++];
+          rpMsg(cealinT('rp.aiProgress', { i: idx, n: queue.length }), true);
+          fetch('/api/reports', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ action: 'aiReview', id: cur.id, password: pwd })
+          })
+            .then(function (resp) { return resp.json(); })
+            .then(function (data) {
+              if (!data || !data.ok) {
+                if (data && data.code === 'no_ai') {
+                  failed = queue.length;
+                  rpMsg(data.error || cealinT('rp.aiNoBinding'), false);
+                  restore();
+                  return;
+                }
+                failed++;
+              } else {
+                rpData = data.data || rpData;
+                if (rpData) renderReports(rpData);
+              }
+              next();
+            })
+            .catch(function () { failed++; next(); });
+        }
+
+        if (btn) { btn.disabled = true; btn.textContent = cealinT('rp.aiRunning'); }
+        next();
+      };
+
+      // 采纳 AI 建议：直接按 AI 判定走 pass / reject，备注写入 AI 理由
+      window.adoptAi = function (id) {
+        if (!pwd || !adminFlag) { rpMsg(cealinT('ad.relogin'), false); return; }
+        var list = (rpData && rpData.reports) || [];
+        var target = null;
+        for (var i = 0; i < list.length; i++) {
+          if (list[i].id === id) { target = list[i]; break; }
+        }
+        if (!target || !target.ai || !target.ai.verdict) {
+          rpMsg(cealinT('rp.aiNoSuggestion'), false);
+          return;
+        }
+        var decision = target.ai.verdict === 'pass' ? 'pass' : 'reject';
+        if (!window.confirm(cealinT(decision === 'pass' ? 'rp.confirmPass' : 'rp.confirmReject'))) return;
+        var note = cealinT('rp.aiNotePrefix') + (target.ai.reason || '');
+        rpMsg('');
         fetch('/api/reports', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
