@@ -370,13 +370,32 @@ function extractJson(text) {
   }
 }
 
+// 统一取出模型返回的判定对象：Workers AI 在模型输出 JSON 时会直接给对象，
+// 也可能给字符串或 OpenAI chat.completion 结构（choices[0].message.content）
+function extractAiPayload(res) {
+  if (!res || typeof res !== 'object') return null;
+  const pick = (v) => {
+    if (!v) return null;
+    if (typeof v === 'object') return v;
+    if (typeof v === 'string') return extractJson(v) || { _text: v };
+    return null;
+  };
+  let out = pick(res.response);
+  if (!out && res.choices && res.choices[0] && res.choices[0].message) {
+    out = pick(res.choices[0].message.content);
+  }
+  if (!out) out = pick(res.result);
+  return out;
+}
+
 const AI_SYSTEM = [
-  '你是中文社区内容审核助手，负责判断用户举报是否成立。',
-  '判定口径：pass 表示举报成立、目标内容确实违规需要处置；reject 表示举报不成立或证据不足。',
+  '你是中文社区内容审核助手，负责判断一条用户举报所指的内容是否确实违规。',
+  '判断标准：violation=true 表示被举报内容确实违反社区规范、需要处置；violation=false 表示未违规或证据不足。',
   '违规类型包括：垃圾广告与刷屏、辱骂人身攻击、色情低俗、违法违规、侵权盗用、聊天室违规。',
-  '信息不足时倾向 reject，并说明缺少什么证据。',
+  '证据不足时必须给 violation=false，并在 reason 里说明缺少什么证据。',
+  'reason 用中文，客观陈述判断依据，不要复述举报原文。',
   '只输出一行 JSON，不要解释、不要 markdown 代码块，格式：',
-  '{"verdict":"pass|reject","score":0-100,"reason":"不超过60字的中文理由"}'
+  '{"violation":true,"confidence":0-100,"reason":"不超过60字的中文理由"}'
 ].join('\n');
 
 async function aiJudge(env, item) {
@@ -401,25 +420,42 @@ async function aiJudge(env, item) {
     temperature: 0.1
   });
 
-  let text = '';
-  if (res && typeof res.response === 'string') text = res.response;
-  else if (res && typeof res.result === 'string') text = res.result;
+  const payload = extractAiPayload(res);
 
-  const parsed = extractJson(text);
   let verdict = 'reject';
   let score = 50;
   let reason = '';
 
-  if (parsed) {
-    const v = trimStr(parsed.verdict).toLowerCase();
-    if (v === 'pass' || v === 'reject') verdict = v;
-    const sc = Number(parsed.score);
+  if (payload) {
+    // violation=true → 举报成立，对应后台的 pass（执行处置）
+    const rawV = payload.violation;
+    let violated = null;
+    if (rawV === true) violated = true;
+    else if (rawV === false) violated = false;
+    else if (typeof rawV === 'string') {
+      const s = rawV.toLowerCase();
+      if (s === 'true' || s === 'yes' || s === '1') violated = true;
+      else if (s === 'false' || s === 'no' || s === '0') violated = false;
+    }
+    // 兼容模型仍回 verdict 字段的情况
+    if (violated === null) {
+      const v = trimStr(payload.verdict).toLowerCase();
+      if (v === 'pass') violated = true;
+      else if (v === 'reject') violated = false;
+    }
+    if (violated !== null) verdict = violated ? 'pass' : 'reject';
+
+    const sc = Number(payload.confidence !== undefined ? payload.confidence : payload.score);
     if (!isNaN(sc)) score = Math.max(0, Math.min(100, Math.round(sc)));
-    reason = trimStr(parsed.reason).slice(0, AI_REASON_MAX);
-  } else {
-    reason = String(text || '').replace(/\s+/g, ' ').slice(0, AI_REASON_MAX);
+    reason = trimStr(payload.reason);
+    if (!reason && payload._text) reason = trimStr(payload._text);
+    reason = reason.slice(0, AI_REASON_MAX);
   }
-  if (!reason) reason = verdict === 'pass' ? '模型判定举报成立' : '模型判定举报不成立';
+
+  if (!reason) {
+    reason = '未能解析模型输出，请人工复核';
+    score = 0;
+  }
 
   return { verdict: verdict, score: score, reason: reason, model: AI_MODEL, at: Date.now() };
 }
