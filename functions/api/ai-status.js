@@ -8,7 +8,16 @@
 //   { ok: true, bound: true, probe: { ok: true, model: "@cf/meta/llama-3.1-8b-instruct", text: "pong" } }
 //   { ok: true, bound: false, hint: "未检测到 AI 绑定..." }
 
-const PROBE_MODEL = '@cf/meta/llama-3.1-8b-instruct';
+const PROBE_MODEL = '@cf/meta/llama-3.3-70b-instruct-fp8-fast';
+
+// 依次试探的候选模型（POST {models:[...]} 可覆盖）
+const CANDIDATES = [
+  '@cf/meta/llama-3.3-70b-instruct-fp8-fast',
+  '@cf/qwen/qwen2.5-7b-instruct',
+  '@cf/meta/llama-4-scout-17b-16e-instruct',
+  '@cf/google/gemma-3-12b-it',
+  '@cf/deepseek-ai/deepseek-r1-distill-qwen-32b'
+];
 
 function json(data, status = 200) {
   return new Response(JSON.stringify(data, null, 2), {
@@ -35,35 +44,43 @@ export async function onRequest(context) {
     return json(out);
   }
 
-  let wantProbe = false;
+  let wanted = null;
   if (request.method === 'POST') {
     try {
       const body = await request.json();
-      wantProbe = !!(body && body.probe);
+      if (body && typeof body.model === 'string' && body.model) wanted = [body.model];
+      else if (body && Array.isArray(body.models) && body.models.length) wanted = body.models.slice(0, 8);
+      else if (body && body.probe) wanted = [PROBE_MODEL];
     } catch (err) {
-      wantProbe = false;
+      wanted = null;
     }
   }
 
-  if (!wantProbe) {
-    out.hint = '绑定已存在。POST {"probe":true} 可验证模型实际可调用。';
+  if (!wanted) {
+    out.hint = '绑定已存在。POST {"probe":true} 可验证默认模型；POST {"models":[...]} 可批量试探候选。';
     return json(out);
   }
 
-  try {
-    const res = await env.AI.run(PROBE_MODEL, {
-      messages: [
-        { role: 'system', content: 'You are a health check. Reply with exactly: pong' },
-        { role: 'user', content: 'ping' }
-      ],
-      max_tokens: 8
-    });
-    let text = '';
-    if (res && typeof res.response === 'string') text = res.response;
-    out.probe = { ok: true, model: PROBE_MODEL, text: text.slice(0, 100) };
-  } catch (err) {
-    out.probe = { ok: false, model: PROBE_MODEL, error: String((err && err.message) || err).slice(0, 300) };
+  const results = [];
+  for (let i = 0; i < wanted.length; i++) {
+    const model = String(wanted[i]);
+    try {
+      const res = await env.AI.run(model, {
+        messages: [
+          { role: 'system', content: 'You are a health check. Reply with exactly: pong' },
+          { role: 'user', content: 'ping' }
+        ],
+        max_tokens: 8
+      });
+      let text = '';
+      if (res && typeof res.response === 'string') text = res.response;
+      else if (res && typeof res.result === 'string') text = res.result;
+      results.push({ model: model, ok: true, text: text.slice(0, 100) });
+    } catch (err) {
+      results.push({ model: model, ok: false, error: String((err && err.message) || err).slice(0, 240) });
+    }
   }
+  out.probe = results;
 
   return json(out);
 }
