@@ -48,31 +48,6 @@ export async function onRequest(context) {
   if (request.method === 'POST') {
     try {
       const body = await request.json();
-      // 调试分支：用审核提示词跑一次，返回原始响应结构（用于排查解析失败）
-      if (body && body.raw === true) {
-        try {
-          const res = await env.AI.run(PROBE_MODEL, {
-            messages: [
-              { role: 'system', content: '你是内容审核助手，只输出一行 JSON：{"verdict":"pass|reject","score":0-100,"reason":"不超过60字的中文理由"}' },
-              { role: 'user', content: '举报对象类型：account\n举报理由：spam\n举报补充说明：该账号连续发布刷单兼职广告并附带站外联系方式' }
-            ],
-            max_tokens: 300,
-            temperature: 0.1
-          });
-          out.raw = {
-            res_type: typeof res,
-            res_keys: res && typeof res === 'object' ? Object.keys(res) : null,
-            response_type: res ? typeof res.response : null,
-            response: res && typeof res.response === 'string' ? res.response.slice(0, 800) : (res ? res.response : null),
-            result_type: res ? typeof res.result : null,
-            result: res && typeof res.result === 'object' ? JSON.stringify(res.result).slice(0, 800) : (res ? res.result : null),
-            dumped: JSON.stringify(res).slice(0, 1000)
-          };
-        } catch (err) {
-          out.raw = { error: String((err && err.message) || err).slice(0, 300) };
-        }
-        return json(out);
-      }
       if (body && typeof body.model === 'string' && body.model) wanted = [body.model];
       else if (body && Array.isArray(body.models) && body.models.length) wanted = body.models.slice(0, 8);
       else if (body && body.probe) wanted = [PROBE_MODEL];
