@@ -19,6 +19,24 @@ const CANDIDATES = [
   '@cf/deepseek-ai/deepseek-r1-distill-qwen-32b'
 ];
 
+// 视觉模型候选（POST {vision:true} 时逐个试探）
+const VISION_CANDIDATES = [
+  '@cf/meta/llama-3.2-11b-vision-instruct',
+  '@cf/meta/llama-3.2-90b-vision-instruct',
+  '@cf/llava-hyllama-3.2-11b',
+  '@cf/unum/uform-gen2-qwen-500m'
+];
+
+// 64x64 纯白 PNG，用于视觉模型连通性探测
+const VISION_PROBE_PNG = 'iVBORw0KGgoAAAANSUhEUgAAAEAAAABACAIAAAAlC+aJAAAAS0lEQVR42u3PMQ0AAAwDoPo33UrYvQQckD4XAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAYHLAMpT0sIcNbcEAAAAAElFTkSuQmCC';
+
+function b64ToBytes(b64) {
+  const bin = atob(b64);
+  const out = new Uint8Array(bin.length);
+  for (let i = 0; i < bin.length; i++) out[i] = bin.charCodeAt(i);
+  return out;
+}
+
 function json(data, status = 200) {
   return new Response(JSON.stringify(data, null, 2), {
     status: status,
@@ -44,11 +62,17 @@ export async function onRequest(context) {
     return json(out);
   }
 
+  let vision = false;
   let wanted = null;
   if (request.method === 'POST') {
     try {
       const body = await request.json();
-      if (body && typeof body.model === 'string' && body.model) wanted = [body.model];
+      if (body && body.vision) {
+        vision = true;
+        wanted = Array.isArray(body.models) && body.models.length
+          ? body.models.slice(0, 6)
+          : VISION_CANDIDATES;
+      } else if (body && typeof body.model === 'string' && body.model) wanted = [body.model];
       else if (body && Array.isArray(body.models) && body.models.length) wanted = body.models.slice(0, 8);
       else if (body && body.probe) wanted = [PROBE_MODEL];
     } catch (err) {
@@ -65,22 +89,31 @@ export async function onRequest(context) {
   for (let i = 0; i < wanted.length; i++) {
     const model = String(wanted[i]);
     try {
-      const res = await env.AI.run(model, {
-        messages: [
-          { role: 'system', content: 'You are a health check. Reply with exactly: pong' },
-          { role: 'user', content: 'ping' }
-        ],
-        max_tokens: 8
-      });
+      const res = vision
+        ? await env.AI.run(model, {
+          image: Array.from(b64ToBytes(VISION_PROBE_PNG)),
+          prompt: 'Describe this image in one short sentence.',
+          max_tokens: 40
+        })
+        : await env.AI.run(model, {
+          messages: [
+            { role: 'system', content: 'You are a health check. Reply with exactly: pong' },
+            { role: 'user', content: 'ping' }
+          ],
+          max_tokens: 8
+        });
       let text = '';
       if (res && typeof res.response === 'string') text = res.response;
       else if (res && typeof res.result === 'string') text = res.result;
+      else if (res && typeof res.description === 'string') text = res.description;
+      else if (res && Array.isArray(res.result)) text = JSON.stringify(res.result).slice(0, 100);
       results.push({ model: model, ok: true, text: text.slice(0, 100) });
     } catch (err) {
       results.push({ model: model, ok: false, error: String((err && err.message) || err).slice(0, 240) });
     }
   }
   out.probe = results;
+  if (vision) out.vision = true;
 
   return json(out);
 }

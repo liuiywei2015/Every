@@ -973,6 +973,7 @@
         <span data-i18n="ad.artPending">待审核</span>
         <span class="art-sub-count" id="artPendCount"></span>
         <span style="flex:1;"></span>
+        <button type="button" class="save-btn" id="artAiBtn" onclick="aiReviewArticles()" data-i18n="ad.aiBtn">AI 预审</button>
         <button type="button" class="save-btn" id="artPendRefresh" onclick="loadArticlePending(true)" data-i18n="ad.artRefresh">刷新</button>
       </div>
       <div id="artPendList" class="art-list"></div>
@@ -1805,6 +1806,26 @@
         return h;
       }
 
+      // AI 预审建议行：正文维度结论 + 附件维度结论，待审时可一键采纳
+      function artAiHtml(a) {
+        var ai = a && a.ai;
+        if (!ai) return '';
+        var pending = (a.status || 'pending') === 'pending';
+        if (!ai.verdict) {
+          return '<div class="room-names">' + escHtml(cealinT('ad.aiFailed', { r: ai.reason || '' })) + '</div>';
+        }
+        var verdictText = ai.verdict === 'pass' ? cealinT('ad.aiPassVerdict') : cealinT('ad.aiRejectVerdict');
+        var line = cealinT('ad.aiLine', { v: verdictText, s: ai.score || 0, r: ai.reason || '' });
+        var btn = pending
+          ? ' <button type="button" class="op-btn verify" data-act="aiadopt" data-id="' + escHtml(a.id) + '">' + cealinT('ad.aiAdopt') + '</button>'
+          : '';
+        var out = '<div class="room-names">' + escHtml(line) + btn + '</div>';
+        if (ai.assets && ai.assets.reason) {
+          out += '<div class="room-names">' + escHtml(cealinT('ad.aiAssetLine', { r: ai.assets.reason })) + '</div>';
+        }
+        return out;
+      }
+
       // 单条文章卡片：头部信息 + 操作按钮 + 可展开的预览容器
       function artItemHtml(a, mode) {
         var st = a.status || 'pending';
@@ -1842,6 +1863,7 @@
           + '<span class="art-badge ' + escHtml(st) + '">' + escHtml(artStatusText(st)) + '</span>'
           + '<span class="art-h-meta">' + meta + '</span>'
           + '</div>'
+          + artAiHtml(a)
           + '<div class="art-ops">' + ops + '</div>'
           + '<div class="art-preview" id="artPv-' + escHtml(a.id) + '"></div>'
           + '</div>';
@@ -1858,6 +1880,7 @@
           else if (act === 'approve') artApprove(id);
           else if (act === 'reject') artReject(id);
           else if (act === 'revoke') artRevoke(id);
+          else if (act === 'aiadopt') artAdoptAi(id);
           else if (act === 'delete') artDelete(id);
         });
       }
@@ -2049,6 +2072,93 @@
         artReview('reject', id, reason).then(function (ok) {
           if (!ok) return;
           artMsg(cealinT('ad.artRejectOk'), true);
+          refreshArtAfterOp();
+        }).catch(function () { artMsg(cealinT('ad.netOp'), false); });
+      };
+
+      // AI 预审：对待审文章逐篇串行判定（正文 + 图片/附件），每篇一次请求
+      window.aiReviewArticles = function () {
+        if (!pwd || !adminFlag) { artMsg(cealinT('ad.relogin'), false); return; }
+        var btn = document.getElementById('artAiBtn');
+        var list = artPendData || [];
+        var queue = [];
+        for (var i = 0; i < list.length; i++) {
+          if ((list[i].status || 'pending') === 'pending') queue.push(list[i]);
+        }
+        if (!queue.length) { artMsg(cealinT('ad.aiNoPending'), false); return; }
+        if (!window.confirm(cealinT('ad.aiConfirm', { n: queue.length }))) return;
+
+        queue = queue.slice(0, 5);
+        var idx = 0;
+        var failed = 0;
+        var withAssets = 0;
+
+        function restore() {
+          if (btn) {
+            btn.disabled = false;
+            btn.textContent = cealinT('ad.aiBtn');
+          }
+        }
+
+        function next() {
+          if (idx >= queue.length) {
+            restore();
+            artMsg(failed
+              ? cealinT('ad.aiDonePartial', { n: queue.length - failed, f: failed })
+              : cealinT('ad.aiDone', { n: queue.length }), !failed);
+            refreshArtAfterOp();
+            return;
+          }
+          var cur = queue[idx++];
+          artMsg(cealinT('ad.aiProgress', { i: idx, n: queue.length }), true);
+          artPost({ action: 'review', op: 'aiReview', id: cur.id })
+            .then(function (res) {
+              var data = res.data || {};
+              if (!data.ok) {
+                if (data.code === 'no_ai') {
+                  failed = queue.length;
+                  artMsg(data.error || cealinT('ad.aiNoBinding'), false);
+                  restore();
+                  return;
+                }
+                failed++;
+              } else {
+                var arr = data.articles || [];
+                if (arr[0] && arr[0].ai && arr[0].ai.assets && arr[0].ai.assets.reason) withAssets++;
+              }
+              next();
+            })
+            .catch(function () { failed++; next(); });
+        }
+
+        if (btn) {
+          btn.disabled = true;
+          btn.textContent = cealinT('ad.aiRunning');
+        }
+        next();
+      };
+
+      // 采纳 AI 建议：按 AI 判定直接通过或驳回，驳回理由写入 AI 依据
+      window.artAdoptAi = function (id) {
+        if (!pwd || !adminFlag) { artMsg(cealinT('ad.relogin'), false); return; }
+        var target = null;
+        var list = artPendData || [];
+        for (var i = 0; i < list.length; i++) {
+          if (list[i] && list[i].id === id) { target = list[i]; break; }
+        }
+        if (!target) target = artDetails[id] || null;
+        if (!target || !target.ai || !target.ai.verdict) {
+          artMsg(cealinT('ad.aiNoSuggestion'), false);
+          return;
+        }
+        var isPass = target.ai.verdict === 'pass';
+        if (!window.confirm(cealinT(isPass ? 'ad.aiConfirmPass' : 'ad.aiConfirmReject'))) return;
+        var reason = isPass ? '' : (cealinT('ad.aiNotePrefix') + (target.ai.reason || '')).slice(0, 200);
+        if (!isPass && !reason) reason = cealinT('ad.artRejectEmpty');
+        artMsg('');
+        artReview(isPass ? 'approve' : 'reject', id, reason).then(function (ok) {
+          if (!ok) return;
+          artMsg(isPass ? cealinT('ad.artApproveOk') : cealinT('ad.artRejectOk'), true);
           refreshArtAfterOp();
         }).catch(function () { artMsg(cealinT('ad.netOp'), false); });
       };

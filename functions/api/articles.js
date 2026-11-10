@@ -63,6 +63,16 @@ const VIEW_WINDOW_MS = 5 * 60 * 1000;
 
 const STATUS_SET = { pending: 1, approved: 1, rejected: 1 };
 
+// ---------- AI 预审（Workers AI）----------
+const AI_MODEL = '@cf/meta/llama-3.3-70b-instruct-fp8-fast';
+const AI_VISION_MODEL = '@cf/meta/llama-3.2-11b-vision-instruct';
+const AI_BATCH_MAX = 3;        // 单次请求最多预审篇数，避免函数超时
+const AI_TEXT_MAX = 1500;      // 送模型的正文上限
+const AI_REASON_MAX = 160;     // 回写理由长度上限
+const AI_IMG_MAX = 3;          // 单篇最多送视觉模型的图片数
+const AI_IMG_BYTES_MAX = 600 * 1024;
+const ASSET_RISK_EXT = ['exe', 'bat', 'cmd', 'ps1', 'vbs', 'js', 'jar', 'msi', 'scr', 'com', 'pif', 'apk', 'dll', 'sh', 'lnk', 'iso'];
+
 function json(data, status = 200) {
   return new Response(JSON.stringify(data), {
     status,
@@ -607,12 +617,324 @@ async function handleSubmit(env, body) {
   }
 }
 
+// ---------- AI 预审：文章正文 + 附件 ----------
+
+function hasAI(env) {
+  return !!(env && env.AI && typeof env.AI.run === 'function');
+}
+
+// 从模型输出里抠出第一个 JSON 对象，容忍前后多余文字
+function extractJson(text) {
+  if (!text) return null;
+  const s = String(text);
+  const i = s.indexOf('{');
+  const j = s.lastIndexOf('}');
+  if (i < 0 || j <= i) return null;
+  try {
+    return JSON.parse(s.slice(i, j + 1));
+  } catch (err) {
+    return null;
+  }
+}
+
+// Workers AI 可能直接回对象、回字符串，或回 OpenAI chat.completion 结构
+function extractAiPayload(res) {
+  if (!res || typeof res !== 'object') return null;
+  const pick = (v) => {
+    if (!v) return null;
+    if (typeof v === 'object') return v;
+    if (typeof v === 'string') return extractJson(v) || { _text: v };
+    return null;
+  };
+  let out = pick(res.response);
+  if (!out && res.choices && res.choices[0] && res.choices[0].message) {
+    out = pick(res.choices[0].message.content);
+  }
+  if (!out) out = pick(res.result);
+  return out;
+}
+
+const AI_SYSTEM_ARTICLE = [
+  '你是中文内容社区的文章审核助手，判断一篇待发布投稿是否可以公开发布。',
+  'violation=true 表示不应公开、需要驳回；violation=false 表示可以发布。',
+  '需要驳回的情形：垃圾广告与引流（联系方式、二维码、私域引导、拉群）、色情低俗、违法违规、辱骂人身攻击、侵权抄袭、纯标题党或凑字数的无实质内容、正文与标题严重不符。',
+  '正常的技术分享、观点表达、个人经历、资源推荐一律 violation=false；证据不足时也只能 violation=false。',
+  'reason 用中文客观说明依据，不超过 60 字，不要复述原文。',
+  '只输出一行 JSON，不要解释、不要 markdown 代码块，格式：',
+  '{"violation":true,"confidence":0-100,"reason":"不超过60字的中文理由"}'
+].join('\n');
+
+const AI_SYSTEM_IMAGE = [
+  '你是图片内容审核助手，判断用户投稿图片是否违规。',
+  '违规情形：二维码或联系方式引流、广告水印与促销信息、色情低俗、暴力血腥、违法违规内容、他人隐私截图。',
+  '图片是正常照片、作品、示意图时一律 violation=false；无法判定时也 violation=false。',
+  '只输出一行 JSON，不要解释、不要 markdown 代码块，格式：',
+  '{"violation":true,"confidence":0-100,"reason":"不超过40字的中文理由"}'
+].join('\n');
+
+// 统一把模型 payload 归一成 { violated, score, reason }
+function normalizeVerdict(payload) {
+  let violated = null;
+  let score = 50;
+  let reason = '';
+  if (!payload) return { violated: null, score: 0, reason: '' };
+
+  const rawV = payload.violation;
+  if (rawV === true) violated = true;
+  else if (rawV === false) violated = false;
+  else if (typeof rawV === 'string') {
+    const s = rawV.toLowerCase();
+    if (s === 'true' || s === 'yes' || s === '1') violated = true;
+    else if (s === 'false' || s === 'no' || s === '0') violated = false;
+  }
+  if (violated === null) {
+    const v = trimStr(payload.verdict).toLowerCase();
+    if (v === 'pass' || v === 'approve' || v === 'ok') violated = false;
+    else if (v === 'reject' || v === 'violation' || v === 'fail') violated = true;
+  }
+
+  const sc = Number(payload.confidence !== undefined ? payload.confidence : payload.score);
+  if (!isNaN(sc)) score = Math.max(0, Math.min(100, Math.round(sc)));
+  reason = trimStr(payload.reason);
+  if (!reason && payload._text) reason = trimStr(payload._text);
+  return { violated: violated, score: score, reason: reason.slice(0, AI_REASON_MAX) };
+}
+
+// 附件元信息汇总成一行文字，供文本模型参考（文件名/类型本身也是审核线索）
+function assetDigest(article) {
+  const images = Array.isArray(article.images) ? article.images : [];
+  const files = Array.isArray(article.files) ? article.files : [];
+  const parts = [];
+  if (images.length) {
+    parts.push('图片 ' + images.length + ' 张（' + images.map(function (it) {
+      return str(it && it.name).slice(0, 40);
+    }).join('、') + '）');
+  }
+  if (files.length) {
+    parts.push('附件 ' + files.length + ' 个（' + files.map(function (it) {
+      return str(it && it.name).slice(0, 40);
+    }).join('、') + '）');
+  }
+  return parts.join('；');
+}
+
+// 正文侧判定：标题 / 标签 / 链接 / 正文
+async function aiTextJudge(env, article) {
+  const lines = [
+    '标题：' + trimStr(article.title).slice(0, 120),
+    '标签：' + (Array.isArray(article.tags) && article.tags.length ? article.tags.join('、') : '（无）'),
+    '外链：' + (Array.isArray(article.links) && article.links.length ? article.links.slice(0, 10).join(' ') : '（无）'),
+    '附件清单：' + (assetDigest(article) || '（无）'),
+    '正文：\n' + trimStr(article.body).replace(/\s+/g, ' ').slice(0, AI_TEXT_MAX)
+  ];
+
+  const res = await env.AI.run(AI_MODEL, {
+    messages: [
+      { role: 'system', content: AI_SYSTEM_ARTICLE },
+      { role: 'user', content: lines.join('\n') }
+    ],
+    max_tokens: 300,
+    temperature: 0.1
+  });
+
+  const norm = normalizeVerdict(extractAiPayload(res));
+  if (norm.violated === null && !norm.reason) {
+    return { violated: null, score: 0, reason: '未能解析模型输出' };
+  }
+  return norm;
+}
+
+// 图片侧判定：取 KV 里的 base64 交给视觉模型
+async function aiImageJudge(env, articleId, asset) {
+  const assetId = trimStr(asset && asset.assetId);
+  const name = trimStr(asset && asset.name).slice(0, 60) || 'image';
+  if (!assetId) return { assetId: '', name: name, violated: null, score: 0, reason: '附件标识缺失' };
+
+  try {
+    const raw = await env.GUESTBOOK.get(PREFIX_ARTICLE + articleId + ':asset:' + assetId, 'json');
+    if (!raw || typeof raw !== 'object' || !raw.data) {
+      return { assetId: assetId, name: name, violated: null, score: 0, reason: '图片内容读取失败' };
+    }
+    const bytes = base64ToBytes(raw.data);
+    if (!bytes.length || bytes.length > AI_IMG_BYTES_MAX) {
+      return { assetId: assetId, name: name, violated: null, score: 0, reason: '图片过大或为空，需人工查看' };
+    }
+
+    const res = await env.AI.run(AI_VISION_MODEL, {
+      image: Array.from(bytes),
+      prompt: AI_SYSTEM_IMAGE,
+      max_tokens: 160,
+      temperature: 0.1
+    });
+    const norm = normalizeVerdict(extractAiPayload(res));
+    return {
+      assetId: assetId,
+      name: name,
+      violated: norm.violated,
+      score: norm.score,
+      reason: norm.reason || '视觉模型未给出理由'
+    };
+  } catch (err) {
+    return {
+      assetId: assetId,
+      name: name,
+      violated: null,
+      score: 0,
+      reason: '图片判定失败：' + String((err && err.message) || err).slice(0, 80)
+    };
+  }
+}
+
+// 文件侧判定：只做类型/命名层面的风险判断（docx/pdf 等无法解析正文）
+function fileJudge(asset) {
+  const name = trimStr(asset && asset.name).slice(0, 80) || 'file';
+  const assetId = trimStr(asset && asset.assetId);
+  const ext = (name.indexOf('.') >= 0 ? name.split('.').pop() : '').toLowerCase();
+  if (ext && ASSET_RISK_EXT.indexOf(ext) >= 0) {
+    return { assetId: assetId, name: name, violated: true, score: 95, reason: '可执行/脚本类文件（.' + ext + '），不允许作为附件发布' };
+  }
+  return { assetId: assetId, name: name, violated: false, score: 10, reason: '常规文档类型，未发现类型风险（内容需人工复核）' };
+}
+
+// 单篇完整预审：正文 + 附件，写回 article.ai
+async function aiReviewOne(env, article) {
+  const at = Date.now();
+  const images = Array.isArray(article.images) ? article.images : [];
+  const files = Array.isArray(article.files) ? article.files : [];
+
+  // 1) 正文
+  let textRes;
+  try {
+    textRes = await aiTextJudge(env, article);
+  } catch (err) {
+    textRes = { violated: null, score: 0, reason: '正文判定失败：' + String((err && err.message) || err).slice(0, 80) };
+  }
+
+  // 2) 图片（最多 AI_IMG_MAX 张，逐张串行）
+  const imgResults = [];
+  const imgTargets = images.slice(0, AI_IMG_MAX);
+  for (let i = 0; i < imgTargets.length; i++) {
+    imgResults.push(await aiImageJudge(env, article.id, imgTargets[i]));
+  }
+
+  // 3) 文件（仅类型层面）
+  const fileResults = [];
+  for (let i = 0; i < files.length; i++) fileResults.push(fileJudge(files[i]));
+
+  const assetItems = imgResults.concat(fileResults);
+  const badAssets = assetItems.filter(function (it) { return it && it.violated === true; });
+  const textBad = textRes.violated === true;
+
+  // 附件维度小结
+  let assetVerdict = 'pass';
+  let assetReason = '';
+  if (badAssets.length) {
+    assetVerdict = 'reject';
+    assetReason = badAssets.map(function (it) { return it.name + '：' + it.reason; }).join('；').slice(0, AI_REASON_MAX);
+  } else if (imgResults.length && imgResults.every(function (it) { return it.violated === null; })) {
+    assetVerdict = '';
+    assetReason = '图片未能完成自动判定，需人工查看';
+  } else if (!assetItems.length) {
+    assetVerdict = 'pass';
+    assetReason = '本文没有附件';
+  } else {
+    assetReason = '附件未发现违规内容';
+  }
+
+  // 合并结论：任一维度判定违规即建议驳回
+  let verdict = '';
+  let score = 0;
+  let reason = '';
+  if (textBad || badAssets.length) {
+    verdict = 'reject';
+    score = Math.max(textBad ? textRes.score : 0, badAssets.length ? Math.max.apply(null, badAssets.map(function (it) { return it.score || 0; })) : 0);
+    const chunks = [];
+    if (textBad) chunks.push('正文：' + textRes.reason);
+    if (badAssets.length) chunks.push('附件：' + assetReason);
+    reason = chunks.join('；');
+  } else if (textRes.violated === false) {
+    verdict = 'pass';
+    score = textRes.score;
+    reason = textRes.reason || '未发现违规内容';
+  } else {
+    verdict = '';
+    reason = textRes.reason || '未能完成自动判定，请人工复核';
+  }
+
+  return {
+    verdict: verdict,
+    score: Math.max(0, Math.min(100, Math.round(score || 0))),
+    reason: trimStr(reason).slice(0, AI_REASON_MAX),
+    model: AI_MODEL,
+    visionModel: imgResults.length ? AI_VISION_MODEL : '',
+    at: at,
+    text: { verdict: textRes.violated, score: textRes.score, reason: textRes.reason },
+    assets: {
+      verdict: assetVerdict,
+      reason: trimStr(assetReason).slice(0, AI_REASON_MAX),
+      images: imgResults,
+      files: fileResults
+    }
+  };
+}
+
+async function handleAiReview(env, body) {
+  if (!hasAI(env)) {
+    return fail(503, '未启用 AI 审核：缺少 Workers AI 绑定（变量名需为 AI）', 'no_ai');
+  }
+
+  const index = await readIndex(env);
+  const singleId = trimStr(body.id);
+  const ids = Array.isArray(body.ids) ? body.ids.map(function (x) { return trimStr(x); }).filter(Boolean) : [];
+
+  let targets;
+  if (singleId) targets = index.filter(function (it) { return it && it.id === singleId; });
+  else if (ids.length) targets = index.filter(function (it) { return it && ids.indexOf(it.id) >= 0; });
+  else {
+    targets = index.filter(function (it) { return it && it.status === 'pending'; });
+    targets.sort(function (a, b) { return (a.createdAt || 0) - (b.createdAt || 0); });
+  }
+  targets = targets.slice(0, AI_BATCH_MAX);
+
+  if (!targets.length) return json({ ok: true, reviewed: 0, articles: [] });
+
+  const out = [];
+  for (let i = 0; i < targets.length; i++) {
+    const brief = targets[i];
+    const article = await env.GUESTBOOK.get(PREFIX_ARTICLE + brief.id, 'json');
+    if (!article || typeof article !== 'object') {
+      out.push({ id: brief.id, ai: { verdict: '', score: 0, reason: '文章正文丢失，无法预审', model: AI_MODEL, at: Date.now(), error: true } });
+      continue;
+    }
+    let ai;
+    try {
+      ai = await aiReviewOne(env, article);
+    } catch (err) {
+      ai = { verdict: '', score: 0, reason: 'AI 判定失败：' + String((err && err.message) || err).slice(0, 100), model: AI_MODEL, at: Date.now(), error: true };
+    }
+    article.ai = ai;
+    try {
+      await env.GUESTBOOK.put(PREFIX_ARTICLE + article.id, JSON.stringify(article));
+    } catch (err) {
+      // 写入失败不影响返回，前端仍可看到本次判定
+    }
+    out.push({ id: article.id, ai: ai, article: article });
+  }
+
+  return json({ ok: true, reviewed: out.length, articles: out });
+}
+
 async function handleReview(env, body) {
   const password = trimStr(body.password);
   const adminPwd = await getAdminPwd(env);
   if (password !== adminPwd) return fail(401, '密码错误', 'bad_pwd');
 
   const op = trimStr(body.op) || 'listing';
+
+  // AI 预审：对单篇或待审队列做正文 + 附件判定，结果写回 article.ai
+  if (op === 'aiReview') {
+    return await handleAiReview(env, body);
+  }
 
   // 待审列表：返回完整正文与附件元信息，供后台展开预览
   if (op === 'listing') {
