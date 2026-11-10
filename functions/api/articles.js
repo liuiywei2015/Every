@@ -922,6 +922,8 @@ async function aiReviewOne(env, article) {
   };
 }
 
+export { handleAiReview };
+
 async function handleAiReview(env, body) {
   if (!hasAI(env)) {
     return fail(503, '未启用 AI 审核：缺少 Workers AI 绑定（变量名需为 AI）', 'no_ai');
