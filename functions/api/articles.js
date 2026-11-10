@@ -65,7 +65,12 @@ const STATUS_SET = { pending: 1, approved: 1, rejected: 1 };
 
 // ---------- AI 预审（Workers AI）----------
 const AI_MODEL = '@cf/meta/llama-3.3-70b-instruct-fp8-fast';
-const AI_VISION_MODEL = '@cf/meta/llama-3.2-11b-vision-instruct';
+// 视觉模型候选：llama-4-scout 原生支持图像输入且免许可，实测可用；
+// llama-3.2-11b-vision 需账号先同意 Meta 许可，作为兜底。
+const AI_VISION_MODELS = [
+  '@cf/meta/llama-4-scout-17b-16e-instruct',
+  '@cf/meta/llama-3.2-11b-vision-instruct'
+];
 const AI_BATCH_MAX = 3;        // 单次请求最多预审篇数，避免函数超时
 const AI_TEXT_MAX = 1500;      // 送模型的正文上限
 const AI_REASON_MAX = 160;     // 回写理由长度上限
@@ -744,6 +749,44 @@ async function aiTextJudge(env, article) {
   return norm;
 }
 
+// 视觉模型调用：按候选顺序尝试，兼容两种入参协议
+//  - llama-4-scout 走 OpenAI 风格 messages + image_url(data URI)
+//  - llama-3.2-vision 走 { image: number[] , prompt }
+async function aiVisionRun(env, b64, mime) {
+  const type = trimStr(mime) || 'image/jpeg';
+  const dataUri = 'data:' + type + ';base64,' + b64;
+  let lastErr = null;
+  for (let i = 0; i < AI_VISION_MODELS.length; i++) {
+    const model = AI_VISION_MODELS[i];
+    try {
+      if (model.indexOf('llama-4') >= 0) {
+        const res = await env.AI.run(model, {
+          messages: [
+            { role: 'user', content: [
+              { type: 'text', text: AI_SYSTEM_IMAGE },
+              { type: 'image_url', image_url: { url: dataUri } }
+            ] }
+          ],
+          max_tokens: 200,
+          temperature: 0.1
+        });
+        return { model: model, payload: extractAiPayload(res) };
+      }
+      const bytes = base64ToBytes(b64);
+      const res = await env.AI.run(model, {
+        image: Array.from(bytes),
+        prompt: AI_SYSTEM_IMAGE,
+        max_tokens: 160,
+        temperature: 0.1
+      });
+      return { model: model, payload: extractAiPayload(res) };
+    } catch (err) {
+      lastErr = err;
+    }
+  }
+  throw lastErr || new Error('无可用视觉模型');
+}
+
 // 图片侧判定：取 KV 里的 base64 交给视觉模型
 async function aiImageJudge(env, articleId, asset) {
   const assetId = trimStr(asset && asset.assetId);
@@ -760,19 +803,15 @@ async function aiImageJudge(env, articleId, asset) {
       return { assetId: assetId, name: name, violated: null, score: 0, reason: '图片过大或为空，需人工查看' };
     }
 
-    const res = await env.AI.run(AI_VISION_MODEL, {
-      image: Array.from(bytes),
-      prompt: AI_SYSTEM_IMAGE,
-      max_tokens: 160,
-      temperature: 0.1
-    });
-    const norm = normalizeVerdict(extractAiPayload(res));
+    const out = await aiVisionRun(env, raw.data, raw.mime || raw.type || raw.contentType);
+    const norm = normalizeVerdict(out.payload);
     return {
       assetId: assetId,
       name: name,
       violated: norm.violated,
       score: norm.score,
-      reason: norm.reason || '视觉模型未给出理由'
+      reason: norm.reason || '视觉模型未给出理由',
+      model: out.model
     };
   } catch (err) {
     return {
@@ -866,7 +905,12 @@ async function aiReviewOne(env, article) {
     score: Math.max(0, Math.min(100, Math.round(score || 0))),
     reason: trimStr(reason).slice(0, AI_REASON_MAX),
     model: AI_MODEL,
-    visionModel: imgResults.length ? AI_VISION_MODEL : '',
+    visionModel: (function () {
+      for (let i = 0; i < imgResults.length; i++) {
+        if (imgResults[i] && imgResults[i].model) return imgResults[i].model;
+      }
+      return '';
+    })(),
     at: at,
     text: { verdict: textRes.violated, score: textRes.score, reason: textRes.reason },
     assets: {

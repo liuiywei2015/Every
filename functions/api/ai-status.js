@@ -21,9 +21,9 @@ const CANDIDATES = [
 
 // 视觉模型候选（POST {vision:true} 时逐个试探）
 const VISION_CANDIDATES = [
+  '@cf/meta/llama-4-scout-17b-16e-instruct',
   '@cf/meta/llama-3.2-11b-vision-instruct',
   '@cf/meta/llama-3.2-90b-vision-instruct',
-  '@cf/llava-hyllama-3.2-11b',
   '@cf/unum/uform-gen2-qwen-500m'
 ];
 
