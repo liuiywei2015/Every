@@ -307,6 +307,24 @@
   }
   .ghost-btn:hover { color: var(--fg); border-color: var(--gold); transform: translateY(-1px); }
 
+  /* 忘记密码：入口按钮与展开的重置面板 */
+  #btnResetToggle {
+    display: block;
+    width: 100%;
+    margin-top: 6px;
+    padding: 10px 18px;
+    letter-spacing: 0.06em;
+  }
+  .reset-box {
+    margin-top: 16px;
+    padding: 18px 16px 8px;
+    border: 1px solid rgba(var(--line-rgb), 0.16);
+    border-radius: 16px;
+    background: rgba(var(--line-rgb), 0.04);
+  }
+  .reset-box .hint { margin-top: 0; }
+  .reset-box .primary-btn { margin-top: 14px; }
+
   .msg {
     min-height: 20px;
     margin-top: 14px;
@@ -503,6 +521,18 @@
         <p class="hint" data-i18n="acc.idHint">登录只认编号，不认名称</p>
         <button type="button" class="primary-btn" id="btnLogin" data-i18n="acc.loginBtn">登录</button>
         <p class="msg" id="loginMsg"></p>
+
+        <!-- 忘记密码：提交重置申请 → 管理员在后台生成临时密码 -->
+        <button type="button" class="ghost-btn" id="btnResetToggle" data-i18n="acc.resetEntry">忘记密码？申请重置密码</button>
+        <div class="reset-box" id="pwdResetBox" style="display:none;">
+          <p class="hint" data-i18n="acc.resetTip">提交后会通知管理员，由管理员生成一个临时密码给你；用它登录后请尽快改成自己的密码。</p>
+          <div class="field">
+            <label for="resetId" data-i18n="acc.id">编号</label>
+            <input id="resetId" type="text" maxlength="8" autocomplete="username" spellcheck="false" data-i18n-ph="acc.idPh" placeholder="账号编号（6 或 8 位）">
+          </div>
+          <button type="button" class="primary-btn" id="btnResetSubmit" data-i18n="acc.resetSubmit">提交重置申请</button>
+          <p class="msg" id="resetMsg"></p>
+        </div>
       </div>
     </section>
 
@@ -816,6 +846,56 @@
         });
       };
 
+      /* ---------------- 忘记密码：提交重置申请 ----------------
+       * 这里只提交「申请」，不会改动账号密码；管理员在后台看到申请后生成临时密码，
+       * 把临时密码告知用户，用户用它登录后自行改成自己的密码（改密后申请记录随即清除）。 */
+      var btnResetToggle = d.getElementById('btnResetToggle');
+      var pwdResetBox = d.getElementById('pwdResetBox');
+      var resetId = d.getElementById('resetId');
+      var btnResetSubmit = d.getElementById('btnResetSubmit');
+      var resetMsg = d.getElementById('resetMsg');
+
+      resetId.oninput = function () {
+        var v = (resetId.value || '').replace(ACCEPT_RE, '').substr(0, 8);
+        if (v !== resetId.value) resetId.value = v;
+      };
+
+      btnResetToggle.onclick = function () {
+        var open = pwdResetBox.style.display !== 'none';
+        pwdResetBox.style.display = open ? 'none' : 'block';
+        if (!open) {
+          if (!resetId.value) resetId.value = (loginId.value || '').replace(ACCEPT_RE, '');
+          setMsg(resetMsg, '');
+          resetId.focus();
+        }
+      };
+
+      btnResetSubmit.onclick = function () {
+        if (btnResetSubmit.disabled) return;
+        var id = (resetId.value || '').replace(ACCEPT_RE, '');
+
+        setMsg(resetMsg, '');
+        if (id.length !== 6 && id.length !== 8) { setMsg(resetMsg, 'acc.err.id_short'); resetId.focus(); return; }
+
+        btnResetSubmit.disabled = true;
+        setBtnLabel(btnResetSubmit, 'acc.resetSending');
+
+        post({ action: 'resetRequest', id: id }).then(function (data) {
+          btnResetSubmit.disabled = false;
+          setBtnLabel(btnResetSubmit, 'acc.resetSubmit');
+          if (data && data.ok) {
+            if (data.status === 'done') { setMsg(resetMsg, 'acc.resetReady', 'ok'); return; }
+            setMsg(resetMsg, data.already ? 'acc.resetQueued' : 'acc.resetOk', 'ok');
+            return;
+          }
+          showErr(resetMsg, data);
+        }).catch(function () {
+          btnResetSubmit.disabled = false;
+          setBtnLabel(btnResetSubmit, 'acc.resetSubmit');
+          setMsg(resetMsg, 'acc.err.net');
+        });
+      };
+
       // 回车提交
       function onEnter(input, btn) {
         input.onkeydown = function (ev) {
@@ -827,6 +907,7 @@
       onEnter(regPwd, btnRegister);
       onEnter(loginId, btnLogin);
       onEnter(loginPwd, btnLogin);
+      onEnter(resetId, btnResetSubmit);
 
       /* ---------------- 初始状态 ---------------- */
       // 本页不在 guard.js 的保护清单内，未登录也能访问，因此这里自行决定展示什么：

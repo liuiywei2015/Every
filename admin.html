@@ -961,6 +961,21 @@
       </div>
       <div id="offList" class="room-list"></div>
       <p class="notice-msg" id="offMsg"></p>
+
+      <!-- 密码重置：用户登录页「忘记密码」申请 → 这里生成临时密码，可展开 / 收起查看 -->
+      <div class="art-sub-title" style="margin-top:28px;">
+        <span data-i18n="ad.prTitle">密码重置申请</span>
+        <span class="art-sub-count" id="pwdResetCount"></span>
+        <span style="flex:1;"></span>
+        <button type="button" class="save-btn" id="pwdResetRefresh" onclick="loadPwdResets(true)" data-i18n="ad.prRefresh">刷新</button>
+      </div>
+      <p class="notice-tip" data-i18n="ad.prTip">用户在登录页提交重置申请后出现在这里；点「生成临时密码」即完成重置，密码默认隐藏，点「显示」展开、再点「隐藏」收起。临时密码 7 天后自动失效，用户自行改密后记录立即清除。</p>
+      <div class="off-search">
+        <input id="pwdResetId" class="off-input" type="text" maxlength="8" autocomplete="off" spellcheck="false" placeholder="直接输入编号（不必等用户申请）" data-i18n-ph="ad.prIdPh">
+        <button type="button" class="save-btn" id="pwdResetManualBtn" onclick="genTempPwdManual()" data-i18n="ad.prGen">生成临时密码</button>
+      </div>
+      <div id="pwdResetList" class="room-list"></div>
+      <p class="notice-msg" id="pwdResetMsg"></p>
     </section>
 
     <!-- 文章审核区 -->
@@ -1677,6 +1692,205 @@
       window.searchAccounts = searchAccounts;
       window.setOfficial = setOfficial;
       window.listAllAccounts = listAllAccounts;
+
+      /* ---------------- 密码重置：申请列表 / 生成临时密码 / 显示隐藏 ----------------
+       * 用户在登录页提交「忘记密码」申请 → 写入 pwdreset:{id} → 这里列出；
+       * 管理员点「生成临时密码」即把账号密码换成随机临时密码，明文暂存在记录里（7 天 TTL），
+       * 默认打码，点「显示」展开、再点「隐藏」收起；用户自行改密后记录立即删除。 */
+      var prList = document.getElementById('pwdResetList');
+      var prMsgEl = document.getElementById('pwdResetMsg');
+      var prCountEl = document.getElementById('pwdResetCount');
+      var prIdInput = document.getElementById('pwdResetId');
+      var PR_MASK = '••••••••••';
+
+      function prPost(payload) {
+        return fetch('/api/accounts', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload)
+        }).then(function (resp) {
+          return resp.json().then(function (data) { return { status: resp, data: data };
+          }, function () { return { status: resp, data: { ok: false, code: 'server' } }; });
+        });
+      }
+
+      function prFail(res, data) {
+        if (res && res.status === 401 || (data && data.code === 'admin_pwd')) {
+          return cealinT('ad.pwdExpired');
+        }
+        return (data && data.error) || cealinT('ad.opFailed');
+      }
+
+      function prRowHtml(it) {
+        var idText = escHtml(it.id || '');
+        var nameText = it.name ? escHtml(it.name) : '<span class="off">' + cealinT('common.anonymous') + '</span>';
+        var done = it.status === 'done' && !!it.tempPwd;
+        var state = '<span class="acc-state' + (done ? ' on' : '') + '">'
+          + (done ? cealinT('ad.prStateDone') : cealinT('ad.prStatePending')) + '</span>';
+        var ops = state;
+        if (done) {
+          ops += '<span id="prpwd-' + idText + '" data-pwd="' + escHtml(it.tempPwd) + '"'
+            + ' style="font-family:ui-monospace,Consolas,monospace;letter-spacing:0.08em;color:var(--gold,#c8a96e);">'
+            + PR_MASK + '</span>'
+            + '<button type="button" class="op-btn" id="prbtn-' + idText + '" onclick="toggleResetPwd(\'' + idText + '\')">'
+            + cealinT('ad.prShow') + '</button>'
+            + '<button type="button" class="op-btn" onclick="copyResetPwd(\'' + idText + '\')">' + cealinT('ad.prCopy') + '</button>';
+        }
+        ops += '<button type="button" class="op-btn verify" onclick="genTempPwd(\'' + idText + '\')">'
+          + (done ? cealinT('ad.prRegen') : cealinT('ad.prGen')) + '</button>'
+          + '<button type="button" class="op-btn" onclick="dropPwdReset(\'' + idText + '\')">' + cealinT('ad.prDrop') + '</button>';
+        var meta = nameText
+          + ' · ' + cealinT('ad.prReqAt', { t: fmtRoomTime(it.reqAt || 0) })
+          + (it.doneAt ? ' · ' + cealinT('ad.prDoneAt', { t: fmtRoomTime(it.doneAt) }) : '');
+        return '<div class="room-item" data-rid="' + idText + '">'
+          + '<div class="room-item-head">'
+          + '<span class="off-id">' + idText + '</span>'
+          + '<span class="room-meta">' + meta + '</span>'
+          + '<span class="room-ops" style="flex-wrap:wrap;gap:6px;">' + ops + '</span>'
+          + '</div></div>';
+      }
+
+      function loadPwdResets(showMsg) {
+        if (!pwd || !adminFlag) {
+          prMsgEl.textContent = cealinT('ad.relogin');
+          prMsgEl.classList.remove('ok');
+          return;
+        }
+        if (showMsg) {
+          prMsgEl.textContent = '';
+          prMsgEl.classList.remove('ok');
+        }
+        prCountEl.textContent = '';
+        prPost({ action: 'resetList', password: pwd })
+          .then(function (res) {
+            var data = res.data || {};
+            if (!data.ok) {
+              prMsgEl.textContent = prFail(res, data);
+              prMsgEl.classList.remove('ok');
+              return;
+            }
+            var items = data.items || [];
+            prCountEl.textContent = cealinT('ad.prCount', { n: items.length });
+            if (!items.length) {
+              prList.innerHTML = '<div class="room-empty">' + cealinT('ad.prEmpty') + '</div>';
+              return;
+            }
+            var html = '';
+            items.forEach(function (it) { html += prRowHtml(it); });
+            prList.innerHTML = html;
+          })
+          .catch(function () {
+            prMsgEl.textContent = cealinT('ad.netQuery');
+            prMsgEl.classList.remove('ok');
+          });
+      }
+
+      // 生成临时密码：id 为空时取输入框（管理员主动重置某人时用）
+      function genTempPwd(id) {
+        var target = (id || prIdInput.value || '').replace(/^\s+|\s+$/g, '');
+        if (!pwd || !adminFlag) {
+          prMsgEl.textContent = cealinT('ad.relogin');
+          prMsgEl.classList.remove('ok');
+          return;
+        }
+        if (!target) {
+          prMsgEl.textContent = cealinT('ad.prIdRequired');
+          prMsgEl.classList.remove('ok');
+          return;
+        }
+        prMsgEl.textContent = '';
+        prMsgEl.classList.remove('ok');
+        prPost({ action: 'resetTemp', id: target, password: pwd })
+          .then(function (res) {
+            var data = res.data || {};
+            if (data.ok) {
+              prIdInput.value = '';
+              prMsgEl.classList.add('ok');
+              prMsgEl.textContent = cealinT('ad.prGenDone', { id: data.id || target, pwd: data.tempPwd || '' });
+              loadPwdResets(false);
+              return;
+            }
+            prMsgEl.textContent = prFail(res, data);
+            prMsgEl.classList.remove('ok');
+          })
+          .catch(function () {
+            prMsgEl.textContent = cealinT('ad.netOp');
+            prMsgEl.classList.remove('ok');
+          });
+      }
+
+      function genTempPwdManual() {
+        genTempPwd(prIdInput.value || '');
+      }
+
+      function dropPwdReset(id) {
+        if (!pwd || !adminFlag) {
+          prMsgEl.textContent = cealinT('ad.relogin');
+          prMsgEl.classList.remove('ok');
+          return;
+        }
+        prPost({ action: 'resetDrop', id: id, password: pwd })
+          .then(function (res) {
+            var data = res.data || {};
+            if (data.ok) {
+              prMsgEl.classList.add('ok');
+              prMsgEl.textContent = cealinT('ad.prDropped', { id: id });
+              loadPwdResets(false);
+              return;
+            }
+            prMsgEl.textContent = prFail(res, data);
+            prMsgEl.classList.remove('ok');
+          })
+          .catch(function () {
+            prMsgEl.textContent = cealinT('ad.netOp');
+            prMsgEl.classList.remove('ok');
+          });
+      }
+
+      // 显示 / 隐藏：点一下展开明文，再点一下收起
+      function toggleResetPwd(id) {
+        var span = document.getElementById('prpwd-' + id);
+        var btn = document.getElementById('prbtn-' + id);
+        if (!span) return;
+        var shown = span.getAttribute('data-shown') === '1';
+        span.textContent = shown ? PR_MASK : (span.getAttribute('data-pwd') || '');
+        span.setAttribute('data-shown', shown ? '0' : '1');
+        if (btn) btn.textContent = shown ? cealinT('ad.prShow') : cealinT('ad.prHide');
+      }
+
+      function copyResetPwd(id) {
+        var span = document.getElementById('prpwd-' + id);
+        if (!span) return;
+        var text = span.getAttribute('data-pwd') || '';
+        var done = function () {
+          prMsgEl.classList.add('ok');
+          prMsgEl.textContent = cealinT('ad.prCopied', { id: id });
+        };
+        if (navigator.clipboard && navigator.clipboard.writeText) {
+          navigator.clipboard.writeText(text).then(done, function () {
+            prMsgEl.textContent = cealinT('ad.opFailed');
+            prMsgEl.classList.remove('ok');
+          });
+        } else {
+          var ta = document.createElement('textarea');
+          ta.value = text;
+          ta.style.position = 'fixed';
+          ta.style.top = '-1000px';
+          document.body.appendChild(ta);
+          ta.select();
+          var ok = false;
+          try { ok = document.execCommand('copy'); } catch (e) { ok = false; }
+          document.body.removeChild(ta);
+          if (ok) done(); else { prMsgEl.textContent = cealinT('ad.opFailed'); prMsgEl.classList.remove('ok'); }
+        }
+      }
+
+      window.loadPwdResets = loadPwdResets;
+      window.genTempPwd = genTempPwd;
+      window.genTempPwdManual = genTempPwdManual;
+      window.dropPwdReset = dropPwdReset;
+      window.toggleResetPwd = toggleResetPwd;
+      window.copyResetPwd = copyResetPwd;
 
       // ===== 文章审核：待审列表 / 全部文章 / 通过 / 驳回 / 撤销 / 删除（POST /api/articles，需管理员密码校验） =====
       var artCard = document.getElementById('artAdminCard');
@@ -2469,6 +2683,8 @@
         offCard.style.display = 'block';
         // 账号面板默认展示全部账号（在线优先），无需先输入查询词
         requestAccounts('');
+        // 密码重置申请列表（与账号列表同屏展示）
+        loadPwdResets(false);
         // 文章审核面板：待审列表 + 全部文章首页（30 秒内重复进入复用缓存）
         artCard.style.display = 'block';
         loadArticlePending();

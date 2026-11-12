@@ -14,6 +14,10 @@
 //   { action: 'search', password, q? }            管理员：账号列表 / 按编号或名称搜索（q 留空=全部，60 秒边缘缓存）
 //   { action: 'stats', password }                 管理员：概览统计（在线数、账号数、房间数、消息数估算、KV 用量估算，60 秒边缘缓存）
 //   { action: 'official', password, id, official } 管理员：授予 / 取消官方认证
+//   { action: 'resetRequest', id }                 用户：登录页「忘记密码」提交重置申请（不改密码）
+//   { action: 'resetList', password }              管理员：密码重置申请列表（含已生成的临时密码）
+//   { action: 'resetTemp', password, id }          管理员：为该编号生成临时密码并暂存明文供查看（TTL 7 天）
+//   { action: 'resetDrop', password, id }          管理员：删除重置记录（同时抹掉临时密码明文）
 // 响应：{ ok: true, id, name } / { ok: false, error, code }
 //
 // KV 约定（绑定名 GUESTBOOK）：
@@ -47,6 +51,15 @@ const SEARCH_PAGE_SIZE = 1000;
 // 列表最多读取 300 条账号明细、最多扫描 2000 个编号键，避免单次请求无上限膨胀
 const ACCOUNT_READ_MAX = 300;
 const ACCOUNT_SCAN_MAX = 2000;
+
+// 密码重置：用户在登录页提交申请 → 写 pwdreset:{id}；管理员在后台生成临时密码并查看
+// 临时密码明文只存在该键内（7 天 TTL 自动失效），用户自行改密成功后立即删除
+const PWD_RESET_PREFIX = 'pwdreset:';
+const PWD_RESET_TTL = 7 * 24 * 3600;
+// 同一编号的重复申请间隔（毫秒）：重复提交只刷新申请时间，不覆盖已生成的临时密码
+const PWD_RESET_MIN_GAP = 60 * 1000;
+const TEMP_PWD_LEN = 10;
+const TEMP_PWD_CHARS = 'ABCDEFGHJKMNPQRSTUVWXYZ23456789abcdefghjkmnpqrstuvwxyz';
 
 // 在线心跳：account:presence:{id} 带 1800 秒 TTL 自动回收；读取时 20 分钟内有心跳视为在线。
 // 阈值必须明显大于前端心跳间隔（10 分钟 + 0~2 分钟抖动），否则用户会在下一次心跳到来前被判离线。
@@ -90,6 +103,18 @@ function makeId() {
     id += ID_CHARS.charAt(buf[i] % ID_CHARS.length);
   }
   return id;
+}
+
+// 临时密码：管理员重置时生成，排除易混淆字符，便于口头或手抄转告用户
+function makeTempPwd(len) {
+  const size = len || TEMP_PWD_LEN;
+  const buf = new Uint8Array(size);
+  crypto.getRandomValues(buf);
+  let out = '';
+  for (let i = 0; i < size; i++) {
+    out += TEMP_PWD_CHARS.charAt(buf[i] % TEMP_PWD_CHARS.length);
+  }
+  return out;
 }
 
 // Web Crypto：SHA-256(salt + ':' + password) 的十六进制串
@@ -561,6 +586,13 @@ export async function onRequest(context) {
       return fail(500, '服务异常，请稍后重试', 'server');
     }
 
+    // 用户自主改密成功后立即抹掉重置记录里的临时密码明文
+    try {
+      await kv.delete(PWD_RESET_PREFIX + (updated.id || id));
+    } catch (err) {
+      /* 清理失败不影响改密结果，记录仍受 TTL 约束自动过期 */
+    }
+
     // 只回编号与名称，哈希与盐不出服务端；登录态不变，无需重新登录
     return json({ ok: true, id: updated.id || id, name: updated.name || '' });
   }
@@ -940,6 +972,198 @@ export async function onRequest(context) {
       official: on,
       officialAt: acc.officialAt
     });
+  }
+
+  /* ---------------- 用户：提交密码重置申请 ----------------
+   * 登录页「忘记密码」提交后只写 pwdreset:{id}，作为待处理申请通知管理员；
+   * 不改动账号任何密码字段，所以光凭编号无法劫持他人账号。 */
+  if (action === 'resetRequest') {
+    if (!ID_RE.test(id)) return fail(400, '请输入正确的账号编号', 'id_bad');
+
+    let found = null;
+    try {
+      found = await readAccount(kv, id);
+    } catch (err) {
+      return fail(500, '服务异常，请稍后重试', 'server');
+    }
+    if (!found) return fail(404, '该编号不存在，请检查后重试', 'id_not_found');
+
+    const realId = found.acc.id || id;
+    const key = PWD_RESET_PREFIX + realId;
+    const now = Date.now();
+
+    let existing = null;
+    try {
+      const raw = await kv.get(key);
+      if (raw) existing = JSON.parse(raw);
+    } catch (err) {
+      existing = null;
+    }
+
+    // 已生成临时密码：原样保留，避免把管理员看过的密码覆盖掉
+    if (existing && existing.status === 'done' && existing.tempPwd) {
+      return json({
+        ok: true, id: realId, status: 'done', already: true,
+        reqAt: existing.reqAt || 0, doneAt: existing.doneAt || 0
+      });
+    }
+    // 短时间内的重复提交：只回执，不重复写 KV
+    if (existing && existing.status !== 'done' && now - (existing.reqAt || 0) < PWD_RESET_MIN_GAP) {
+      return json({ ok: true, id: realId, status: 'pending', already: true, reqAt: existing.reqAt || now });
+    }
+
+    const record = { id: realId, name: found.acc.name || '', reqAt: now, status: 'pending' };
+    try {
+      await kv.put(key, JSON.stringify(record), { expirationTtl: PWD_RESET_TTL });
+    } catch (err) {
+      return fail(500, '服务异常，请稍后重试', 'server');
+    }
+    return json({ ok: true, id: realId, status: 'pending', already: false, reqAt: now });
+  }
+
+  /* ---------------- 管理员：密码重置申请列表 ----------------
+   * 只返回编号 / 名称 / 申请时间 / 状态 / 已生成的临时密码（如有），
+   * 账号的 pwdHash 与 salt 一律不出服务端。 */
+  if (action === 'resetList') {
+    let admin = false;
+    try {
+      admin = await checkAdmin(kv, password);
+    } catch (err) {
+      return fail(500, '服务异常，请稍后重试', 'server');
+    }
+    if (!admin) return fail(401, '密码错误', 'admin_pwd');
+
+    let keys = [];
+    try {
+      const res = await kv.list({ prefix: PWD_RESET_PREFIX, limit: 200 });
+      keys = (res && res.keys) || [];
+    } catch (err) {
+      return fail(500, '服务异常，请稍后重试', 'server');
+    }
+
+    const rows = await Promise.all(
+      keys.map(async (k) => {
+        const name = k && k.name ? String(k.name) : '';
+        if (name.length <= PWD_RESET_PREFIX.length) return null;
+        try {
+          const raw = await kv.get(name);
+          if (!raw) return null;
+          const it = JSON.parse(raw);
+          if (!it || typeof it !== 'object') return null;
+          return {
+            id: it.id || name.slice(PWD_RESET_PREFIX.length),
+            name: it.name || '',
+            reqAt: it.reqAt || 0,
+            status: it.status === 'done' ? 'done' : 'pending',
+            tempPwd: typeof it.tempPwd === 'string' ? it.tempPwd : '',
+            doneAt: it.doneAt || 0
+          };
+        } catch (err) {
+          return null;
+        }
+      })
+    );
+
+    const items = rows.filter(Boolean);
+    items.sort(function (a, b) { return (b.reqAt || 0) - (a.reqAt || 0); });
+    return json({ ok: true, items: items, count: items.length, ttl: PWD_RESET_TTL });
+  }
+
+  /* ---------------- 管理员：为指定编号生成临时密码 ----------------
+   * 用新盐 + 新哈希覆盖账号密码（登录逻辑无需改动），并把明文暂存进重置记录供管理员查看；
+   * 明文只在 7 天内有效，用户自行改密后立即删除。 */
+  if (action === 'resetTemp') {
+    let admin = false;
+    try {
+      admin = await checkAdmin(kv, password);
+    } catch (err) {
+      return fail(500, '服务异常，请稍后重试', 'server');
+    }
+    if (!admin) return fail(401, '密码错误', 'admin_pwd');
+
+    if (!ID_RE.test(id)) return fail(400, '编号格式不正确', 'id_bad');
+
+    let found = null;
+    try {
+      found = await readAccount(kv, id);
+    } catch (err) {
+      return fail(500, '服务异常，请稍后重试', 'server');
+    }
+    if (!found) return fail(404, '账号不存在', 'id_not_found');
+
+    const now = Date.now();
+    const realId = found.acc.id || id;
+    const tempPwd = makeTempPwd();
+    const nextSalt = randomHex(16);
+    const nextHash = await hashPassword(nextSalt, tempPwd);
+
+    const updated = Object.assign({}, found.acc, {
+      id: realId,
+      pwdHash: nextHash,
+      salt: nextSalt,
+      pwdChangedAt: now,
+      pwdResetAt: now
+    });
+    try {
+      await kv.put(found.key, JSON.stringify(updated));
+    } catch (err) {
+      return fail(500, '服务异常，请稍后重试', 'server');
+    }
+
+    const key = PWD_RESET_PREFIX + realId;
+    let reqAt = now;
+    try {
+      const raw = await kv.get(key);
+      if (raw) {
+        const old = JSON.parse(raw);
+        if (old && old.reqAt) reqAt = old.reqAt;
+      }
+    } catch (err) {
+      /* 无历史申请时按当前时间记录 */
+    }
+
+    const record = {
+      id: realId,
+      name: updated.name || '',
+      reqAt: reqAt,
+      status: 'done',
+      tempPwd: tempPwd,
+      doneAt: now
+    };
+    try {
+      await kv.put(key, JSON.stringify(record), { expirationTtl: PWD_RESET_TTL });
+    } catch (err) {
+      // 记录写入失败时密码已经改掉：如实告知，避免用户以为可以查看旧密码
+      return fail(500, '密码已重置但记录写入失败，请刷新后重新生成', 'reset_record');
+    }
+
+    return json({
+      ok: true,
+      id: realId,
+      name: updated.name || '',
+      tempPwd: tempPwd,
+      doneAt: now,
+      expiresAt: now + PWD_RESET_TTL * 1000
+    });
+  }
+
+  /* ---------------- 管理员：删除重置记录（同时抹掉临时密码明文） ---------------- */
+  if (action === 'resetDrop') {
+    let admin = false;
+    try {
+      admin = await checkAdmin(kv, password);
+    } catch (err) {
+      return fail(500, '服务异常，请稍后重试', 'server');
+    }
+    if (!admin) return fail(401, '密码错误', 'admin_pwd');
+
+    if (!ID_RE.test(id)) return fail(400, '编号格式不正确', 'id_bad');
+    try {
+      await kv.delete(PWD_RESET_PREFIX + id);
+    } catch (err) {
+      return fail(500, '服务异常，请稍后重试', 'server');
+    }
+    return json({ ok: true, id: id });
   }
 
   return fail(400, '未知的操作类型', 'unknown_action');
