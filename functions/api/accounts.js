@@ -1,4 +1,4 @@
-// Cloudflare Pages Function: /api/accounts
+﻿// Cloudflare Pages Function: /api/accounts
 // Cealin 账号系统：只用「名称 + 密码」注册，系统自动分配唯一 8 位编号；登录只认编号 + 密码。
 // 密码不以明文入库：客户端用 Web Crypto 计算 SHA-256(salt + ':' + 密码) 后只上传哈希；
 // 若调用方直接传 password，服务端同样用 crypto.subtle 加盐哈希后存储。
@@ -489,57 +489,6 @@ export async function onRequest(context) {
   let salt = typeof body.salt === 'string' ? body.salt.trim().toLowerCase() : '';
   // 编号区分大小写（新编号允许小写），只做去空格
   const id = typeof body.id === 'string' ? body.id.trim() : '';
-
-  /* ---------------- 临时运维接口：清理历史账号（保留指定编号） ----------------
-   * 仅管理员密码可用；keep 为保留编号数组；dryRun 为 true 时只列出将删除的编号不实际删除。
-   * 该分支仅用于本次一次性清理，执行完毕后从代码中移除。 */
-  if (action === 'purge') {
-    const isAdmin = await checkAdmin(kv, password);
-    if (!isAdmin) return fail(401, '密码错误', 'admin_pwd');
-
-    const keepList = Array.isArray(body.keep) ? body.keep : [];
-    const keep = {};
-    for (let i = 0; i < keepList.length; i++) {
-      const k = typeof keepList[i] === 'string' ? keepList[i].trim() : '';
-      if (k) keep[k] = true;
-    }
-    const dryRun = body.dryRun === true;
-    const removed = [];
-    const kept = [];
-    let cursor;
-    let page = 0;
-    do {
-      const opts = { prefix: KV_PREFIX, limit: 1000 };
-      if (cursor) opts.cursor = cursor;
-      const res = await kv.list(opts);
-      const keys = (res && res.keys) || [];
-      for (let i = 0; i < keys.length; i++) {
-        const name = keys[i] && keys[i].name ? String(keys[i].name) : '';
-        if (name.indexOf(KV_PREFIX) !== 0) continue;
-        if (name.indexOf(PRESENCE_PREFIX) === 0) continue;
-        const accId = name.slice(KV_PREFIX.length);
-        if (!accId) continue;
-        if (keep[accId]) {
-          kept.push(accId);
-          continue;
-        }
-        if (!dryRun) {
-          try {
-            await kv.delete(name);
-            await kv.delete(PRESENCE_PREFIX + accId);
-            await kv.delete(PWD_RESET_PREFIX + accId);
-          } catch (err) {
-            /* 单条删除失败不阻断后续 */
-          }
-        }
-        removed.push(accId);
-      }
-      cursor = res && !res.list_complete ? res.cursor : null;
-      page++;
-    } while (cursor && page < 20);
-
-    return json({ ok: true, dryRun: dryRun, kept: kept, removed: removed, removedCount: removed.length });
-  }
 
   /* ---------------- 发送邮箱验证码：注册 / 登录二次验证 ---------------- */
   if (action === 'sendCode') {
