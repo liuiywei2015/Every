@@ -262,42 +262,6 @@
   }
   .field input:focus { border-color: var(--gold); }
   .field input::placeholder { color: var(--muted); }
-
-  /* 验证码行：输入框与取码按钮并排 */
-  .code-row {
-    display: flex;
-    gap: 10px;
-    align-items: stretch;
-  }
-  .code-row input { flex: 1 1 auto; min-width: 0; }
-  .code-row .ghost-btn {
-    flex: 0 0 auto;
-    padding: 0 18px;
-    white-space: nowrap;
-    font-size: 12px;
-  }
-  .ghost-btn:disabled {
-    opacity: 0.5;
-    cursor: not-allowed;
-    transform: none;
-  }
-  #regCode, #rstCode { letter-spacing: 0.28em; }
-
-  /* 文字型链接按钮（忘记密码 / 改走申请） */
-  .link-btn {
-    border: none;
-    background: transparent;
-    padding: 0;
-    color: var(--gold);
-    font-family: inherit;
-    font-size: 12px;
-    letter-spacing: 0.06em;
-    cursor: pointer;
-    text-decoration: underline;
-    text-underline-offset: 3px;
-  }
-  .link-btn:hover { color: var(--fg); }
-  .link-btn:disabled { opacity: 0.5; cursor: not-allowed; }
   #loginId {
     letter-spacing: 0.36em;
     text-transform: uppercase;
@@ -342,6 +306,24 @@
     transition: color 0.3s ease, border-color 0.3s ease, transform 0.2s ease;
   }
   .ghost-btn:hover { color: var(--fg); border-color: var(--gold); transform: translateY(-1px); }
+
+  /* 忘记密码：入口按钮与展开的重置面板 */
+  #btnResetToggle {
+    display: block;
+    width: 100%;
+    margin-top: 6px;
+    padding: 10px 18px;
+    letter-spacing: 0.06em;
+  }
+  .reset-box {
+    margin-top: 16px;
+    padding: 18px 16px 8px;
+    border: 1px solid rgba(var(--line-rgb), 0.16);
+    border-radius: 16px;
+    background: rgba(var(--line-rgb), 0.04);
+  }
+  .reset-box .hint { margin-top: 0; }
+  .reset-box .primary-btn { margin-top: 14px; }
 
   .msg {
     min-height: 20px;
@@ -508,17 +490,6 @@
           <label for="regPwd" data-i18n="acc.pwd">密码</label>
           <input id="regPwd" type="password" maxlength="64" autocomplete="new-password" data-i18n-ph="acc.pwdPh" placeholder="至少 6 位">
         </div>
-        <div class="field">
-          <label for="regEmail" data-i18n="acc.regEmail">邮箱</label>
-          <input id="regEmail" type="email" maxlength="120" autocomplete="email" spellcheck="false" data-i18n-ph="acc.regEmailPh" placeholder="用于接收验证码与找回密码">
-        </div>
-        <div class="field">
-          <label for="regCode" data-i18n="acc.codeLabel">邮箱验证码</label>
-          <div class="code-row">
-            <input id="regCode" type="text" maxlength="6" inputmode="numeric" autocomplete="one-time-code" data-i18n-ph="acc.codePh" placeholder="6 位数字">
-            <button type="button" class="ghost-btn" id="btnRegCode" data-i18n="acc.sendCode">获取验证码</button>
-          </div>
-        </div>
         <p class="hint" data-i18n="acc.pwdHint">密码经 SHA-256 加盐哈希后存储，不会明文保存</p>
         <button type="button" class="primary-btn" id="btnRegister" data-i18n="acc.registerBtn">注册并获取编号</button>
         <p class="msg" id="regMsg"></p>
@@ -550,40 +521,18 @@
         <p class="hint" data-i18n="acc.idHint">登录只认编号，不认名称</p>
         <button type="button" class="primary-btn" id="btnLogin" data-i18n="acc.loginBtn">登录</button>
         <p class="msg" id="loginMsg"></p>
-        <p class="hint" style="margin:2px 0 0">
-          <button type="button" class="link-btn" id="btnForgot" data-i18n="acc.forgotPwd">忘记密码？用邮箱验证码重置</button>
-        </p>
-      </div>
 
-      <!-- 忘记密码：邮箱验证码自助重置 -->
-      <div class="pane" id="paneReset" role="tabpanel">
-        <p class="hint" data-i18n="acc.resetSelfTitle">输入账号编号并获取邮箱验证码，验证通过即可自行设置新密码</p>
-        <div class="field">
-          <label for="rstId" data-i18n="acc.id">编号</label>
-          <input id="rstId" type="text" maxlength="8" autocomplete="username" spellcheck="false" data-i18n-ph="acc.idPh" placeholder="账号编号（6 或 8 位）">
-        </div>
-        <div class="field">
-          <label for="rstCode" data-i18n="acc.codeLabel">邮箱验证码</label>
-          <div class="code-row">
-            <input id="rstCode" type="text" maxlength="6" inputmode="numeric" autocomplete="one-time-code" data-i18n-ph="acc.codePh" placeholder="6 位数字">
-            <button type="button" class="ghost-btn" id="btnRstCode" data-i18n="acc.resetSendCode">发送验证码</button>
+        <!-- 忘记密码：提交重置申请 → 管理员在后台生成临时密码 -->
+        <button type="button" class="ghost-btn" id="btnResetToggle" data-i18n="acc.resetEntry">忘记密码？申请重置密码</button>
+        <div class="reset-box" id="pwdResetBox" style="display:none;">
+          <p class="hint" data-i18n="acc.resetTip">提交后会通知管理员，由管理员生成一个临时密码给你；用它登录后请尽快改成自己的密码。</p>
+          <div class="field">
+            <label for="resetId" data-i18n="acc.id">编号</label>
+            <input id="resetId" type="text" maxlength="8" autocomplete="username" spellcheck="false" data-i18n-ph="acc.idPh" placeholder="账号编号（6 或 8 位）">
           </div>
+          <button type="button" class="primary-btn" id="btnResetSubmit" data-i18n="acc.resetSubmit">提交重置申请</button>
+          <p class="msg" id="resetMsg"></p>
         </div>
-        <div class="field">
-          <label for="rstPwd" data-i18n="acc.resetNewPwd">新密码</label>
-          <input id="rstPwd" type="password" maxlength="64" autocomplete="new-password" data-i18n-ph="acc.pwdPh" placeholder="至少 6 位">
-        </div>
-        <div class="field">
-          <label for="rstPwd2" data-i18n="acc.resetNewPwd2">确认新密码</label>
-          <input id="rstPwd2" type="password" maxlength="64" autocomplete="new-password" data-i18n-ph="acc.pwdPh" placeholder="再输入一次">
-        </div>
-        <button type="button" class="primary-btn" id="btnReset" data-i18n="acc.resetSelfSubmit">重置密码</button>
-        <p class="msg" id="rstMsg"></p>
-        <p class="hint" style="margin:6px 0 0" data-i18n="acc.resetNoEmail">账号没有绑定邮箱？</p>
-        <p class="hint" style="margin:0">
-          <button type="button" class="link-btn" id="btnResetApply" data-i18n="acc.resetApply">改走申请，由管理员处理</button>
-          <button type="button" class="link-btn" id="btnResetBack" data-i18n="acc.resetBack">返回登录</button>
-        </p>
       </div>
     </section>
 
@@ -609,20 +558,13 @@
       }
 
       /* ---------------- 语言切换后重绘动态文案 ---------------- */
-      // 动态文案统一记在 data-msg-key 上，切语言时按 key 重取；
-      // 带占位变量（如 {email} / {n}）的文案把变量一起记在 data-msg-vars 上
-      function setMsg(el, key, cls, vars) {
+      // 动态文案统一记在 data-msg-key 上，切语言时按 key 重取
+      function setMsg(el, key, cls) {
         if (!el) return;
         el.className = 'msg' + (cls ? ' ' + cls : '');
-        if (key) {
-          el.setAttribute('data-msg-key', key);
-          if (vars) el.setAttribute('data-msg-vars', JSON.stringify(vars));
-          else el.removeAttribute('data-msg-vars');
-        } else {
-          el.removeAttribute('data-msg-key');
-          el.removeAttribute('data-msg-vars');
-        }
-        el.textContent = key ? T(key, vars || undefined) : '';
+        if (key) el.setAttribute('data-msg-key', key);
+        else el.removeAttribute('data-msg-key');
+        el.textContent = key ? T(key) : '';
       }
 
       function setBtnLabel(btn, key) {
@@ -634,13 +576,7 @@
         var nodes = d.querySelectorAll('[data-msg-key]');
         for (var i = 0; i < nodes.length; i++) {
           var k = nodes[i].getAttribute('data-msg-key');
-          if (!k) continue;
-          var raw = nodes[i].getAttribute('data-msg-vars');
-          var vs = null;
-          if (raw) {
-            try { vs = JSON.parse(raw); } catch (e) { vs = null; }
-          }
-          nodes[i].textContent = T(k, vs || undefined);
+          if (k) nodes[i].textContent = T(k);
         }
       }
       if (w.cealinOnLangChange) w.cealinOnLangChange(repaint);
@@ -651,22 +587,16 @@
       var paneRegister = d.getElementById('paneRegister');
       var paneLogin = d.getElementById('paneLogin');
       var paneDone = d.getElementById('paneDone');
-      var paneReset = d.getElementById('paneReset');
 
       function showTab(which) {
         var isReg = which === 'register';
-        var isReset = which === 'reset';
-        var isLogin = !isReg && !isReset;
         paneRegister.className = 'pane' + (isReg ? ' on' : '');
-        paneLogin.className = 'pane' + (isLogin ? ' on' : '');
-        paneReset.className = 'pane' + (isReset ? ' on' : '');
+        paneLogin.className = 'pane' + (!isReg ? ' on' : '');
         paneDone.className = 'pane';
         tabRegister.className = 'tab' + (isReg ? ' on' : '');
-        tabLogin.className = 'tab' + (isLogin ? ' on' : '');
+        tabLogin.className = 'tab' + (!isReg ? ' on' : '');
         d.getElementById('tabs').style.display = '';
-        if (isReg) return;
-        if (isReset) { d.getElementById('rstId').focus(); return; }
-        d.getElementById('loginId').focus();
+        if (!isReg) d.getElementById('loginId').focus();
       }
 
       tabRegister.onclick = function () { showTab('register'); };
@@ -750,64 +680,7 @@
       var btnRegister = d.getElementById('btnRegister');
       var regName = d.getElementById('regName');
       var regPwd = d.getElementById('regPwd');
-      var regEmail = d.getElementById('regEmail');
-      var regCode = d.getElementById('regCode');
-      var btnRegCode = d.getElementById('btnRegCode');
       var regMsg = d.getElementById('regMsg');
-
-      // 邮箱格式：与服务端 EMAIL_RE 保持一致，前端先拦一道减少无谓请求
-      var EMAIL_RE = /^[A-Za-z0-9._%+-]{1,64}@[A-Za-z0-9]([A-Za-z0-9-]{0,61}[A-Za-z0-9])?(\.[A-Za-z0-9]([A-Za-z0-9-]{0,61}[A-Za-z0-9])?)+$/;
-
-      function trimStr(s) {
-        return String(s || '').replace(/^\s+|\s+$/g, '');
-      }
-
-      // 取码按钮倒计时：seconds 内禁用并显示剩余秒数，结束后恢复原文案
-      function startCooldown(btn, labelKey, seconds) {
-        if (!btn) return;
-        var left = Number(seconds) || 60;
-        btn.disabled = true;
-        // 倒计时文案带 {n} 变量：不挂 data-i18n，避免全局语言切换时被替换成未替换占位符的原文
-        btn.removeAttribute('data-i18n');
-        btn.textContent = T('acc.codeWait', { n: left });
-        if (btn._coolTimer) clearInterval(btn._coolTimer);
-        btn._coolTimer = setInterval(function () {
-          left -= 1;
-          if (left <= 0) {
-            clearInterval(btn._coolTimer);
-            btn._coolTimer = null;
-            btn.disabled = false;
-            setBtnLabel(btn, labelKey);
-            return;
-          }
-          btn.textContent = T('acc.codeWait', { n: left });
-        }, 1000);
-      }
-
-      // 注册取码：只带邮箱，服务端按邮箱限流（60 秒冷却 / 24 小时 8 封）
-      btnRegCode.onclick = function () {
-        if (btnRegCode.disabled) return;
-        var email = trimStr(regEmail.value);
-        setMsg(regMsg, '');
-        if (!email) { setMsg(regMsg, 'acc.regEmailRequired'); regEmail.focus(); return; }
-        if (!EMAIL_RE.test(email)) { setMsg(regMsg, 'acc.regEmailBad'); regEmail.focus(); return; }
-
-        btnRegCode.disabled = true;
-        setBtnLabel(btnRegCode, 'acc.sendCode');
-        post({ action: 'sendCode', scene: 'register', email: email }).then(function (data) {
-          if (data && data.ok) {
-            setMsg(regMsg, 'acc.codeSent', 'ok');
-            regCode.focus();
-            startCooldown(btnRegCode, 'acc.sendCode', data.cooldown || 60);
-            return;
-          }
-          btnRegCode.disabled = false;
-          showErr(regMsg, data);
-        }).catch(function () {
-          btnRegCode.disabled = false;
-          setMsg(regMsg, 'acc.err.net');
-        });
-      };
 
       function nameLen(s) {
         return Array.from(s).length;
@@ -815,21 +688,14 @@
 
       btnRegister.onclick = function () {
         if (btnRegister.disabled) return;
-        var name = trimStr(regName.value);
+        var name = (regName.value || '').replace(/^\s+|\s+$/g, '');
         var pwd = regPwd.value || '';
-        var email = trimStr(regEmail.value);
-        var code = trimStr(regCode.value).replace(/\D/g, '');
 
         setMsg(regMsg, '');
         if (!name) { setMsg(regMsg, 'acc.err.name_required'); regName.focus(); return; }
         if (nameLen(name) > 20) { setMsg(regMsg, 'acc.err.name_long'); regName.focus(); return; }
         if (pwd.length < 6) { setMsg(regMsg, 'acc.err.pwd_short'); regPwd.focus(); return; }
         if (pwd.length > 64) { setMsg(regMsg, 'acc.err.pwd_long'); regPwd.focus(); return; }
-        // 邮箱必填：注册必须通过邮箱验证码校验
-        if (!email) { setMsg(regMsg, 'acc.regEmailRequired'); regEmail.focus(); return; }
-        if (!EMAIL_RE.test(email)) { setMsg(regMsg, 'acc.regEmailBad'); regEmail.focus(); return; }
-        if (!code) { setMsg(regMsg, 'acc.codeRequired'); regCode.focus(); return; }
-        if (code.length !== 6) { setMsg(regMsg, 'acc.codeBad'); regCode.focus(); return; }
         if (!cryptoReady()) { setMsg(regMsg, 'acc.err.no_crypto'); return; }
 
         var salt = randomHex(16);
@@ -840,20 +706,12 @@
         setBtnLabel(btnRegister, 'acc.registering');
 
         hashed.then(function (pwdHash) {
-          return post({
-            action: 'register',
-            name: name,
-            salt: salt,
-            pwdHash: pwdHash,
-            email: email,
-            code: code
-          });
+          return post({ action: 'register', name: name, salt: salt, pwdHash: pwdHash });
         }).then(function (data) {
           btnRegister.disabled = false;
           setBtnLabel(btnRegister, 'acc.registerBtn');
           if (data && data.ok && data.id) {
             regPwd.value = '';
-            regCode.value = '';
             showDone(data.id, data.name || name, data.createdAt || 0);
             return;
           }
@@ -988,139 +846,53 @@
         });
       };
 
-      /* ---------------- 忘记密码：邮箱验证码自助重置 ---------------- */
-      var btnForgot = d.getElementById('btnForgot');
-      var btnResetBack = d.getElementById('btnResetBack');
-      var rstId = d.getElementById('rstId');
-      var rstCode = d.getElementById('rstCode');
-      var rstPwd = d.getElementById('rstPwd');
-      var rstPwd2 = d.getElementById('rstPwd2');
-      var rstMsg = d.getElementById('rstMsg');
-      var btnRstCode = d.getElementById('btnRstCode');
-      var btnReset = d.getElementById('btnReset');
-      var btnResetApply = d.getElementById('btnResetApply');
+      /* ---------------- 忘记密码：提交重置申请 ----------------
+       * 这里只提交「申请」，不会改动账号密码；管理员在后台看到申请后生成临时密码，
+       * 把临时密码告知用户，用户用它登录后自行改成自己的密码（改密后申请记录随即清除）。 */
+      var btnResetToggle = d.getElementById('btnResetToggle');
+      var pwdResetBox = d.getElementById('pwdResetBox');
+      var resetId = d.getElementById('resetId');
+      var btnResetSubmit = d.getElementById('btnResetSubmit');
+      var resetMsg = d.getElementById('resetMsg');
 
-      btnForgot.onclick = function () {
-        setMsg(rstMsg, '');
-        showTab('reset');
-      };
-      btnResetBack.onclick = function () {
-        setMsg(rstMsg, '');
-        showTab('login');
-      };
-      // 编号区分大小写（新编号允许小写与 @），输入时就地过滤非法字符
-      rstId.oninput = function () {
-        var v = (rstId.value || '').replace(ACCEPT_RE, '').substr(0, 8);
-        if (v !== rstId.value) rstId.value = v;
+      resetId.oninput = function () {
+        var v = (resetId.value || '').replace(ACCEPT_RE, '').substr(0, 8);
+        if (v !== resetId.value) resetId.value = v;
       };
 
-      function readResetId() {
-        return (rstId.value || '').replace(ACCEPT_RE, '');
-      }
-
-      // 第一步：向账号绑定的邮箱发码，成功提示「验证码已发送至 a***@qq.com」
-      btnRstCode.onclick = function () {
-        if (btnRstCode.disabled) return;
-        var id = readResetId();
-        setMsg(rstMsg, '');
-        if (id.length !== 6 && id.length !== 8) { setMsg(rstMsg, 'acc.err.id_short'); rstId.focus(); return; }
-
-        btnRstCode.disabled = true;
-        setBtnLabel(btnRstCode, 'acc.resetSendCode');
-        post({ action: 'sendCode', scene: 'reset', id: id }).then(function (data) {
-          if (data && data.ok) {
-            var masked = data.masked || '';
-            if (masked) setMsg(rstMsg, 'acc.codeSentTo', 'ok', { email: masked });
-            else setMsg(rstMsg, 'acc.codeSent', 'ok');
-            rstCode.focus();
-            startCooldown(btnRstCode, 'acc.resetSendCode', data.cooldown || 60);
-            return;
-          }
-          btnRstCode.disabled = false;
-          showErr(rstMsg, data);
-        }).catch(function () {
-          btnRstCode.disabled = false;
-          setMsg(rstMsg, 'acc.err.net');
-        });
+      btnResetToggle.onclick = function () {
+        var open = pwdResetBox.style.display !== 'none';
+        pwdResetBox.style.display = open ? 'none' : 'block';
+        if (!open) {
+          if (!resetId.value) resetId.value = (loginId.value || '').replace(ACCEPT_RE, '');
+          setMsg(resetMsg, '');
+          resetId.focus();
+        }
       };
 
-      // 第二步：验证码 + 新密码 → 自助改密（哈希算法与登录一致）
-      btnReset.onclick = function () {
-        if (btnReset.disabled) return;
-        var id = readResetId();
-        var code = trimStr(rstCode.value).replace(/\D/g, '');
-        var p1 = rstPwd.value || '';
-        var p2 = rstPwd2.value || '';
+      btnResetSubmit.onclick = function () {
+        if (btnResetSubmit.disabled) return;
+        var id = (resetId.value || '').replace(ACCEPT_RE, '');
 
-        setMsg(rstMsg, '');
-        if (id.length !== 6 && id.length !== 8) { setMsg(rstMsg, 'acc.err.id_short'); rstId.focus(); return; }
-        if (!code) { setMsg(rstMsg, 'acc.codeRequired'); rstCode.focus(); return; }
-        if (code.length !== 6) { setMsg(rstMsg, 'acc.codeBad'); rstCode.focus(); return; }
-        if (p1.length < 6) { setMsg(rstMsg, 'acc.err.pwd_short'); rstPwd.focus(); return; }
-        if (p1.length > 64) { setMsg(rstMsg, 'acc.err.pwd_long'); rstPwd.focus(); return; }
-        if (p1 !== p2) { setMsg(rstMsg, 'acc.resetPwdMismatch'); rstPwd2.focus(); return; }
-        if (!cryptoReady()) { setMsg(rstMsg, 'acc.err.no_crypto'); return; }
+        setMsg(resetMsg, '');
+        if (id.length !== 6 && id.length !== 8) { setMsg(resetMsg, 'acc.err.id_short'); resetId.focus(); return; }
 
-        var salt = randomHex(16);
-        var hashed = sha256Hex(salt + ':' + p1);
-        if (!hashed) { setMsg(rstMsg, 'acc.err.no_crypto'); return; }
+        btnResetSubmit.disabled = true;
+        setBtnLabel(btnResetSubmit, 'acc.resetSending');
 
-        btnReset.disabled = true;
-        setBtnLabel(btnReset, 'acc.resetSelfSending');
-
-        hashed.then(function (pwdHash) {
-          return post({
-            action: 'resetByCode',
-            id: id,
-            code: code,
-            salt: salt,
-            pwdHash: pwdHash
-          });
-        }).then(function (data) {
-          btnReset.disabled = false;
-          setBtnLabel(btnReset, 'acc.resetSelfSubmit');
-          if (data && data.ok) {
-            setMsg(rstMsg, 'acc.resetDone', 'ok');
-            rstCode.value = '';
-            rstPwd.value = '';
-            rstPwd2.value = '';
-            // 重置成功回到登录：预填编号，密码清空
-            var doneId = data.id || id;
-            setTimeout(function () {
-              loginId.value = doneId;
-              showTab('login');
-              d.getElementById('loginPwd').value = '';
-              d.getElementById('loginPwd').focus();
-              setMsg(loginMsg, 'acc.resetDone', 'ok');
-            }, 900);
-            return;
-          }
-          showErr(rstMsg, data);
-        }).catch(function () {
-          btnReset.disabled = false;
-          setBtnLabel(btnReset, 'acc.resetSelfSubmit');
-          setMsg(rstMsg, 'acc.err.net');
-        });
-      };
-
-      // 兜底入口：无邮箱的老账号仍可通知管理员生成临时密码
-      btnResetApply.onclick = function () {
-        if (btnResetApply.disabled) return;
-        var id = readResetId();
-        setMsg(rstMsg, '');
-        if (id.length !== 6 && id.length !== 8) { setMsg(rstMsg, 'acc.err.id_short'); rstId.focus(); return; }
-
-        btnResetApply.disabled = true;
         post({ action: 'resetRequest', id: id }).then(function (data) {
-          btnResetApply.disabled = false;
+          btnResetSubmit.disabled = false;
+          setBtnLabel(btnResetSubmit, 'acc.resetSubmit');
           if (data && data.ok) {
-            setMsg(rstMsg, data.status === 'done' ? 'acc.resetReady' : 'acc.resetQueued', 'ok');
+            if (data.status === 'done') { setMsg(resetMsg, 'acc.resetReady', 'ok'); return; }
+            setMsg(resetMsg, data.already ? 'acc.resetQueued' : 'acc.resetOk', 'ok');
             return;
           }
-          showErr(rstMsg, data);
+          showErr(resetMsg, data);
         }).catch(function () {
-          btnResetApply.disabled = false;
-          setMsg(rstMsg, 'acc.err.net');
+          btnResetSubmit.disabled = false;
+          setBtnLabel(btnResetSubmit, 'acc.resetSubmit');
+          setMsg(resetMsg, 'acc.err.net');
         });
       };
 
@@ -1133,14 +905,9 @@
       }
       onEnter(regName, btnRegister);
       onEnter(regPwd, btnRegister);
-      onEnter(regEmail, btnRegister);
-      onEnter(regCode, btnRegister);
       onEnter(loginId, btnLogin);
       onEnter(loginPwd, btnLogin);
-      onEnter(rstId, btnRstCode);
-      onEnter(rstCode, btnReset);
-      onEnter(rstPwd, btnReset);
-      onEnter(rstPwd2, btnReset);
+      onEnter(resetId, btnResetSubmit);
 
       /* ---------------- 初始状态 ---------------- */
       // 本页不在 guard.js 的保护清单内，未登录也能访问，因此这里自行决定展示什么：

@@ -18,8 +18,6 @@
 //   { action: 'resetList', password }              管理员：密码重置申请列表（含已生成的临时密码）
 //   { action: 'resetTemp', password, id }          管理员：为该编号生成临时密码并暂存明文供查看（TTL 7 天）
 //   { action: 'resetDrop', password, id }          管理员：删除重置记录（同时抹掉临时密码明文）
-//   { action: 'sendCode', scene, email, id }      用户：发送邮箱验证码（scene=register 用 email / scene=reset 用 id）
-//   { action: 'resetByCode', id, code, pwdHash, salt } 用户：凭邮箱验证码自助重置密码（不经过管理员）
 // 响应：{ ok: true, id, name } / { ok: false, error, code }
 //
 // KV 约定（绑定名 GUESTBOOK）：
@@ -62,23 +60,6 @@ const PWD_RESET_TTL = 7 * 24 * 3600;
 const PWD_RESET_MIN_GAP = 60 * 1000;
 const TEMP_PWD_LEN = 10;
 const TEMP_PWD_CHARS = 'ABCDEFGHJKMNPQRSTUVWXYZ23456789abcdefghjkmnpqrstuvwxyz';
-
-// 邮箱验证码：注册与自助重置密码共用同一套限流与校验逻辑。
-// 验证码 10 分钟有效；同一邮箱 / 同一编号 60 秒冷却；同一邮箱 24 小时内最多发 8 封。
-const MAIL_CODE_PREFIX = 'vcode:';
-const MAIL_LIMIT_PREFIX = 'vlimit:';
-const MAIL_COUNT_PREFIX = 'vcnt:';
-const CODE_TTL = 600;
-const CODE_COOLDOWN = 60;
-const CODE_MAX_TRIES = 5;
-const CODE_DAILY_MAX = 8;
-const CODE_DAILY_TTL = 24 * 3600;
-const CODE_LEN = 6;
-// 邮箱只做基本格式校验（本地部分 + 域名 + 至少一级后缀），不做 DNS 验证
-const EMAIL_RE = /^[A-Za-z0-9._%+-]{1,64}@[A-Za-z0-9]([A-Za-z0-9-]{0,61}[A-Za-z0-9])?(\.[A-Za-z0-9]([A-Za-z0-9-]{0,61}[A-Za-z0-9])?)+$/;
-const EMAIL_MAX = 120;
-// 发件人缺省值：Resend 的 onboarding 共享发件地址
-const MAIL_FROM_DEFAULT = 'Cealin <onboarding@resend.dev>';
 
 // 在线心跳：account:presence:{id} 带 1800 秒 TTL 自动回收；读取时 20 分钟内有心跳视为在线。
 // 阈值必须明显大于前端心跳间隔（10 分钟 + 0~2 分钟抖动），否则用户会在下一次心跳到来前被判离线。
@@ -134,107 +115,6 @@ function makeTempPwd(len) {
     out += TEMP_PWD_CHARS.charAt(buf[i] % TEMP_PWD_CHARS.length);
   }
   return out;
-}
-
-// 6 位数字验证码（邮箱验证用，允许前导 0，按字符串比较）
-function makeCode() {
-  const buf = new Uint8Array(CODE_LEN);
-  crypto.getRandomValues(buf);
-  let out = '';
-  for (let i = 0; i < CODE_LEN; i++) {
-    out += String(buf[i] % 10);
-  }
-  return out;
-}
-
-// 邮箱规范化：去空格 + 转小写（邮箱域名不区分大小写，统一小写便于限流统计）
-function normalizeEmail(value) {
-  if (typeof value !== 'string') return '';
-  const email = value.trim().toLowerCase();
-  if (!email || email.length > EMAIL_MAX) return '';
-  if (!EMAIL_RE.test(email)) return '';
-  return email;
-}
-
-// 脱敏邮箱：本地部分只保留首字符，其余用 * 代替；域名原样保留（a***@qq.com）
-function maskEmail(email) {
-  const str = typeof email === 'string' ? email.trim() : '';
-  const at = str.lastIndexOf('@');
-  if (at <= 0) return '';
-  const local = str.slice(0, at);
-  const domain = str.slice(at + 1);
-  if (!domain) return '';
-  const head = local.charAt(0);
-  return head + '***@' + domain;
-}
-
-// 拆分 from 字符串：'Cealin <a@b.com>' / 'a@b.com' → { name, email }
-function splitFrom(from) {
-  const raw = typeof from === 'string' ? from.trim() : '';
-  const m = raw.match(/^(.*?)<\s*([^>\s]+@[^>\s]+)\s*>$/);
-  if (m) return { name: m[1].trim().replace(/^"|"$/g, ''), email: m[2].trim() };
-  const plain = raw.match(/([^<>\s]+@[^<>\s]+)/);
-  return { name: '', email: plain ? plain[1] : '' };
-}
-
-/* ---------------- 发送邮件 ----------------
- * 通道抽象：优先 Resend（env.RESEND_API_KEY），其次 Brevo（env.BREVO_API_KEY）；
- * 只发纯文本。两个通道都未配置时返回 { ok:false, reason:'mail_not_configured' }，绝不抛异常。 */
-async function sendMail(env, to, subject, text) {
-  const e = env || {};
-  const resendKey = e.RESEND_API_KEY ? String(e.RESEND_API_KEY) : '';
-  const brevoKey = e.BREVO_API_KEY ? String(e.BREVO_API_KEY) : '';
-  const fromRaw = e.MAIL_FROM ? String(e.MAIL_FROM) : MAIL_FROM_DEFAULT;
-
-  if (!resendKey && !brevoKey) {
-    return { ok: false, reason: 'mail_not_configured' };
-  }
-
-  if (resendKey) {
-    try {
-      const resp = await fetch('https://api.resend.com/emails', {
-        method: 'POST',
-        headers: {
-          'Authorization': 'Bearer ' + resendKey,
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({ from: fromRaw, to: [to], subject: subject, text: text })
-      });
-      if (!resp || !resp.ok) {
-        return { ok: false, reason: 'mail_failed', status: resp ? resp.status : 0 };
-      }
-      return { ok: true, provider: 'resend' };
-    } catch (err) {
-      return { ok: false, reason: 'mail_failed' };
-    }
-  }
-
-  // Brevo：sender 需拆成 { name, email }
-  try {
-    const sender = splitFrom(fromRaw);
-    if (!sender.email) return { ok: false, reason: 'mail_not_configured' };
-    const payload = {
-      sender: sender.name ? { name: sender.name, email: sender.email } : { email: sender.email },
-      to: [{ email: to }],
-      subject: subject,
-      textContent: text
-    };
-    const resp = await fetch('https://api.brevo.com/v3/smtp/email', {
-      method: 'POST',
-      headers: {
-        'api-key': brevoKey,
-        'Content-Type': 'application/json',
-        'Accept': 'application/json'
-      },
-      body: JSON.stringify(payload)
-    });
-    if (!resp || !resp.ok) {
-      return { ok: false, reason: 'mail_failed', status: resp ? resp.status : 0 };
-    }
-    return { ok: true, provider: 'brevo' };
-  } catch (err) {
-    return { ok: false, reason: 'mail_failed' };
-  }
 }
 
 // Web Crypto：SHA-256(salt + ':' + password) 的十六进制串
@@ -459,48 +339,6 @@ export async function onRequest(context) {
     if (!name) return fail(400, '请输入名称', 'name_required');
     if (nameLen(name) > NAME_MAX) return fail(400, '名称最多 20 个字符', 'name_long');
 
-    // 邮箱必填：注册必须先通过邮箱验证码验证（skipVerify 仅供运维兼容旧数据，前端不会传）
-    const email = normalizeEmail(body.email);
-    if (!email) return fail(400, '请填写邮箱并完成验证', 'email_required');
-    const skipVerify = body.skipVerify === '1' || body.skipVerify === 1;
-    if (!skipVerify) {
-      const codeInput = typeof body.code === 'string' ? body.code.trim() : '';
-      if (!codeInput) return fail(400, '请输入邮箱验证码', 'code_required');
-
-      const codeKey = MAIL_CODE_PREFIX + 'reg:' + email;
-      let pending = null;
-      try {
-        const raw = await kv.get(codeKey);
-        if (raw) pending = JSON.parse(raw);
-      } catch (err) {
-        pending = null;
-      }
-      if (!pending || typeof pending.code !== 'string') {
-        return fail(400, '验证码已失效，请重新获取', 'code_bad');
-      }
-      if (!pending.exp || Date.now() > pending.exp) {
-        try { await kv.delete(codeKey); } catch (err) { /* 过期键交给 TTL */ }
-        return fail(400, '验证码已失效，请重新获取', 'code_bad');
-      }
-      if (!safeEqual(codeInput, pending.code)) {
-        const tries = (Number(pending.tries) || 0) + 1;
-        if (tries >= CODE_MAX_TRIES) {
-          // 连续输错达到上限：直接作废，必须重新获取验证码
-          try { await kv.delete(codeKey); } catch (err) { /* 忽略 */ }
-          return fail(400, '验证码错误次数过多，请重新获取', 'code_bad');
-        }
-        pending.tries = tries;
-        try {
-          await kv.put(codeKey, JSON.stringify(pending), { expirationTtl: CODE_TTL });
-        } catch (err) {
-          /* 回写失败不阻塞：本次仍按错误返回 */
-        }
-        return fail(400, '验证码不正确', 'code_bad');
-      }
-      // 校验通过立即作废，避免同一验证码重复使用
-      try { await kv.delete(codeKey); } catch (err) { /* 忽略 */ }
-    }
-
     if (pwdHash) {
       // 前端已用 Web Crypto 加盐哈希：只收 64 位十六进制哈希与 32 位盐
       if (!HEX64.test(pwdHash)) return fail(400, '密码哈希格式不正确', 'hash_bad');
@@ -538,7 +376,6 @@ export async function onRequest(context) {
       name: name,
       pwdHash: pwdHash,
       salt: salt,
-      email: email,
       createdAt: Date.now()
     };
     try {
@@ -870,9 +707,7 @@ export async function onRequest(context) {
             official: !!acc.official,
             officialAt: acc.officialAt || 0,
             online: !!(p && p.online),
-            lastSeen: lastSeen,
-            // 完整邮箱不出服务端，只给脱敏串（无邮箱的老账号为空串）
-            masked: maskEmail(acc.email)
+            lastSeen: lastSeen
           };
         } catch (err) {
           return null;
@@ -1139,208 +974,6 @@ export async function onRequest(context) {
     });
   }
 
-  /* ---------------- 用户：发送邮箱验证码 ----------------
-   * scene=register：校验邮箱格式后按「邮箱」限流发码，注册时回传校验；
-   * scene=reset：按编号找到账号，向账号绑定的邮箱发码（只回传脱敏邮箱）。
-   * 限流：同一目标 60 秒冷却，同一邮箱 24 小时内最多 8 封；
-   * 账号不存在或无邮箱一律回「未绑定邮箱」，不泄露账号是否存在。 */
-  if (action === 'sendCode') {
-    const scene = typeof body.scene === 'string' ? body.scene.trim() : '';
-    if (scene !== 'register' && scene !== 'reset') {
-      return fail(400, '不支持的验证码场景', 'scene_bad');
-    }
-
-    let email = '';
-    let masked = '';
-    let codeKey = '';
-    let limitKey = '';
-    let countKey = '';
-
-    if (scene === 'register') {
-      email = normalizeEmail(body.email);
-      if (!email) return fail(400, '请输入正确的邮箱地址', 'email_bad');
-      codeKey = MAIL_CODE_PREFIX + 'reg:' + email;
-      limitKey = MAIL_LIMIT_PREFIX + 'reg:' + email;
-      countKey = MAIL_COUNT_PREFIX + 'reg:' + email;
-    } else {
-      if (!ID_RE.test(id)) return fail(400, '请输入正确的账号编号', 'id_bad');
-      let found = null;
-      try {
-        found = await readAccount(kv, id);
-      } catch (err) {
-        return fail(500, '服务异常，请稍后重试', 'server');
-      }
-      const boundEmail = found && found.acc ? normalizeEmail(found.acc.email) : '';
-      if (!boundEmail) return fail(400, '该账号未绑定邮箱，请联系管理员', 'no_email');
-      const realId = found.acc.id || id;
-      email = boundEmail;
-      masked = maskEmail(boundEmail);
-      codeKey = MAIL_CODE_PREFIX + 'reset:' + realId;
-      limitKey = MAIL_LIMIT_PREFIX + 'reset:' + realId;
-      countKey = MAIL_COUNT_PREFIX + 'reset:' + realId;
-    }
-
-    // 1) 60 秒冷却
-    let cooling = false;
-    try {
-      cooling = !!(await kv.get(limitKey));
-    } catch (err) {
-      cooling = false;
-    }
-    if (cooling) return fail(429, '验证码发送过于频繁，请稍后再试', 'code_cooldown');
-
-    // 2) 24 小时内的发送次数上限（计数键自带 24 小时 TTL，自动滚动）
-    let sentCount = 0;
-    try {
-      const rawCnt = await kv.get(countKey);
-      if (rawCnt) {
-        const cnt = JSON.parse(rawCnt);
-        if (cnt && typeof cnt.count === 'number') sentCount = cnt.count;
-      }
-    } catch (err) {
-      sentCount = 0;
-    }
-    if (sentCount >= CODE_DAILY_MAX) {
-      return fail(429, '该邮箱今天收码次数已达上限，请明天再试', 'code_daily');
-    }
-
-    // 3) 先写验证码再发信：发信失败会删掉，保证「有码必有信」
-    const code = makeCode();
-    const exp = Date.now() + CODE_TTL * 1000;
-    try {
-      await kv.put(
-        codeKey,
-        JSON.stringify({ code: code, scene: scene, exp: exp, tries: 0 }),
-        { expirationTtl: CODE_TTL }
-      );
-    } catch (err) {
-      return fail(500, '服务异常，请稍后重试', 'server');
-    }
-
-    const doing = scene === 'register' ? '注册账号' : '重置密码';
-    const subject = 'Cealin ' + doing + '验证码';
-    const text = '你的 Cealin ' + doing + '验证码是：' + code
-      + '\n\n该验证码 10 分钟内有效，请勿转发给他人。'
-      + '\n如非本人操作，请忽略本邮件。';
-
-    const sent = await sendMail(env, email, subject, text);
-    if (!sent || !sent.ok) {
-      try { await kv.delete(codeKey); } catch (err) { /* 键本身有 TTL，删失败也能自愈 */ }
-      if (sent && sent.reason === 'mail_not_configured') {
-        return fail(503, '邮件服务未配置，请联系管理员', 'mail_fail');
-      }
-      return fail(500, '验证码发送失败，请稍后重试', 'mail_fail');
-    }
-
-    // 4) 发信成功后才占用冷却与计数配额
-    try {
-      await kv.put(limitKey, String(Date.now()), { expirationTtl: CODE_COOLDOWN });
-    } catch (err) {
-      /* 冷却键写入失败不影响本次发码 */
-    }
-    try {
-      await kv.put(
-        countKey,
-        JSON.stringify({ count: sentCount + 1, first: Date.now() }),
-        { expirationTtl: CODE_DAILY_TTL }
-      );
-    } catch (err) {
-      /* 计数键写入失败不影响本次发码 */
-    }
-
-    if (scene === 'register') return json({ ok: true, cooldown: CODE_COOLDOWN });
-    return json({ ok: true, masked: masked, cooldown: CODE_COOLDOWN });
-  }
-
-  /* ---------------- 用户：凭邮箱验证码自助重置密码 ----------------
-   * 验证码校验通过即可直接改密，不再依赖管理员生成临时密码；
-   * 无邮箱的老账号仍可走 resetRequest（管理员兜底）。 */
-  if (action === 'resetByCode') {
-    if (!ID_RE.test(id)) return fail(400, '请输入正确的账号编号', 'id_bad');
-
-    const codeInput = typeof body.code === 'string' ? body.code.trim() : '';
-    if (!codeInput) return fail(400, '请输入邮箱验证码', 'code_required');
-
-    const newPwdHash = typeof body.pwdHash === 'string' ? body.pwdHash.trim().toLowerCase() : '';
-    const newSalt = typeof body.salt === 'string' ? body.salt.trim().toLowerCase() : '';
-    const newPassword = typeof body.password === 'string' ? body.password : '';
-
-    if (!newPwdHash && !newPassword) return fail(400, '请输入新密码', 'new_pwd_required');
-    if (newPwdHash && !HEX64.test(newPwdHash)) return fail(400, '密码哈希格式不正确', 'hash_bad');
-    if (newSalt && !HEX32.test(newSalt)) return fail(400, '盐格式不正确', 'salt_bad');
-
-    let found = null;
-    try {
-      found = await readAccount(kv, id);
-    } catch (err) {
-      return fail(500, '服务异常，请稍后重试', 'server');
-    }
-    if (!found) return fail(400, '验证码已失效，请重新获取', 'code_bad');
-
-    const realId = found.acc.id || id;
-    const codeKey = MAIL_CODE_PREFIX + 'reset:' + realId;
-
-    let pending = null;
-    try {
-      const raw = await kv.get(codeKey);
-      if (raw) pending = JSON.parse(raw);
-    } catch (err) {
-      pending = null;
-    }
-    if (!pending || typeof pending.code !== 'string') {
-      return fail(400, '验证码已失效，请重新获取', 'code_bad');
-    }
-    if (!pending.exp || Date.now() > pending.exp) {
-      try { await kv.delete(codeKey); } catch (err) { /* 过期键交给 TTL */ }
-      return fail(400, '验证码已失效，请重新获取', 'code_bad');
-    }
-    if (!safeEqual(codeInput, pending.code)) {
-      const tries = (Number(pending.tries) || 0) + 1;
-      if (tries >= CODE_MAX_TRIES) {
-        try { await kv.delete(codeKey); } catch (err) { /* 忽略 */ }
-        return fail(400, '验证码错误次数过多，请重新获取', 'code_bad');
-      }
-      pending.tries = tries;
-      try {
-        await kv.put(codeKey, JSON.stringify(pending), { expirationTtl: CODE_TTL });
-      } catch (err) {
-        /* 回写失败不阻塞：本次仍按错误返回 */
-      }
-      return fail(400, '验证码不正确', 'code_bad');
-    }
-
-    // 新密码：前端已算好哈希与盐则直接复用，否则服务端加盐哈希
-    let nextHash = newPwdHash;
-    let nextSalt = newSalt;
-    if (!nextHash) {
-      if (newPassword.length < PWD_MIN) return fail(400, '密码至少需要 6 位', 'pwd_short');
-      if (newPassword.length > PWD_MAX) return fail(400, '密码最长 64 位', 'pwd_long');
-      nextSalt = randomHex(16);
-      nextHash = await hashPassword(nextSalt, newPassword);
-    } else if (!nextSalt) {
-      // 只给哈希不给盐会导致哈希与盐不匹配、用户无法登录，直接拒绝
-      return fail(400, '盐格式不正确', 'salt_bad');
-    }
-
-    const updated = Object.assign({}, found.acc, {
-      id: realId,
-      pwdHash: nextHash,
-      salt: nextSalt,
-      pwdChangedAt: Date.now()
-    });
-    try {
-      await kv.put(found.key, JSON.stringify(updated));
-    } catch (err) {
-      return fail(500, '服务异常，请稍后重试', 'server');
-    }
-
-    // 验证码立即作废；管理员兜底的临时密码记录一并清除
-    try { await kv.delete(codeKey); } catch (err) { /* 忽略 */ }
-    try { await kv.delete(PWD_RESET_PREFIX + realId); } catch (err) { /* 忽略 */ }
-
-    return json({ ok: true, id: realId, name: updated.name || '' });
-  }
-
   /* ---------------- 用户：提交密码重置申请 ----------------
    * 登录页「忘记密码」提交后只写 pwdreset:{id}，作为待处理申请通知管理员；
    * 不改动账号任何密码字段，所以光凭编号无法劫持他人账号。 */
@@ -1417,23 +1050,13 @@ export async function onRequest(context) {
           if (!raw) return null;
           const it = JSON.parse(raw);
           if (!it || typeof it !== 'object') return null;
-          const rid = it.id || name.slice(PWD_RESET_PREFIX.length);
-          // 账号绑定了邮箱才回传脱敏串（后台据此标注「可自助重置」），完整邮箱不出服务端
-          let masked = '';
-          try {
-            const accFound = await readAccount(kv, rid);
-            if (accFound && accFound.acc) masked = maskEmail(accFound.acc.email);
-          } catch (err) {
-            masked = '';
-          }
           return {
-            id: rid,
+            id: it.id || name.slice(PWD_RESET_PREFIX.length),
             name: it.name || '',
             reqAt: it.reqAt || 0,
             status: it.status === 'done' ? 'done' : 'pending',
             tempPwd: typeof it.tempPwd === 'string' ? it.tempPwd : '',
-            doneAt: it.doneAt || 0,
-            masked: masked
+            doneAt: it.doneAt || 0
           };
         } catch (err) {
           return null;
