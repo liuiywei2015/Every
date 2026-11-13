@@ -1538,11 +1538,13 @@
         var seen = it.online
           ? cealinT('ad.accNow')
           : (it.lastSeen ? cealinT('ad.accLastSeen', { t: fmtRoomTime(it.lastSeen) }) : cealinT('ad.accNoSeen'));
+        // 只有绑定了邮箱的账号才展示脱敏邮箱（服务端返回 masked，原文不出服务端）
+        var mailText = it.masked ? ' · ' + cealinT('ad.accEmail', { email: escHtml(it.masked) }) : '';
         return '<div class="room-item' + (it.online ? ' acc-online' : '') + '" data-id="' + idText + '">'
           + '<div class="room-item-head">'
           + '<span class="acc-dot' + (it.online ? ' on' : '') + '" title="' + stateText + '"></span>'
           + '<span class="off-id">' + idText + '</span>'
-          + '<span class="room-meta">' + nameText + ' · ' + seen + ' · ' + cealinT('ad.offCreated', { t: fmtRoomTime(it.createdAt) }) + '</span>'
+          + '<span class="room-meta">' + nameText + ' · ' + seen + mailText + ' · ' + cealinT('ad.offCreated', { t: fmtRoomTime(it.createdAt) }) + '</span>'
           + '<span class="room-ops">' + state + tag + btn + '</span>'
           + '</div>'
           + '</div>';

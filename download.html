@@ -270,6 +270,21 @@
     box-shadow: 0 6px 22px rgba(200, 169, 110, 0.18);
   }
 
+  .dl-dot { opacity: 0.45; }
+  .dl-size {
+    color: var(--muted);
+    font-variant-numeric: tabular-nums;
+    letter-spacing: 0.06em;
+  }
+
+  /* 点击后进入准备态：大文件经站点边缘转发，首字节有 1~3 秒等待 */
+  .dl-btn[data-busy="1"] {
+    opacity: 0.62;
+    pointer-events: none;
+    transform: none;
+    box-shadow: none;
+  }
+
   .dl-hint {
     font-size: 11.5px;
     line-height: 1.75;
@@ -349,7 +364,7 @@
         <p class="dl-desc" data-i18n="dl.winClientDesc">桌面客户端，登录一次全站免登，支持聊天室、好友与文章。</p>
         <div class="dl-meta">
           <span data-i18n="dl.version">版本</span>
-          <span class="dl-ver">26.11.8</span>
+          <span class="dl-ver">26.11.8</span><span class="dl-dot">·</span><span class="dl-size">116.1 MB</span>
         </div>
         <a class="dl-btn" href="/dl/cealin-win" download data-i18n="dl.btnExe">下载安装包</a>
         <p class="dl-hint" data-i18n="dl.winHint">通过 GitHub 直链下载，安装时若提示未知发布者，请选择“仍要运行”。</p>
@@ -361,7 +376,7 @@
         <p class="dl-desc" data-i18n="dl.androidClientDesc">手机客户端，支持图文消息与好友私聊。</p>
         <div class="dl-meta">
           <span data-i18n="dl.version">版本</span>
-          <span class="dl-ver">26.11.8</span>
+          <span class="dl-ver">26.11.8</span><span class="dl-dot">·</span><span class="dl-size">52.8 KB</span>
         </div>
         <a class="dl-btn" href="downloads/Cealin-mobile-26.11.8.apk" download data-i18n="dl.btnAndroid">下载 APK</a>
         <p class="dl-hint" data-i18n="dl.androidHint">直接在此页面下载，无需跳转云盘。</p>
@@ -381,7 +396,7 @@
         <p class="dl-desc" data-i18n="dl.winAdminDesc">站点后台管理客户端，集中处理公告、聊天室、建议、账号、文章与手机消息审核。</p>
         <div class="dl-meta">
           <span data-i18n="dl.version">版本</span>
-          <span class="dl-ver">26.11.8</span>
+          <span class="dl-ver">26.11.8</span><span class="dl-dot">·</span><span class="dl-size">105.6 MB</span>
         </div>
         <a class="dl-btn" href="/dl/cealin-admin-win" download data-i18n="dl.btnExe">下载安装包</a>
         <p class="dl-hint" data-i18n="dl.adminHint">仅供站点管理员使用，打开后需输入管理员密码登录。</p>
@@ -393,7 +408,7 @@
         <p class="dl-desc" data-i18n="dl.androidAdminDesc">手机端后台管理，支持上拉菜单快速跳转到各管理模块。</p>
         <div class="dl-meta">
           <span data-i18n="dl.version">版本</span>
-          <span class="dl-ver">26.11.8</span>
+          <span class="dl-ver">26.11.8</span><span class="dl-dot">·</span><span class="dl-size">52.8 KB</span>
         </div>
         <a class="dl-btn" href="downloads/Cealin-admin-mobile-26.11.8.apk" download data-i18n="dl.btnAndroid">下载 APK</a>
         <p class="dl-hint" data-i18n="dl.adminHint">仅供站点管理员使用，打开后需输入管理员密码登录。</p>
@@ -413,7 +428,7 @@
         <p class="dl-desc" data-i18n="dl.islandDesc">Windows 桌面顶部悬浮小岛：消息通知、剪贴板历史、快捷动作与帧率监控，收起时只有一条窄边。</p>
         <div class="dl-meta">
           <span data-i18n="dl.version">版本</span>
-          <span class="dl-ver">1.0.0</span>
+          <span class="dl-ver">1.0.0</span><span class="dl-dot">·</span><span class="dl-size">98.8 MB</span>
         </div>
         <a class="dl-btn" href="/dl/dynamic-island" download data-i18n="dl.btnZip">下载压缩包</a>
         <p class="dl-hint" data-i18n="dl.islandHint">下载 zip 解压后直接运行 DynamicIsland.exe，无需安装。首次运行若提示未知发布者，请选择“仍要运行”。</p>
@@ -421,8 +436,42 @@
 
     </section>
 
-    <p class="dl-note" data-i18n="dl.note">所有客户端当前版本均为 26.11.8。Android 版可直接在此页面下载 APK，Windows 版走 GitHub Releases 直链；安装时若提示未知来源或未知发布者，请按系统提示允许安装。</p>
+    <p class="dl-note" data-i18n="dl.note">所有客户端当前版本均为 26.11.8。Android 版与 Windows 版均可直接在此页面下载，无需访问 GitHub；安装时若提示未知来源或未知发布者，请按系统提示允许安装。</p>
   </main>
 
+<script>
+/* 下载按钮准备态：点击后立即给出反馈，避免大文件等待首字节时被误认为没反应 */
+(function () {
+  var btns = document.querySelectorAll('.dl-btn[download]');
+  if (!btns.length) return;
+  function label(key, fallback) {
+    try { return (typeof window.cealinT === 'function') ? window.cealinT(key) : fallback; }
+    catch (e) { return fallback; }
+  }
+  for (var i = 0; i < btns.length; i++) {
+    (function (btn) {
+      btn.setAttribute('data-label', btn.textContent);
+      btn.addEventListener('click', function () {
+        if (btn.getAttribute('data-busy') === '1') return;
+        btn.setAttribute('data-busy', '1');
+        btn.textContent = label('dl.preparing', '正在准备下载…');
+        window.setTimeout(function () {
+          btn.removeAttribute('data-busy');
+          btn.textContent = btn.getAttribute('data-label') || btn.textContent;
+        }, 9000);
+      });
+    })(btns[i]);
+  }
+  if (typeof window.cealinOnLangChange === 'function') {
+    window.cealinOnLangChange(function () {
+      for (var j = 0; j < btns.length; j++) {
+        if (btns[j].getAttribute('data-busy') !== '1') {
+          btns[j].setAttribute('data-label', btns[j].textContent);
+        }
+      }
+    });
+  }
+})();
+</script>
 </body>
 </html>
