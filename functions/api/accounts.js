@@ -1267,6 +1267,86 @@ export async function onRequest(context) {
     return json({ ok: true, id: realId, ts: ts, onlineWindow: ONLINE_WINDOW, ttl: PRESENCE_TTL });
   }
 
+  /* ---------------- 一次性运维：批量清理账号（临时接口，用完即删） ----------------
+   * 管理员密码校验通过后，遍历 account: 前缀键，保留 keep 列表中的编号，其余连同
+   * 心跳键、重置记录、邮箱索引一并删除。默认 dryRun=true 只列出将删清单，确认后才真删。 */
+  if (action === 'purge') {
+    let admin = false;
+    try {
+      admin = await checkAdmin(kv, password);
+    } catch (err) {
+      return fail(500, '服务异常，请稍后重试', 'server');
+    }
+    if (!admin) return fail(401, '密码错误', 'admin_pwd');
+
+    const keepList = Array.isArray(body.keep)
+      ? body.keep.map(function (x) { return String(x || '').trim().toUpperCase(); })
+      : [];
+    const dry = body.dryRun !== false;
+
+    const ids = [];
+    let cursor = undefined;
+    let page = 0;
+    try {
+      while (page < 20) {
+        const opts = { prefix: KV_PREFIX, limit: 1000 };
+        if (cursor) opts.cursor = cursor;
+        const res = await kv.list(opts);
+        const keys = (res && res.keys) || [];
+        for (let i = 0; i < keys.length; i++) {
+          const name = keys[i] && keys[i].name ? String(keys[i].name) : '';
+          if (!name || name.indexOf(PRESENCE_PREFIX) === 0) continue;
+          const keyId = name.slice(KV_PREFIX.length);
+          if (keyId) ids.push(keyId);
+        }
+        if (res && res.list_complete) break;
+        cursor = res && res.cursor;
+        if (!cursor) break;
+        page++;
+      }
+    } catch (err) {
+      return fail(500, '服务异常，请稍后重试', 'server');
+    }
+
+    const removed = [];
+    const kept = [];
+    for (let i = 0; i < ids.length; i++) {
+      const accId = ids[i];
+      if (keepList.indexOf(String(accId).toUpperCase()) >= 0) {
+        kept.push(accId);
+        continue;
+      }
+      let acc = null;
+      try {
+        acc = await readAccount(kv, accId);
+      } catch (err) {
+        acc = null;
+      }
+      const realId = (acc && acc.acc && acc.acc.id) || accId;
+      const mail = acc && acc.acc && acc.acc.email ? normEmail(acc.acc.email) : '';
+      if (!dry) {
+        try {
+          await kv.delete(KV_PREFIX + realId);
+          await kv.delete(PRESENCE_PREFIX + realId);
+          await kv.delete(PWD_RESET_PREFIX + realId);
+          if (mail) await kv.delete(EMAIL_INDEX_PREFIX + mail);
+        } catch (err) {
+          /* 单条删除失败继续处理其余账号 */
+        }
+      }
+      removed.push({ id: realId, name: (acc && acc.acc && acc.acc.name) || '', email: mail });
+    }
+
+    return json({
+      ok: true,
+      dryRun: dry,
+      kept: kept,
+      wouldRemove: removed.length,
+      removedCount: dry ? 0 : removed.length,
+      removed: removed
+    });
+  }
+
   /* ---------------- 管理员：账号列表 / 按编号或名称搜索 ----------------
    * q 留空 → 列出全部账号；q 非空 → 编号（account id）与名称（name）同时参与匹配，
    * 均为「包含即命中」的部分匹配、大小写不敏感。返回结构统一，前端只用一套逻辑。
