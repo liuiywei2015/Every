@@ -227,91 +227,102 @@ function mailReady(env) {
   return smtpReady(env) || !!(env && (env.BREVO_API_KEY || env.RESEND_API_KEY));
 }
 
-// 单封 SMTP 投递：465 端口隐式 TLS，AUTH PLAIN，正文 base64 避免 8bit 中文乱码。
+// 单封 SMTP 投递：cloudflare:sockets 走 465 端口隐式 TLS（node:tls 在 Workers 上连 465 会超时，
+// 故改用原生 sockets + secureTransport:'on'），AUTH PLAIN 认证，正文 base64 避免 8bit 中文乱码。
 // 任何失败都返回 {ok:false}，不抛异常。
 async function sendSmtpMail(user, pass, to, subject, text) {
   let connect = null;
   try {
-    const mod = await import('node:tls');
-    connect = (mod && mod.connect) || (mod && mod.default && mod.default.connect) || null;
+    const mod = await import('cloudflare:sockets');
+    connect = mod && mod.connect;
   } catch (err) {
     connect = null;
   }
   if (typeof connect !== 'function') return { ok: false, reason: 'mail_fail' };
 
-  return await new Promise(function (resolve) {
-    let socket = null;
-    let settled = false;
-    let buffer = '';
-    let step = 'banner';
-    const finish = function (ok) {
-      if (settled) return;
-      settled = true;
-      clearTimeout(timer);
-      try { if (socket) socket.destroy(); } catch (err) { /* 忽略 */ }
-      resolve({ ok: !!ok, via: ok ? 'smtp' : undefined });
+  const encoder = new TextEncoder();
+  const decoder = new TextDecoder();
+  const timer = { id: 0 };
+  let socket = null;
+  let settled = false;
+  let resolveDone = null;
+  const done = new Promise(function (resolve) { resolveDone = resolve; });
+  const finish = function (ok) {
+    if (settled) return;
+    settled = true;
+    clearTimeout(timer.id);
+    try { if (socket && socket.close) socket.close(); } catch (err) { /* 忽略 */ }
+    resolveDone({ ok: !!ok, via: ok ? 'smtp' : undefined });
+  };
+  timer.id = setTimeout(function () { finish(false); }, SMTP_TIMEOUT);
+
+  try {
+    socket = connect({ hostname: SMTP_HOST, port: SMTP_PORT }, { secureTransport: 'on', allowHalfOpen: false });
+    await socket.opened;
+    const writer = socket.writable.getWriter();
+    const reader = socket.readable.getReader();
+    const state = { buf: '' };
+
+    const send = async function (line) {
+      await writer.write(encoder.encode(line + '\r\n'));
     };
-    const timer = setTimeout(function () { finish(false); }, SMTP_TIMEOUT);
-
-    try {
-      socket = connect({ host: SMTP_HOST, port: SMTP_PORT, servername: SMTP_HOST, rejectUnauthorized: false });
-    } catch (err) {
-      finish(false);
-      return;
-    }
-
-    const say = function (line) {
-      try { socket.write(line + '\r\n'); } catch (err) { finish(false); }
-    };
-
-    socket.on('error', function () { finish(false); });
-    socket.on('close', function () { finish(false); });
-
-    socket.on('data', function (chunk) {
-      buffer += chunk.toString('utf8');
-      let idx;
-      while ((idx = buffer.indexOf('\r\n')) >= 0) {
-        const line = buffer.slice(0, idx);
-        buffer = buffer.slice(idx + 2);
-        if (step === 'banner') {
-          if (/^220/.test(line)) { step = 'ehlo'; say('EHLO cealin.pages.dev'); } else return finish(false);
-        } else if (step === 'ehlo') {
-          if (/^250-/.test(line)) continue;
-          if (/^250 /.test(line)) {
-            const token = Buffer.from('\u0000' + user + '\u0000' + pass, 'utf8').toString('base64');
-            step = 'auth'; say('AUTH PLAIN ' + token);
-          } else return finish(false);
-        } else if (step === 'auth') {
-          if (/^235/.test(line)) { step = 'from'; say('MAIL FROM:<' + user + '>'); } else return finish(false);
-        } else if (step === 'from') {
-          if (/^250/.test(line)) { step = 'rcpt'; say('RCPT TO:<' + to + '>'); } else return finish(false);
-        } else if (step === 'rcpt') {
-          if (/^250/.test(line)) { step = 'data'; say('DATA'); } else return finish(false);
-        } else if (step === 'data') {
-          if (!/^354/.test(line)) return finish(false);
-          const b64 = Buffer.from(text, 'utf8').toString('base64').replace(/(.{76})/g, '$1\r\n');
-          const payload = [
-            'From: Cealin <' + user + '>',
-            'To: <' + to + '>',
-            'Subject: =?UTF-8?B?' + Buffer.from(subject, 'utf8').toString('base64') + '?=',
-            'Date: ' + new Date().toUTCString(),
-            'MIME-Version: 1.0',
-            'Content-Type: text/plain; charset=UTF-8',
-            'Content-Transfer-Encoding: base64',
-            '',
-            b64,
-            '.'
-          ].join('\r\n');
-          step = 'body';
-          try { socket.write(payload + '\r\n'); } catch (err) { finish(false); }
-        } else if (step === 'body') {
-          if (/^250/.test(line)) { step = 'quit'; say('QUIT'); } else return finish(false);
-        } else if (step === 'quit') {
-          return finish(true);
+    const readLine = async function () {
+      for (;;) {
+        const idx = state.buf.indexOf('\r\n');
+        if (idx >= 0) {
+          const line = state.buf.slice(0, idx);
+          state.buf = state.buf.slice(idx + 2);
+          return line;
         }
+        const chunk = await reader.read();
+        if (chunk.done) throw new Error('closed');
+        state.buf += decoder.decode(chunk.value, { stream: true });
       }
-    });
-  });
+    };
+    // 读取一条完整应答（含 250- 多行续行）
+    const readReply = async function () {
+      let line = await readLine();
+      const code = line.slice(0, 3);
+      while (line.charAt(3) === '-') {
+        line = await readLine();
+        if (line.slice(0, 3) !== code) break;
+      }
+      return line;
+    };
+
+    if (!/^220/.test(await readReply())) return finish(false);           // banner
+    await send('EHLO cealin.pages.dev');
+    if (!/^250/.test(await readReply())) return finish(false);           // EHLO
+    const token = Buffer.from('\u0000' + user + '\u0000' + pass, 'utf8').toString('base64');
+    await send('AUTH PLAIN ' + token);
+    if (!/^235/.test(await readReply())) return finish(false);           // 认证
+    await send('MAIL FROM:<' + user + '>');
+    if (!/^250/.test(await readReply())) return finish(false);
+    await send('RCPT TO:<' + to + '>');
+    if (!/^250/.test(await readReply())) return finish(false);
+    await send('DATA');
+    if (!/^354/.test(await readReply())) return finish(false);
+    const body = Buffer.from(text, 'utf8').toString('base64').replace(/(.{76})/g, '$1\r\n');
+    const payload = [
+      'From: Cealin <' + user + '>',
+      'To: <' + to + '>',
+      'Subject: =?UTF-8?B?' + Buffer.from(subject, 'utf8').toString('base64') + '?=',
+      'Date: ' + new Date().toUTCString(),
+      'MIME-Version: 1.0',
+      'Content-Type: text/plain; charset=UTF-8',
+      'Content-Transfer-Encoding: base64',
+      '',
+      body,
+      '.'
+    ].join('\r\n');
+    await writer.write(encoder.encode(payload + '\r\n'));
+    if (!/^250/.test(await readReply())) return finish(false);           // 正文投递
+    try { await send('QUIT'); } catch (err) { /* 忽略 */ }
+    finish(true);
+  } catch (err) {
+    finish(false);
+  }
+  return done;
 }
 
 async function sendMail(env, to, subject, text) {
