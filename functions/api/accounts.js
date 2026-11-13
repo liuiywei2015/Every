@@ -210,15 +210,124 @@ function makeCode() {
   return out;
 }
 
-// 邮件通道：优先 Brevo（BREVO_API_KEY），其次 Resend（RESEND_API_KEY），发件人取 MAIL_FROM
+// 邮件通道优先级：
+//   1. 自有邮箱 SMTP（SMTP_USER + SMTP_PASS，QQ 邮箱走 smtp.qq.com:465 隐式 TLS，零第三方依赖）
+//   2. Brevo（BREVO_API_KEY）
+//   3. Resend（RESEND_API_KEY）
+// 发件人：SMTP 通道取 SMTP_USER，API 通道取 MAIL_FROM
+const SMTP_HOST = 'smtp.qq.com';
+const SMTP_PORT = 465;
+const SMTP_TIMEOUT = 15000;
+
+function smtpReady(env) {
+  return !!(env && env.SMTP_USER && env.SMTP_PASS);
+}
+
 function mailReady(env) {
-  return !!(env && (env.BREVO_API_KEY || env.RESEND_API_KEY));
+  return smtpReady(env) || !!(env && (env.BREVO_API_KEY || env.RESEND_API_KEY));
+}
+
+// 单封 SMTP 投递：465 端口隐式 TLS，AUTH PLAIN，正文 base64 避免 8bit 中文乱码。
+// 任何失败都返回 {ok:false}，不抛异常。
+async function sendSmtpMail(user, pass, to, subject, text) {
+  let connect = null;
+  try {
+    const mod = await import('node:tls');
+    connect = (mod && mod.connect) || (mod && mod.default && mod.default.connect) || null;
+  } catch (err) {
+    connect = null;
+  }
+  if (typeof connect !== 'function') return { ok: false, reason: 'mail_fail' };
+
+  return await new Promise(function (resolve) {
+    let socket = null;
+    let settled = false;
+    let buffer = '';
+    let step = 'banner';
+    const finish = function (ok) {
+      if (settled) return;
+      settled = true;
+      clearTimeout(timer);
+      try { if (socket) socket.destroy(); } catch (err) { /* 忽略 */ }
+      resolve({ ok: !!ok, via: ok ? 'smtp' : undefined });
+    };
+    const timer = setTimeout(function () { finish(false); }, SMTP_TIMEOUT);
+
+    try {
+      socket = connect({ host: SMTP_HOST, port: SMTP_PORT, servername: SMTP_HOST, rejectUnauthorized: false });
+    } catch (err) {
+      finish(false);
+      return;
+    }
+
+    const say = function (line) {
+      try { socket.write(line + '\r\n'); } catch (err) { finish(false); }
+    };
+
+    socket.on('error', function () { finish(false); });
+    socket.on('close', function () { finish(false); });
+
+    socket.on('data', function (chunk) {
+      buffer += chunk.toString('utf8');
+      let idx;
+      while ((idx = buffer.indexOf('\r\n')) >= 0) {
+        const line = buffer.slice(0, idx);
+        buffer = buffer.slice(idx + 2);
+        if (step === 'banner') {
+          if (/^220/.test(line)) { step = 'ehlo'; say('EHLO cealin.pages.dev'); } else return finish(false);
+        } else if (step === 'ehlo') {
+          if (/^250-/.test(line)) continue;
+          if (/^250 /.test(line)) {
+            const token = Buffer.from('\u0000' + user + '\u0000' + pass, 'utf8').toString('base64');
+            step = 'auth'; say('AUTH PLAIN ' + token);
+          } else return finish(false);
+        } else if (step === 'auth') {
+          if (/^235/.test(line)) { step = 'from'; say('MAIL FROM:<' + user + '>'); } else return finish(false);
+        } else if (step === 'from') {
+          if (/^250/.test(line)) { step = 'rcpt'; say('RCPT TO:<' + to + '>'); } else return finish(false);
+        } else if (step === 'rcpt') {
+          if (/^250/.test(line)) { step = 'data'; say('DATA'); } else return finish(false);
+        } else if (step === 'data') {
+          if (!/^354/.test(line)) return finish(false);
+          const b64 = Buffer.from(text, 'utf8').toString('base64').replace(/(.{76})/g, '$1\r\n');
+          const payload = [
+            'From: Cealin <' + user + '>',
+            'To: <' + to + '>',
+            'Subject: =?UTF-8?B?' + Buffer.from(subject, 'utf8').toString('base64') + '?=',
+            'Date: ' + new Date().toUTCString(),
+            'MIME-Version: 1.0',
+            'Content-Type: text/plain; charset=UTF-8',
+            'Content-Transfer-Encoding: base64',
+            '',
+            b64,
+            '.'
+          ].join('\r\n');
+          step = 'body';
+          try { socket.write(payload + '\r\n'); } catch (err) { finish(false); }
+        } else if (step === 'body') {
+          if (/^250/.test(line)) { step = 'quit'; say('QUIT'); } else return finish(false);
+        } else if (step === 'quit') {
+          return finish(true);
+        }
+      }
+    });
+  });
 }
 
 async function sendMail(env, to, subject, text) {
-  const from = env && typeof env.MAIL_FROM === 'string' ? env.MAIL_FROM.trim() : '';
   const brevo = env ? env.BREVO_API_KEY : '';
   const resend = env ? env.RESEND_API_KEY : '';
+  const apiFrom = env && typeof env.MAIL_FROM === 'string' ? env.MAIL_FROM.trim() : '';
+
+  // 首选：自有邮箱 SMTP
+  if (smtpReady(env)) {
+    const smtpUser = String(env.SMTP_USER).trim();
+    const sent = await sendSmtpMail(smtpUser, String(env.SMTP_PASS), to, subject, text);
+    if (sent.ok) return sent;
+    if (!brevo && !resend) return { ok: false, reason: 'mail_fail' };
+  }
+
+  const from = apiFrom;
   if (!brevo && !resend) return { ok: false, reason: 'mail_not_configured' };
   if (!from) return { ok: false, reason: 'mail_not_configured' };
 
