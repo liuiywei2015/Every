@@ -620,7 +620,10 @@
 
         artTitle.textContent = article.title;
 
-        var meta = '<span>' + esc(article.authorName || cealinT('common.anonymous')) + '</span>'
+        var authorMail = article.authorEmail || '';
+        var meta = '<span class="byline"><span>' + esc(article.authorName || cealinT('common.anonymous')) + '</span>'
+          + (authorMail ? ('<span class="byline-mail">' + esc(authorMail) + '</span>') : '')
+          + '</span>'
           + '<span class="dot">·</span>'
           + '<span>' + esc(fmtDate(article.createdAt)) + '</span>';
         if (article.updatedAt && article.createdAt && article.updatedAt - article.createdAt > 60000) {

@@ -262,10 +262,8 @@
   }
   .field input:focus { border-color: var(--gold); }
   .field input::placeholder { color: var(--muted); }
-  #loginId {
-    letter-spacing: 0.36em;
-    text-transform: uppercase;
-    font-weight: 600;
+  #loginAcct {
+    text-transform: none;
   }
 
   .hint {
@@ -368,7 +366,13 @@
     user-select: all;
     word-break: break-all;
   }
-  .id-name {
+  .id-mail {
+    font-size: clamp(15px, 4.2vw, 20px);
+    letter-spacing: 0.04em;
+    text-indent: 0;
+    word-break: break-all;
+  }
+.id-name {
     margin-top: 12px;
     text-align: center;
     font-size: 13px;
@@ -485,20 +489,12 @@
         <button type="button" class="tab" id="tabLogin" role="tab" data-tab="login" data-i18n="acc.tabLogin">登录</button>
       </div>
 
-      <!-- 注册 -->
+      <!-- 注册第 1 步：邮箱验证 -->
       <div class="pane on" id="paneRegister" role="tabpanel">
-        <div class="field">
-          <label for="regName" data-i18n="acc.name">名称</label>
-          <input id="regName" type="text" maxlength="20" autocomplete="nickname" data-i18n-ph="acc.namePh" placeholder="给自己起个名称（可重名）">
-        </div>
-        <div class="field">
-          <label for="regPwd" data-i18n="acc.pwd">密码</label>
-          <input id="regPwd" type="password" maxlength="64" autocomplete="new-password" data-i18n-ph="acc.pwdPh" placeholder="至少 6 位">
-        </div>
-        <p class="hint" data-i18n="acc.pwdHint">密码经 SHA-256 加盐哈希后存储，不会明文保存</p>
+        <p class="hint" data-i18n="acc.regStep1Tip">先验证邮箱，验证码正确后才能设定密码</p>
         <div class="field">
           <label for="regEmail" data-i18n="acc.regEmail">邮箱</label>
-          <input id="regEmail" type="email" maxlength="254" autocomplete="email" spellcheck="false" data-i18n-ph="acc.regEmailPh" placeholder="用于接收验证码与找回密码">
+          <input id="regEmail" type="email" maxlength="254" autocomplete="email" spellcheck="false" data-i18n-ph="acc.regEmailPh" placeholder="用于接收验证码">
         </div>
         <div class="field">
           <label for="regCode" data-i18n="acc.codeLabel">邮箱验证码</label>
@@ -507,19 +503,46 @@
             <button type="button" class="ghost-btn code-btn" id="btnRegCode" data-i18n="acc.sendCode">获取验证码</button>
           </div>
         </div>
-        <button type="button" class="primary-btn" id="btnRegister" data-i18n="acc.registerBtn">注册并获取编号</button>
+        <button type="button" class="primary-btn" id="btnRegNext" data-i18n="acc.nextBtn">下一步</button>
         <p class="msg" id="regMsg"></p>
       </div>
 
-      <!-- 注册成功：展示编号 -->
+      <!-- 注册第 2 步：设定密码 -->
+      <div class="pane" id="paneSetPwd">
+        <p class="hint" data-i18n="acc.setPwdTip">邮箱已验证通过，请设定登录密码</p>
+        <div class="field">
+          <label for="regPwd" data-i18n="acc.pwd">密码</label>
+          <input id="regPwd" type="password" maxlength="64" autocomplete="new-password" data-i18n-ph="acc.pwdPh" placeholder="至少 6 位">
+        </div>
+        <div class="field">
+          <label for="regPwd2" data-i18n="acc.confirmPwd">确认密码</label>
+          <input id="regPwd2" type="password" maxlength="64" autocomplete="new-password" data-i18n-ph="acc.pwdPh" placeholder="至少 6 位">
+        </div>
+        <p class="hint" data-i18n="acc.pwdHint">密码经 SHA-256 加盐哈希后存储，不会明文保存</p>
+        <button type="button" class="primary-btn" id="btnRegFinish" data-i18n="acc.setPwdBtn">完成注册</button>
+        <p class="msg" id="setPwdMsg"></p>
+      </div>
+
+      <!-- 注册第 3 步：设置名称（可跳过，之后在「我的」里设置） -->
+      <div class="pane" id="paneSetName">
+        <p class="hint" data-i18n="acc.setNameTip">名称可以与他人重复，也可以先跳过，稍后在「我的」里设置</p>
+        <div class="field">
+          <label for="regName" data-i18n="acc.name">名称</label>
+          <input id="regName" type="text" maxlength="20" autocomplete="nickname" data-i18n-ph="acc.namePh" placeholder="给自己起个名称（可重名）">
+        </div>
+        <button type="button" class="primary-btn" id="btnSetName" data-i18n="acc.setNameBtn">保存名称</button>
+        <button type="button" class="ghost-btn" id="btnSkipName" data-i18n="acc.skipName">暂不设置</button>
+        <p class="msg" id="setNameMsg"></p>
+      </div>
+
+      <!-- 注册成功：展示登录邮箱 -->
       <div class="pane" id="paneDone">
-        <p class="done-label" data-i18n="acc.created">注册成功，这是你的账号编号</p>
-        <div class="id-box"><span class="id-num" id="newId">------</span></div>
+        <p class="done-label" data-i18n="acc.created">注册成功，以后用这个邮箱登录</p>
+        <div class="id-box"><span class="id-num id-mail" id="newEmail"></span></div>
         <p class="id-name" id="newName"></p>
-        <p class="keep" data-i18n="acc.keepSafe">请务必记住编号，它是登录的唯一凭证，遗失后无法找回</p>
+        <p class="keep" data-i18n="acc.keepSafeEmail">每次登录都会向该邮箱发送验证码，请确保邮箱可用</p>
         <div class="btn-row">
-          <button type="button" class="primary-btn" id="btnCopy" data-i18n="acc.copy">复制编号</button>
-          <button type="button" class="ghost-btn" id="btnGoLogin" data-i18n="acc.goLogin">用这个编号登录</button>
+          <button type="button" class="primary-btn" id="btnGoLogin" data-i18n="acc.goLoginEmail">用这个邮箱登录</button>
         </div>
         <p class="msg ok" id="doneMsg"></p>
       </div>
@@ -527,18 +550,14 @@
       <!-- 登录 -->
       <div class="pane" id="paneLogin" role="tabpanel">
         <div class="field">
-          <label for="loginId" data-i18n="acc.id">编号</label>
-          <input id="loginId" type="text" maxlength="8" autocomplete="username" spellcheck="false" data-i18n-ph="acc.idPh" placeholder="账号编号（6 或 8 位）">
+          <label for="loginAcct" data-i18n="acc.loginAccount">邮箱</label>
+          <input id="loginAcct" type="text" maxlength="254" autocomplete="username" spellcheck="false" data-i18n-ph="acc.loginAccountPh" placeholder="你的邮箱（老账号也可输入编号）">
         </div>
         <div class="field">
           <label for="loginPwd" data-i18n="acc.pwd">密码</label>
           <input id="loginPwd" type="password" maxlength="64" autocomplete="current-password" data-i18n-ph="acc.pwdPh" placeholder="至少 6 位">
         </div>
-        <p class="hint" data-i18n="acc.idHint">登录只认编号，不认名称</p>
-        <div class="field">
-          <label for="loginEmail" data-i18n="acc.regEmail">邮箱</label>
-          <input id="loginEmail" type="email" maxlength="254" autocomplete="email" spellcheck="false" data-i18n-ph="acc.loginEmailPh" placeholder="已绑定邮箱可留空；首次登录请填写用于绑定">
-        </div>
+        <p class="hint" data-i18n="acc.loginHint2">每次登录都需要邮箱验证码，加好友时用它核对身份</p>
         <div class="field">
           <label for="loginCode" data-i18n="acc.codeLabel">邮箱验证码</label>
           <div class="code-row">
@@ -615,15 +634,28 @@
       var paneLogin = d.getElementById('paneLogin');
       var paneDone = d.getElementById('paneDone');
 
+      var paneSetPwd = d.getElementById('paneSetPwd');
+      var paneSetName = d.getElementById('paneSetName');
+
+      // 统一面板切换：register / setpwd / setname / done / login
+      function showPane(name) {
+        var panes = { register: paneRegister, setpwd: paneSetPwd, setname: paneSetName, done: paneDone, login: paneLogin };
+        for (var k in panes) {
+          if (!panes.hasOwnProperty(k)) continue;
+          panes[k].className = 'pane' + (k === name ? ' on' : '');
+        }
+        var isTab = name === 'register' || name === 'login';
+        d.getElementById('tabs').style.display = isTab ? '' : 'none';
+        tabRegister.className = 'tab' + (name === 'register' ? ' on' : '');
+        tabLogin.className = 'tab' + (name === 'login' ? ' on' : '');
+        if (isTab) {
+          var focusEl = d.getElementById(name === 'register' ? 'regEmail' : 'loginAcct');
+          if (focusEl) focusEl.focus();
+        }
+      }
+
       function showTab(which) {
-        var isReg = which === 'register';
-        paneRegister.className = 'pane' + (isReg ? ' on' : '');
-        paneLogin.className = 'pane' + (!isReg ? ' on' : '');
-        paneDone.className = 'pane';
-        tabRegister.className = 'tab' + (isReg ? ' on' : '');
-        tabLogin.className = 'tab' + (!isReg ? ' on' : '');
-        d.getElementById('tabs').style.display = '';
-        if (!isReg) d.getElementById('loginId').focus();
+        showPane(which);
       }
 
       tabRegister.onclick = function () { showTab('register'); };
@@ -768,14 +800,27 @@
         });
       }
 
-      /* ---------------- 注册 ---------------- */
-      var btnRegister = d.getElementById('btnRegister');
-      var regName = d.getElementById('regName');
-      var regPwd = d.getElementById('regPwd');
+      /* ---------------- 注册第 1 步：邮箱验证码换注册令牌 ---------------- */
+      var btnRegNext = d.getElementById('btnRegNext');
       var regEmail = d.getElementById('regEmail');
       var regCode = d.getElementById('regCode');
       var btnRegCode = d.getElementById('btnRegCode');
       var regMsg = d.getElementById('regMsg');
+      var regPwd = d.getElementById('regPwd');
+      var regPwd2 = d.getElementById('regPwd2');
+      var btnRegFinish = d.getElementById('btnRegFinish');
+      var setPwdMsg = d.getElementById('setPwdMsg');
+      var regName = d.getElementById('regName');
+      var btnSetName = d.getElementById('btnSetName');
+      var btnSkipName = d.getElementById('btnSkipName');
+      var setNameMsg = d.getElementById('setNameMsg');
+
+      // 注册过程中只在内存保存必要信息，刷新即失效（此时账号尚未创建）
+      var regState = { email: '', token: '', id: '', pwdHash: '' };
+
+      function nameLen(s) {
+        return Array.from(s).length;
+      }
 
       btnRegCode.onclick = function () {
         if (btnRegCode.disabled) return;
@@ -791,134 +836,168 @@
         if (v !== regCode.value) regCode.value = v;
       };
 
-      function nameLen(s) {
-        return Array.from(s).length;
-      }
-
-      btnRegister.onclick = function () {
-        if (btnRegister.disabled) return;
-        var name = (regName.value || '').replace(/^\s+|\s+$/g, '');
-        var pwd = regPwd.value || '';
+      btnRegNext.onclick = function () {
+        if (btnRegNext.disabled) return;
         var email = normEmail(regEmail.value);
         var code = (regCode.value || '').replace(/[^0-9]/g, '');
-
         setMsg(regMsg, '');
-        if (!name) { setMsg(regMsg, 'acc.err.name_required'); regName.focus(); return; }
-        if (nameLen(name) > 20) { setMsg(regMsg, 'acc.err.name_long'); regName.focus(); return; }
-        if (pwd.length < 6) { setMsg(regMsg, 'acc.err.pwd_short'); regPwd.focus(); return; }
-        if (pwd.length > 64) { setMsg(regMsg, 'acc.err.pwd_long'); regPwd.focus(); return; }
         if (!email) { setMsg(regMsg, 'acc.err.email_required'); regEmail.focus(); return; }
         if (!emailOk(email)) { setMsg(regMsg, 'acc.err.email_bad'); regEmail.focus(); return; }
         if (code.length !== 6) { setMsg(regMsg, 'acc.err.code_required'); regCode.focus(); return; }
-        if (!cryptoReady()) { setMsg(regMsg, 'acc.err.no_crypto'); return; }
 
-        var salt = randomHex(16);
-        var hashed = sha256Hex(salt + ':' + pwd);
-        if (!hashed) { setMsg(regMsg, 'acc.err.no_crypto'); return; }
+        btnRegNext.disabled = true;
+        setBtnLabel(btnRegNext, 'acc.checking');
 
-        btnRegister.disabled = true;
-        setBtnLabel(btnRegister, 'acc.registering');
-
-        hashed.then(function (pwdHash) {
-          return post({
-            action: 'register',
-            name: name,
-            salt: salt,
-            pwdHash: pwdHash,
-            email: email,
-            code: code
-          });
-        }).then(function (data) {
-          btnRegister.disabled = false;
-          setBtnLabel(btnRegister, 'acc.registerBtn');
-          if (data && data.ok && data.id) {
+        post({ action: 'registerStart', email: email, code: code }).then(function (data) {
+          btnRegNext.disabled = false;
+          setBtnLabel(btnRegNext, 'acc.nextBtn');
+          if (data && data.ok && data.regToken) {
+            regState.email = email;
+            regState.token = data.regToken;
             regPwd.value = '';
-            regCode.value = '';
-            showDone(data.id, data.name || name, data.createdAt || 0);
+            regPwd2.value = '';
+            setMsg(setPwdMsg, '');
+            showPane('setpwd');
+            regPwd.focus();
             return;
           }
           showErr(regMsg, data);
         }).catch(function () {
-          btnRegister.disabled = false;
-          setBtnLabel(btnRegister, 'acc.registerBtn');
+          btnRegNext.disabled = false;
+          setBtnLabel(btnRegNext, 'acc.nextBtn');
           setMsg(regMsg, 'acc.err.net');
         });
       };
 
-      /* ---------------- 注册成功面板 ---------------- */
-      var newIdEl = d.getElementById('newId');
-      var newNameEl = d.getElementById('newName');
-      var btnCopy = d.getElementById('btnCopy');
-      var btnGoLogin = d.getElementById('btnGoLogin');
-      var doneMsg = d.getElementById('doneMsg');
-      var lastId = '';
+      /* ---------------- 注册第 2 步：设定密码 ---------------- */
+      btnRegFinish.onclick = function () {
+        if (btnRegFinish.disabled) return;
+        var pwd = regPwd.value || '';
+        var pwd2 = regPwd2.value || '';
+        setMsg(setPwdMsg, '');
+        if (!regState.token) { setMsg(setPwdMsg, 'acc.err.reg_token_bad'); showPane('register'); return; }
+        if (pwd.length < 6) { setMsg(setPwdMsg, 'acc.err.pwd_short'); regPwd.focus(); return; }
+        if (pwd.length > 64) { setMsg(setPwdMsg, 'acc.err.pwd_long'); regPwd.focus(); return; }
+        if (pwd !== pwd2) { setMsg(setPwdMsg, 'acc.err.pwd_mismatch'); regPwd2.focus(); return; }
+        if (!cryptoReady()) { setMsg(setPwdMsg, 'acc.err.no_crypto'); return; }
 
-      function showDone(id, name, createdAt) {
-        lastId = id;
-        newIdEl.textContent = id;
-        newNameEl.textContent = name || '';
-        // 注册时间供「我的」页展示
-        try {
-          if (createdAt) sessionStorage.setItem('cealin_account_created', String(createdAt));
-        } catch (e) {}
-        setMsg(doneMsg, '');
-        paneRegister.className = 'pane';
-        paneLogin.className = 'pane';
-        paneDone.className = 'pane on';
-        d.getElementById('tabs').style.display = 'none';
-        // 登录区预填编号，切过去即可登录
-        d.getElementById('loginId').value = id;
-        setBtnLabel(btnCopy, 'acc.copy');
-      }
+        var salt = randomHex(16);
+        var hashed = sha256Hex(salt + ':' + pwd);
+        if (!hashed) { setMsg(setPwdMsg, 'acc.err.no_crypto'); return; }
 
-      function legacyCopy(text) {
-        var ta = d.createElement('textarea');
-        ta.value = text;
-        ta.setAttribute('readonly', 'readonly');
-        ta.style.position = 'fixed';
-        ta.style.top = '-1000px';
-        ta.style.opacity = '0';
-        d.body.appendChild(ta);
-        ta.select();
-        var ok = false;
-        try { ok = d.execCommand('copy'); } catch (e) { ok = false; }
-        d.body.removeChild(ta);
-        return ok;
-      }
+        btnRegFinish.disabled = true;
+        setBtnLabel(btnRegFinish, 'acc.registering');
 
-      btnCopy.onclick = function () {
-        if (!lastId) return;
-        function ok() { setBtnLabel(btnCopy, 'acc.copied'); setTimeout(function () { setBtnLabel(btnCopy, 'acc.copy'); }, 1600); }
-        if (w.navigator && navigator.clipboard && navigator.clipboard.writeText) {
-          navigator.clipboard.writeText(lastId).then(ok, function () {
-            if (legacyCopy(lastId)) ok(); else setBtnLabel(btnCopy, 'acc.copy');
-          });
-        } else {
-          if (legacyCopy(lastId)) ok();
-        }
+        hashed.then(function (pwdHash) {
+          regState.pwdHash = pwdHash;
+          return post({ action: 'registerFinish', regToken: regState.token, salt: salt, pwdHash: pwdHash });
+        }).then(function (data) {
+          btnRegFinish.disabled = false;
+          setBtnLabel(btnRegFinish, 'acc.setPwdBtn');
+          if (data && data.ok && data.id) {
+            regState.id = data.id;
+            regPwd.value = '';
+            regPwd2.value = '';
+            regCode.value = '';
+            setMsg(setNameMsg, '');
+            showPane('setname');
+            regName.focus();
+            return;
+          }
+          showErr(setPwdMsg, data);
+        }).catch(function () {
+          btnRegFinish.disabled = false;
+          setBtnLabel(btnRegFinish, 'acc.setPwdBtn');
+          setMsg(setPwdMsg, 'acc.err.net');
+        });
       };
 
+      /* ---------------- 注册第 3 步：设置名称（名称可重复，可跳过） ---------------- */
+      function finishReg(name) {
+        if (!regState.id) { showPane('register'); return; }
+        setMsg(setNameMsg, '');
+        btnSetName.disabled = true;
+        btnSkipName.disabled = true;
+
+        post({ action: 'setName', id: regState.id, name: name, pwdHash: regState.pwdHash }).then(function (data) {
+          btnSetName.disabled = false;
+          btnSkipName.disabled = false;
+          if (data && data.ok) { showDone(name); return; }
+          // 名称没设成不影响账号：编号与密码已生效，可稍后在「我的」里补设
+          if (data && data.code === 'name_required') { showDone(''); return; }
+          showErr(setNameMsg, data);
+        }).catch(function () {
+          btnSetName.disabled = false;
+          btnSkipName.disabled = false;
+          setMsg(setNameMsg, 'acc.err.net');
+        });
+      }
+
+      btnSetName.onclick = function () {
+        var name = (regName.value || '').replace(/^\s+|\s+$/g, '');
+        setMsg(setNameMsg, '');
+        if (!name) { setMsg(setNameMsg, 'acc.err.name_required'); regName.focus(); return; }
+        if (nameLen(name) > 20) { setMsg(setNameMsg, 'acc.err.name_long'); regName.focus(); return; }
+        finishReg(name);
+      };
+
+      btnSkipName.onclick = function () {
+        // 暂不设置：直接完成注册，名称留空，之后可在「我的」里补设
+        showPane('done');
+        showDone('');
+      };
+
+      /* ---------------- 注册成功面板 ---------------- */
+      var newEmailEl = d.getElementById('newEmail');
+      var newNameEl = d.getElementById('newName');
+      var btnGoLogin = d.getElementById('btnGoLogin');
+      var doneMsg = d.getElementById('doneMsg');
+
+      function showDone(name) {
+        newEmailEl.textContent = regState.email || '';
+        if (name) {
+          newNameEl.textContent = name;
+          setMsg(doneMsg, '');
+        } else {
+          newNameEl.textContent = '';
+          setMsg(doneMsg, 'acc.nameLater', 'ok');
+        }
+        showPane('done');
+      }
+
       btnGoLogin.onclick = function () {
-        showTab('login');
+        showPane('login');
+        d.getElementById('loginAcct').value = regState.email || '';
         d.getElementById('loginPwd').value = '';
+        d.getElementById('loginCode').value = '';
         d.getElementById('loginPwd').focus();
       };
 
-      /* ---------------- 登录 ---------------- */
+      /* ---------------- 登录：邮箱 + 密码 + 邮箱验证码 ---------------- */
       var btnLogin = d.getElementById('btnLogin');
-      var loginId = d.getElementById('loginId');
+      var loginAcct = d.getElementById('loginAcct');
       var loginPwd = d.getElementById('loginPwd');
-      var loginEmail = d.getElementById('loginEmail');
       var loginCode = d.getElementById('loginCode');
       var btnLoginCode = d.getElementById('btnLoginCode');
       var loginMsg = d.getElementById('loginMsg');
 
-      // 编号区分大小写（新编号允许小写与 @），输入时就地过滤非法字符
-      var ACCEPT_RE = /[^A-Za-z0-9@]/g;
-      loginId.oninput = function () {
-        var v = (loginId.value || '').replace(ACCEPT_RE, '').substr(0, 8);
-        if (v !== loginId.value) loginId.value = v;
-      };
+      // 编号仍保留给历史账号（如 88888888）：输入不含 @ 时按编号处理
+      var ACCEPT_RE = /[^A-Za-z0-9@._%+\-]/g;
+
+      function acct() {
+        var raw = (loginAcct.value || '').replace(/^\s+|\s+$/g, '');
+        if (raw.indexOf('@') > 0) return { isMail: true, email: normEmail(raw), id: '' };
+        return { isMail: false, email: '', id: raw.replace(/[^A-Za-z0-9]/g, '') };
+      }
+
+      function acctBad(a) {
+        if (a.isMail) return !emailOk(a.email);
+        return a.id.length !== 6 && a.id.length !== 8;
+      }
+
+      function acctErr(a) {
+        return a.isMail ? 'acc.err.email_bad' : 'acc.err.id_short';
+      }
 
       loginCode.oninput = function () {
         var v = (loginCode.value || '').replace(/[^0-9]/g, '').substr(0, 6);
@@ -927,60 +1006,57 @@
 
       btnLoginCode.onclick = function () {
         if (btnLoginCode.disabled) return;
-        var id = (loginId.value || '').replace(ACCEPT_RE, '');
-        var email = normEmail(loginEmail.value);
+        var a = acct();
         setMsg(loginMsg, '');
-        if (id.length !== 6 && id.length !== 8) { setMsg(loginMsg, 'acc.err.id_short'); loginId.focus(); return; }
-        if (email && !emailOk(email)) { setMsg(loginMsg, 'acc.err.email_bad'); loginEmail.focus(); return; }
-        requestCode({ btn: btnLoginCode, msg: loginMsg, scene: 'login', id: id, email: email, key: 'acc.sendCode' });
+        if (acctBad(a)) { setMsg(loginMsg, acctErr(a)); loginAcct.focus(); return; }
+        requestCode({ btn: btnLoginCode, msg: loginMsg, scene: 'login', id: a.id, email: a.email, key: 'acc.sendCode' });
       };
 
       btnLogin.onclick = function () {
         if (btnLogin.disabled) return;
-        var id = (loginId.value || '').replace(ACCEPT_RE, '');
+        var a = acct();
         var pwd = loginPwd.value || '';
-        var email = normEmail(loginEmail.value);
         var code = (loginCode.value || '').replace(/[^0-9]/g, '');
 
         setMsg(loginMsg, '');
-        if (id.length !== 6 && id.length !== 8) { setMsg(loginMsg, 'acc.err.id_short'); loginId.focus(); return; }
+        if (acctBad(a)) { setMsg(loginMsg, acctErr(a)); loginAcct.focus(); return; }
         if (!pwd) { setMsg(loginMsg, 'acc.err.pwd_required'); loginPwd.focus(); return; }
+        if (code.length !== 6) { setMsg(loginMsg, 'acc.err.code_required'); loginCode.focus(); return; }
         if (!cryptoReady()) { setMsg(loginMsg, 'acc.err.no_crypto'); return; }
 
         btnLogin.disabled = true;
         setBtnLabel(btnLogin, 'acc.loggingIn');
 
-        // 先取盐，再本地算哈希，明文密码不出浏览器；密码通过后服务端还会要求邮箱验证码
-        post({ action: 'challenge', id: id }).then(function (data) {
+        // 先取盐，再本地算哈希，明文密码不出浏览器；密码通过后服务端仍会校验邮箱验证码
+        post({ action: 'challenge', id: a.id, email: a.email }).then(function (data) {
           if (!data || !data.ok || !data.salt) return { ok: false, code: (data && data.code) || 'bad_cred' };
           return sha256Hex(data.salt + ':' + pwd).then(function (pwdHash) {
             if (!pwdHash) return { ok: false, code: 'no_crypto' };
-            return post({ action: 'login', id: id, pwdHash: pwdHash, email: email, code: code });
+            return post({ action: 'login', id: a.id, email: a.email, pwdHash: pwdHash, code: code });
           });
         }).then(function (data) {
           if (data && data.ok) {
             try {
-              sessionStorage.setItem(SID_KEY, data.id || id);
+              sessionStorage.setItem(SID_KEY, data.id || a.id);
               sessionStorage.setItem(SNAME_KEY, data.name || '');
               // 供「我的」页展示：注册时间与官方认证状态（无则不展示对应行）
               if (data.createdAt) sessionStorage.setItem('cealin_account_created', String(data.createdAt));
               sessionStorage.setItem('cealin_account_official', data.official ? '1' : '');
+              // 邮箱只在当前会话内保存，供「我的」页展示与文章署名提示
+              sessionStorage.setItem('cealin_account_email', a.isMail ? a.email : (data.masked || ''));
             } catch (e) {}
-            // 登录成功立即补一次在线心跳（失败静默），并开启 60 秒周期上报
             try {
               if (w.cealinPresence && w.cealinPresence.start) w.cealinPresence.start();
             } catch (e) {}
             setBtnLabel(btnLogin, 'acc.loginBtn');
             setMsg(loginMsg, 'acc.loginOk', 'ok');
-            // 登录成功后直接进入「我的」个人中心（账号设置也都在那里）
             setTimeout(function () { w.location.href = 'mine.html'; }, 800);
-            // 万一跳转被拦截，3 秒后恢复按钮，避免卡死
             setTimeout(function () { btnLogin.disabled = false; }, 3000);
             return;
           }
           btnLogin.disabled = false;
           setBtnLabel(btnLogin, 'acc.loginBtn');
-          if (data && data.code === 'email_required') { loginEmail.focus(); }
+          if (data && data.code === 'email_required') { loginAcct.focus(); }
           if (data && (data.code === 'code_required' || data.code === 'code_bad')) { loginCode.focus(); }
           showErr(loginMsg, data);
         }).catch(function () {
@@ -1008,7 +1084,7 @@
         var open = pwdResetBox.style.display !== 'none';
         pwdResetBox.style.display = open ? 'none' : 'block';
         if (!open) {
-          if (!resetId.value) resetId.value = (loginId.value || '').replace(ACCEPT_RE, '');
+          if (!resetId.value) resetId.value = (loginAcct.value || '').replace(/[^A-Za-z0-9]/g, '');
           setMsg(resetMsg, '');
           resetId.focus();
         }
@@ -1047,10 +1123,12 @@
           if (code === 13) { ev.preventDefault(); btn.click(); }
         };
       }
-      onEnter(regName, btnRegister);
-      onEnter(regPwd, btnRegister);
-      onEnter(loginId, btnLogin);
+      onEnter(regCode, btnRegNext);
+      onEnter(regPwd2, btnRegFinish);
+      onEnter(regName, btnSetName);
+      onEnter(loginAcct, btnLogin);
       onEnter(loginPwd, btnLogin);
+      onEnter(loginCode, btnLogin);
       onEnter(resetId, btnResetSubmit);
 
       /* ---------------- 初始状态 ---------------- */
@@ -1062,8 +1140,7 @@
       if (savedId) {
         var guide = d.getElementById('mineGuide');
         if (guide) guide.style.display = '';
-        loginId.value = savedId;
-        showTab('login');
+        showPane('login');
         // 已有登录态：隐藏"未登录无法使用站内功能"提示（仅对未登录用户展示）
         var tipEl = d.getElementById('loginTip');
         if (tipEl) { tipEl.style.display = 'none'; }

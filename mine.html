@@ -463,6 +463,11 @@
         <span class="info-v" id="myName">—</span>
       </div>
 
+      <div class="info-row">
+        <span class="info-k" data-i18n="mine.emailLabel">邮箱</span>
+        <span class="info-v" id="myEmail">—</span>
+      </div>
+
       <!-- 官方认证：非官方账号整行不渲染 -->
       <div class="info-row" id="officialRow" style="display:none">
         <span class="info-k" data-i18n="mine.official">官方认证</span>
@@ -480,8 +485,26 @@
       </div>
     </section>
 
-    <!-- 更改密码 -->
+    <!-- 设置名称：注册时若跳过，可在这里补设；名称允许重名 -->
     <section class="card c2">
+      <div class="settings-sec first">
+        <h3 class="sec-title" data-i18n="mine.setNameTitle">设置名称</h3>
+        <p class="hint" data-i18n="mine.setNameHint">名称可以与他人重复，随时可以修改</p>
+        <div class="field">
+          <label for="setNameInput" data-i18n="mine.nameLabel">名称</label>
+          <input id="setNameInput" type="text" maxlength="20" autocomplete="off" spellcheck="false" data-i18n-ph="acc.namePh" placeholder="最多 20 个字符">
+        </div>
+        <div class="field">
+          <label for="setNamePwd" data-i18n="acc.pwd">密码</label>
+          <input id="setNamePwd" type="password" maxlength="64" autocomplete="current-password" data-i18n-ph="acc.pwdPh" placeholder="用于确认身份">
+        </div>
+        <button type="button" class="primary-btn" id="btnSetName" data-i18n="acc.setNameBtn">保存名称</button>
+        <p class="msg" id="setNameMsg"></p>
+      </div>
+    </section>
+
+    <!-- 更改密码 -->
+    <section class="card c3">
       <div class="settings-sec first">
         <h3 class="sec-title" data-i18n="acc.secPwd">更改密码</h3>
         <div class="field">
@@ -502,8 +525,8 @@
       </div>
     </section>
 
-    <!-- 更改编号（代码） -->
-    <section class="card c3">
+    <!-- 更改编号（代码）：登录已改为邮箱+验证码，编号仅作历史账号兼容，界面不再展示 -->
+    <section class="card" style="display:none">
       <div class="settings-sec first">
         <h3 class="sec-title" data-i18n="acc.secId">更改编号（代码）</h3>
         <div class="field">
@@ -547,6 +570,7 @@
       var API = '/api/accounts';
       var SID_KEY = 'cealin_account_id';
       var SNAME_KEY = 'cealin_account_name';
+      var SEMAIL_KEY = 'cealin_account_email';
       // 可选的资料键：后端接口目前不返回官方认证与注册时间，
       // 若将来写入这两个会话键，账号信息卡会自动展示对应行，无需改页面
       var SOFF_KEY = 'cealin_account_official';
@@ -694,6 +718,11 @@
         try { name = sessionStorage.getItem(SNAME_KEY) || ''; } catch (e) { name = ''; }
         myName.textContent = name || '—';
 
+        var mail = '';
+        try { mail = sessionStorage.getItem(SEMAIL_KEY) || ''; } catch (e) { mail = ''; }
+        var myEmail = d.getElementById('myEmail');
+        if (myEmail) myEmail.textContent = mail || '—';
+
         var off = '';
         var created = '';
         try {
@@ -823,6 +852,56 @@
         }
       };
 
+      /* ---------------- 设置名称（可重名，需密码自证身份） ---------------- */
+      var setNameInput = d.getElementById('setNameInput');
+      var setNamePwd = d.getElementById('setNamePwd');
+      var btnSetName = d.getElementById('btnSetName');
+      var setNameMsg = d.getElementById('setNameMsg');
+
+      if (setNameInput) {
+        try { setNameInput.value = sessionStorage.getItem(SNAME_KEY) || ''; } catch (e) {}
+      }
+
+      if (btnSetName) btnSetName.onclick = function () {
+        if (btnSetName.disabled) return;
+        var nm = (setNameInput.value || '').replace(/^\s+|\s+$/g, '');
+        var pv = setNamePwd.value || '';
+
+        setMsg(setNameMsg, '');
+        if (!sessionId) { setMsg(setNameMsg, 'acc.err.not_login'); return; }
+        if (!nm) { setMsg(setNameMsg, 'acc.err.name_required'); setNameInput.focus(); return; }
+        if (nm.length > 20) { setMsg(setNameMsg, 'acc.err.name_long'); setNameInput.focus(); return; }
+        if (!pv) { setMsg(setNameMsg, 'acc.err.pwd_required'); setNamePwd.focus(); return; }
+        if (!cryptoReady()) { setMsg(setNameMsg, 'acc.err.no_crypto'); return; }
+
+        btnSetName.disabled = true;
+        setBtnLabel(btnSetName, 'acc.pwdChanging');
+
+        post({ action: 'challenge', id: sessionId }).then(function (data) {
+          if (!data || !data.ok || !data.salt) return { ok: false, code: (data && data.code) || 'bad_cred' };
+          var salt = data.salt;
+          return sha256Hex(salt + ':' + pv).then(function (hash) {
+            if (!hash) return { ok: false, code: 'no_crypto' };
+            return post({ action: 'setName', id: sessionId, name: nm, pwdHash: hash });
+          });
+        }).then(function (data) {
+          btnSetName.disabled = false;
+          setBtnLabel(btnSetName, 'acc.setNameBtn');
+          if (data && data.ok) {
+            setNamePwd.value = '';
+            try { sessionStorage.setItem(SNAME_KEY, data.name || nm); } catch (e) {}
+            myName.textContent = data.name || nm;
+            setMsg(setNameMsg, 'acc.nameOk', 'ok');
+            return;
+          }
+          showErr(setNameMsg, data);
+        }).catch(function () {
+          btnSetName.disabled = false;
+          setBtnLabel(btnSetName, 'acc.setNameBtn');
+          setMsg(setNameMsg, 'acc.err.net');
+        });
+      };
+
       /* ---------------- 更改密码 ---------------- */
       var curPwd = d.getElementById('curPwd');
       var newPwd = d.getElementById('newPwd');
@@ -905,6 +984,7 @@
           for (var j = 0; j < drop.length; j++) sessionStorage.removeItem(drop[j]);
           sessionStorage.removeItem(SID_KEY);
           sessionStorage.removeItem(SNAME_KEY);
+          sessionStorage.removeItem(SEMAIL_KEY);
         } catch (e) {}
         sessionId = '';
         // 退出登录后停止在线心跳，避免会话失效后继续上报

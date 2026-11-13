@@ -179,11 +179,17 @@ const VCODE_LOGIN_PREFIX = 'vcode:login:';
 const VCODE_CNT_PREFIX = 'vcode:cnt:';
 const VCODE_TTL = 600;
 const VCODE_COOL = 60;
-const VCODE_SEND_MAX = 8;
+const VCODE_SEND_MAX = 25;
 const VCODE_SEND_WINDOW = 86400;
 const VCODE_TRY_MAX = 5;
 const CODE_LEN = 6;
 const CODE_RE = /^[0-9]{6}$/;
+// 邮箱索引：email -> 账号编号（邮箱作为登录标识，编号退为内部主键）
+const EMAIL_INDEX_PREFIX = 'email:';
+// 注册令牌：邮箱验证通过后签发，凭令牌才允许设置密码建号
+const REGTOK_PREFIX = 'regtok:';
+const REGTOK_TTL = 600;
+const REGTOK_RE = /^[a-f0-9]{48}$/;
 
 function normEmail(v) {
   return typeof v === 'string' ? v.trim().toLowerCase() : '';
@@ -200,6 +206,13 @@ function maskEmail(email) {
   const at = email.indexOf('@');
   if (at <= 0) return '***';
   return email.charAt(0) + '***' + email.slice(at);
+}
+
+// 邮箱反查账号编号（内部主键仍是 8 位编号）
+async function idByEmail(kv, email) {
+  const mail = normEmail(email);
+  if (!mail) return '';
+  return (await kv.get(EMAIL_INDEX_PREFIX + mail)) || '';
 }
 
 function makeCode() {
@@ -614,19 +627,36 @@ export async function onRequest(context) {
   if (action === 'sendCode') {
     const scene = typeof body.scene === 'string' ? body.scene.trim() : '';
     let email = normEmail(body.email);
+    // 解析后的真实账号编号：登录场景允许直接用邮箱反查
+    let vcodeId = id;
 
     if (scene === 'register') {
       if (!email) return fail(400, '请填写邮箱', 'email_required');
       if (!emailOk(email)) return fail(400, '邮箱格式不正确', 'email_bad');
     } else if (scene === 'login') {
-      if (!ID_RE.test(id)) return fail(400, '编号格式不正确', 'id_bad');
+      // 邮箱登录：无编号时用邮箱反查；老账号仍可直接用编号
+      let accountId = id;
+      if (!accountId) {
+        if (!email) return fail(400, '请填写邮箱', 'email_required');
+        if (!emailOk(email)) return fail(400, '邮箱格式不正确', 'email_bad');
+        try {
+          accountId = await idByEmail(kv, email);
+        } catch (err) {
+          return fail(500, '服务异常，请稍后重试', 'server');
+        }
+        // 不泄露邮箱是否已注册，统一按凭据错误处理
+        if (!accountId) return fail(401, '邮箱或密码错误', 'bad_cred');
+      } else if (!ID_RE.test(accountId)) {
+        return fail(400, '邮箱格式不正确', 'email_bad');
+      }
       let found = null;
       try {
-        found = await readAccount(kv, id);
+        found = await readAccount(kv, accountId);
       } catch (err) {
         return fail(500, '服务异常，请稍后重试', 'server');
       }
-      if (!found) return fail(401, '编号或密码错误', 'bad_cred');
+      if (!found) return fail(401, '邮箱或密码错误', 'bad_cred');
+      vcodeId = found.acc.id || accountId;
       const bound = normEmail(found.acc.email);
       // 已绑定邮箱：一律发到绑定邮箱，不接受任意外发；未绑定：使用本次填写的邮箱
       if (bound) email = bound;
@@ -640,7 +670,7 @@ export async function onRequest(context) {
       return fail(503, '邮件服务未配置，暂时无法发送验证码', 'mail_not_configured');
     }
 
-    const key = scene === 'register' ? VCODE_REG_PREFIX + email : VCODE_LOGIN_PREFIX + id;
+    const key = scene === 'register' ? VCODE_REG_PREFIX + email : VCODE_LOGIN_PREFIX + vcodeId;
     const issued = await issueCode(kv, key, scene, email);
     if (!issued.ok) {
       if (issued.code === 'code_cooldown') {
@@ -667,11 +697,206 @@ export async function onRequest(context) {
     return json({ ok: true, masked: maskEmail(email), cooldown: VCODE_COOL, ttl: VCODE_TTL });
   }
 
-  /* ---------------- 注册：名称 + 密码 + 邮箱验证码 → 分配编号 ---------------- */
-  if (action === 'register') {
+  /* ---------------- 注册第一步：邮箱验证码 → 领取注册令牌 ---------------- */
+  if (action === 'registerStart') {
+    if (!mailReady(env)) return fail(503, '邮件服务未配置，暂时无法注册', 'mail_not_configured');
+    const email = normEmail(body.email);
+    const code = typeof body.code === 'string' ? body.code.trim() : '';
+    if (!email) return fail(400, '请填写邮箱', 'email_required');
+    if (!emailOk(email)) return fail(400, '邮箱格式不正确', 'email_bad');
+    if (!CODE_RE.test(code)) return fail(400, '请输入 6 位邮箱验证码', 'code_required');
+
+    let existing = '';
+    try {
+      existing = await idByEmail(kv, email);
+    } catch (err) {
+      return fail(500, '服务异常，请稍后重试', 'server');
+    }
+    // 该邮箱已建号：直接提示去登录（否则用户会永远卡在注册）
+    if (existing) return fail(409, '该邮箱已注册，请直接登录', 'email_exists');
+
+    const codeCheck = await verifyCode(kv, VCODE_REG_PREFIX + email, code);
+    if (!codeCheck.ok) {
+      if (codeCheck.code === 'server') return fail(500, '服务异常，请稍后重试', 'server');
+      return fail(400, '验证码不正确或已失效，请重新获取', 'code_bad');
+    }
+
+    const token = randomHex(24);
+    try {
+      await kv.put(REGTOK_PREFIX + token, JSON.stringify({ email: email, at: Date.now() }), {
+        expirationTtl: REGTOK_TTL
+      });
+    } catch (err) {
+      return fail(500, '服务异常，请稍后重试', 'server');
+    }
+    return json({ ok: true, regToken: token, ttl: REGTOK_TTL, masked: maskEmail(email) });
+  }
+
+  /* ---------------- 注册第二步：设密码（名称可空）→ 建号 ---------------- */
+  if (action === 'registerFinish') {
+    const token = typeof body.regToken === 'string' ? body.regToken.trim() : '';
+    if (!REGTOK_RE.test(token)) return fail(400, '注册会话已失效，请重新获取验证码', 'reg_token_bad');
+    let reg = null;
+    try {
+      const rawReg = await kv.get(REGTOK_PREFIX + token);
+      if (rawReg) reg = JSON.parse(rawReg);
+    } catch (err) {
+      return fail(500, '服务异常，请稍后重试', 'server');
+    }
+    if (!reg || !reg.email) return fail(400, '注册会话已失效，请重新获取验证码', 'reg_token_bad');
+    const email = normEmail(reg.email);
+
+    // 名称可选：注册时可直接跳过，之后在「我的」里补设；允许重名
+    const name = typeof body.name === 'string' ? body.name.trim() : '';
+    if (name && nameLen(name) > NAME_MAX) return fail(400, '名称最多 20 个字符', 'name_long');
+
+    if (pwdHash) {
+      if (!HEX64.test(pwdHash)) return fail(400, '密码哈希格式不正确', 'hash_bad');
+      if (!HEX32.test(salt)) return fail(400, '盐格式不正确', 'salt_bad');
+    } else {
+      if (password.length < PWD_MIN) return fail(400, '密码至少需要 6 位', 'pwd_short');
+      if (password.length > PWD_MAX) return fail(400, '密码最长 64 位', 'pwd_long');
+      salt = randomHex(16);
+      pwdHash = await hashPassword(salt, password);
+    }
+
+    let existing = '';
+    try {
+      existing = await idByEmail(kv, email);
+    } catch (err) {
+      return fail(500, '服务异常，请稍后重试', 'server');
+    }
+    if (existing) return fail(409, '该邮箱已注册，请直接登录', 'email_exists');
+
+    let newId = '';
+    let placed = false;
+    for (let i = 0; i < ID_RETRY; i++) {
+      const candidate = makeId();
+      let taken = null;
+      try {
+        taken = await kv.get(KV_PREFIX + candidate);
+      } catch (err) {
+        return fail(500, '服务异常，请稍后重试', 'server');
+      }
+      if (!taken) {
+        newId = candidate;
+        placed = true;
+        break;
+      }
+    }
+    if (!placed) return fail(503, '编号分配失败，请稍后重试', 'id_exhausted');
+
+    const record = {
+      id: newId,
+      name: name,
+      pwdHash: pwdHash,
+      salt: salt,
+      createdAt: Date.now(),
+      email: email
+    };
+    try {
+      await kv.put(KV_PREFIX + newId, JSON.stringify(record));
+      await kv.put(EMAIL_INDEX_PREFIX + email, newId);
+    } catch (err) {
+      return fail(500, '服务异常，请稍后重试', 'server');
+    }
+    try {
+      await kv.delete(REGTOK_PREFIX + token);
+    } catch (err) {}
+    return json({ ok: true, id: newId, name: name, email: maskEmail(email), createdAt: record.createdAt });
+  }
+
+  /* ---------------- 设置 / 修改名称：允许重名，凭密码自证身份 ---------------- */
+  if (action === 'setName') {
     const name = typeof body.name === 'string' ? body.name.trim() : '';
     if (!name) return fail(400, '请输入名称', 'name_required');
     if (nameLen(name) > NAME_MAX) return fail(400, '名称最多 20 个字符', 'name_long');
+    if (!ID_RE.test(id)) return fail(400, '账号信息不完整，请重新登录', 'id_bad');
+
+    let found = null;
+    try {
+      found = await readAccount(kv, id);
+    } catch (err) {
+      return fail(500, '服务异常，请稍后重试', 'server');
+    }
+    if (!found) return fail(401, '账号不存在，请重新登录', 'bad_cred');
+
+    if (pwdHash) {
+      if (!safeEqual(pwdHash, found.acc.pwdHash)) return fail(401, '密码错误', 'bad_cred');
+    } else {
+      if (!password) return fail(400, '请输入密码', 'pwd_required');
+      const candidate = await hashPassword(found.acc.salt, password);
+      if (!safeEqual(candidate, found.acc.pwdHash)) return fail(401, '密码错误', 'bad_cred');
+    }
+
+    found.acc.name = name;
+    try {
+      await kv.put(found.key, JSON.stringify(found.acc));
+    } catch (err) {
+      return fail(500, '服务异常，请稍后重试', 'server');
+    }
+    return json({ ok: true, id: found.acc.id || id, name: name });
+  }
+
+  /* ---------------- 老账号绑定邮箱：编号 + 密码 + 邮箱验证码 ---------------- */
+  // 登录主标识已改为邮箱，历史编号账号（无邮箱）需先用一次编号+密码自证身份并绑定邮箱
+  if (action === 'bindEmail') {
+    const mail = normEmail(body.email);
+    const code = typeof body.code === 'string' ? body.code.trim() : '';
+    if (!ID_RE.test(id)) return fail(400, '请输入正确的账号编号', 'id_bad');
+    if (!emailOk(mail)) return fail(400, '邮箱格式不正确', 'email_bad');
+    if (!CODE_RE.test(code)) return fail(400, '请输入 6 位邮箱验证码', 'code_required');
+
+    let found = null;
+    try {
+      found = await readAccount(kv, id);
+    } catch (err) {
+      return fail(500, '服务异常，请稍后重试', 'server');
+    }
+    if (!found) return fail(401, '编号或密码错误', 'bad_cred');
+    const acc = found.acc;
+    if (!acc.pwdHash || !acc.salt) return fail(500, '服务异常，请稍后重试', 'server');
+
+    let candidate = '';
+    if (pwdHash) {
+      if (!HEX64.test(pwdHash)) return fail(400, '密码哈希格式不正确', 'hash_bad');
+      candidate = pwdHash;
+    } else {
+      if (!password) return fail(400, '请输入密码', 'pwd_required');
+      candidate = await hashPassword(acc.salt, password);
+    }
+    if (!safeEqual(candidate, acc.pwdHash)) return fail(401, '编号或密码错误', 'bad_cred');
+    if (normEmail(acc.email)) return fail(409, '该账号已绑定邮箱，请直接用邮箱登录', 'email_bound');
+
+    let takenBy = '';
+    try {
+      takenBy = await idByEmail(kv, mail);
+    } catch (err) {
+      return fail(500, '服务异常，请稍后重试', 'server');
+    }
+    if (takenBy && takenBy !== (acc.id || id)) return fail(409, '该邮箱已绑定其他账号', 'email_exists');
+
+    const codeCheck = await verifyCode(kv, VCODE_REG_PREFIX + mail, code);
+    if (!codeCheck.ok) {
+      if (codeCheck.code === 'server') return fail(500, '服务异常，请稍后重试', 'server');
+      return fail(400, '验证码不正确或已失效，请重新获取', 'code_bad');
+    }
+
+    acc.email = mail;
+    try {
+      await kv.put(found.key, JSON.stringify(acc));
+      await kv.put(EMAIL_INDEX_PREFIX + mail, acc.id || id);
+    } catch (err) {
+      return fail(500, '服务异常，请稍后重试', 'server');
+    }
+    return json({ ok: true, id: acc.id || id, email: maskEmail(mail) });
+  }
+
+  /* ---------------- 注册：名称 + 密码 + 邮箱验证码 → 分配编号 ---------------- */
+  if (action === 'register') {
+    // 名称可为空：注册允许「暂不设置」，之后在「我的」页补设；允许重名
+    const name = typeof body.name === 'string' ? body.name.trim() : '';
+    if (name && nameLen(name) > NAME_MAX) return fail(400, '名称最多 20 个字符', 'name_long');
 
     // 注册强制邮箱验证：未配置邮件通道时直接拒绝，避免出现「无验证注册」的口子
     if (!mailReady(env)) return fail(503, '邮件服务未配置，暂时无法注册', 'mail_not_configured');
@@ -728,6 +953,8 @@ export async function onRequest(context) {
     };
     try {
       await kv.put(KV_PREFIX + newId, JSON.stringify(record));
+      // 同步写邮箱索引，保证该账号以后能用邮箱登录
+      await kv.put(EMAIL_INDEX_PREFIX + email, newId);
     } catch (err) {
       return fail(500, '服务异常，请稍后重试', 'server');
     }
@@ -738,28 +965,57 @@ export async function onRequest(context) {
 
   /* ---------------- 取盐：登录前拿到该编号的盐 ---------------- */
   if (action === 'challenge') {
-    if (!ID_RE.test(id)) return fail(400, '编号格式不正确', 'id_bad');
+    // 邮箱登录：先用邮箱反查内部编号；老账号仍可直接用编号
+    let targetId = id;
+    const inputEmail = normEmail(body.email);
+    if (!targetId) {
+      if (!inputEmail) return fail(400, '请填写邮箱', 'email_required');
+      if (!emailOk(inputEmail)) return fail(400, '邮箱格式不正确', 'email_bad');
+      try {
+        targetId = await idByEmail(kv, inputEmail);
+      } catch (err) {
+        return fail(500, '服务异常，请稍后重试', 'server');
+      }
+      if (!targetId) return fail(401, '邮箱或密码错误', 'bad_cred');
+    } else if (!ID_RE.test(targetId)) {
+      return fail(400, '编号格式不正确', 'id_bad');
+    }
+
     let found = null;
     try {
-      found = await readAccount(kv, id);
+      found = await readAccount(kv, targetId);
     } catch (err) {
       return fail(500, '服务异常，请稍后重试', 'server');
     }
-    if (!found || !found.acc.salt) return fail(401, '编号或密码错误', 'bad_cred');
-    return json({ ok: true, id: found.acc.id || id, salt: found.acc.salt });
+    if (!found || !found.acc.salt) return fail(401, '邮箱或密码错误', 'bad_cred');
+    return json({ ok: true, id: found.acc.id || targetId, salt: found.acc.salt });
   }
 
   /* ---------------- 登录：编号 + 密码 ---------------- */
   if (action === 'login') {
-    if (!ID_RE.test(id)) return fail(400, '请输入正确的账号编号', 'id_bad');
+    // 主登录标识改为邮箱：用邮箱反查内部编号；老账号（无邮箱索引）仍可用编号登录一次
+    let loginIdValue = id;
+    const loginEmailInput = normEmail(body.email);
+    if (!loginIdValue) {
+      if (!loginEmailInput) return fail(400, '请填写邮箱', 'email_required');
+      if (!emailOk(loginEmailInput)) return fail(400, '邮箱格式不正确', 'email_bad');
+      try {
+        loginIdValue = await idByEmail(kv, loginEmailInput);
+      } catch (err) {
+        return fail(500, '服务异常，请稍后重试', 'server');
+      }
+      if (!loginIdValue) return fail(401, '邮箱或密码错误', 'bad_cred');
+    } else if (!ID_RE.test(loginIdValue)) {
+      return fail(400, '请输入正确的账号编号', 'id_bad');
+    }
 
     let found = null;
     try {
-      found = await readAccount(kv, id);
+      found = await readAccount(kv, loginIdValue);
     } catch (err) {
       return fail(500, '服务异常，请稍后重试', 'server');
     }
-    if (!found) return fail(401, '编号或密码错误', 'bad_cred');
+    if (!found) return fail(401, '邮箱或密码错误', 'bad_cred');
 
     const acc = found.acc;
     if (!acc.pwdHash || !acc.salt) return fail(500, '服务异常，请稍后重试', 'server');
@@ -781,7 +1037,7 @@ export async function onRequest(context) {
      * 通道可用时：已绑邮箱必须验证码正确才放行，未绑邮箱则由本次填写的邮箱完成首次绑定。 */
     if (mailReady(env)) {
       const boundEmail = normEmail(acc.email);
-      const inputEmail = normEmail(body.email);
+      const inputEmail = loginEmailInput;
       const code = typeof body.code === 'string' ? body.code.trim() : '';
       const targetEmail = boundEmail || inputEmail;
 
@@ -794,7 +1050,7 @@ export async function onRequest(context) {
       if (!CODE_RE.test(code)) {
         return fail(401, '请输入邮箱验证码', 'code_required');
       }
-      const codeCheck = await verifyCode(kv, VCODE_LOGIN_PREFIX + id, code);
+      const codeCheck = await verifyCode(kv, VCODE_LOGIN_PREFIX + loginIdValue, code);
       if (!codeCheck.ok) {
         if (codeCheck.code === 'server') return fail(500, '服务异常，请稍后重试', 'server');
         return fail(401, '验证码不正确或已失效，请重新获取', 'code_bad');
@@ -804,6 +1060,8 @@ export async function onRequest(context) {
         acc.email = targetEmail;
         try {
           await kv.put(found.key, JSON.stringify(acc));
+          // 老账号首次绑定邮箱：补写邮箱索引，下次即可用邮箱登录
+          await kv.put(EMAIL_INDEX_PREFIX + targetEmail, acc.id || loginIdValue);
         } catch (err) {
           return fail(500, '服务异常，请稍后重试', 'server');
         }
@@ -812,7 +1070,7 @@ export async function onRequest(context) {
 
     return json({
       ok: true,
-      id: acc.id || id,
+      id: acc.id || loginIdValue,
       name: acc.name || '',
       official: !!acc.official,
       createdAt: acc.createdAt || 0,

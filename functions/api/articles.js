@@ -159,16 +159,25 @@ async function writeIndex(env, list) {
   return capped;
 }
 
-// 账号名以服务端数据为准，避免客户端伪造作者昵称
-async function lookupAuthorName(env, authorId) {
-  if (!authorId) return '';
+// 作者信息以服务端数据为准，避免客户端伪造昵称与邮箱
+// 返回 { name, email }；name 为空时用邮箱前缀兜底，保证文章总有署名
+async function lookupAuthor(env, authorId) {
+  const out = { name: '', email: '' };
+  if (!authorId) return out;
   try {
     const acc = await env.GUESTBOOK.get(ACCOUNT_PREFIX + authorId, 'json');
-    if (acc && typeof acc === 'object') return trimStr(acc.name || '');
+    if (acc && typeof acc === 'object') {
+      out.name = trimStr(acc.name || '');
+      out.email = trimStr(acc.email || '');
+    }
   } catch (err) {
     /* 忽略：取不到时按空处理 */
   }
-  return '';
+  if (!out.name && out.email) {
+    const at = out.email.indexOf('@');
+    out.name = at > 0 ? out.email.slice(0, at) : out.email;
+  }
+  return out;
 }
 
 function makeSummary(article) {
@@ -182,6 +191,7 @@ function makeSummary(article) {
     tags: tags,
     authorId: article.authorId,
     authorName: article.authorName,
+    authorEmail: article.authorEmail,
     status: article.status,
     createdAt: article.createdAt,
     updatedAt: article.updatedAt,
@@ -351,6 +361,7 @@ async function handleList(env, body) {
       tags: Array.isArray(it.tags) ? it.tags : [],
       authorId: it.authorId,
       authorName: it.authorName,
+      authorEmail: it.authorEmail,
       createdAt: it.createdAt,
       summary: it.summary,
       imgCount: it.imgCount || 0,
@@ -503,7 +514,9 @@ async function handleSubmit(env, body) {
   const authorId = trimStr(body.authorId);
   if (!authorId) return fail(401, '请先登录后再投稿', 'login_required');
 
-  const authorName = await lookupAuthorName(env, authorId);
+  const author = await lookupAuthor(env, authorId);
+  const authorName = author.name;
+  const authorEmail = author.email;
   if (!authorName) return fail(401, '账号不存在或已失效，请重新登录', 'bad_account');
 
   const title = trimStr(body.title);
@@ -593,6 +606,7 @@ async function handleSubmit(env, body) {
       files: files,
       authorId: authorId,
       authorName: authorName,
+      authorEmail: authorEmail,
       status: 'pending',
       createdAt: existing ? existing.createdAt : now,
       updatedAt: now,

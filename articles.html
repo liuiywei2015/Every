@@ -581,7 +581,8 @@
             + '<p class="summary">' + esc(it.summary) + '</p>'
             + (tagHtml ? '<div class="tags">' + tagHtml + '</div>' : '')
             + '<div class="foot">'
-            + '<span>' + esc(it.authorName || cealinT('common.anonymous')) + '</span>'
+            + '<span class="byline"><span>' + esc(it.authorName || cealinT('common.anonymous')) + '</span>'
+            + (it.authorEmail ? ('<span class="byline-mail">' + esc(it.authorEmail) + '</span>') : '') + '</span>'
             + '<span class="dot">·</span>'
             + '<span>' + esc(fmtDate(it.createdAt)) + '</span>'
             + '<span class="dot">·</span>'

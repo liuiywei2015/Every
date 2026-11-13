@@ -28,6 +28,9 @@ const FRIEND_LIST = 'friend:list:';
 const FRIEND_REQ = 'friend:req:';
 const FRIEND_READ = 'friend:read:';
 const DM_PREFIX = 'friend:dm:';
+// 邮箱索引（由 accounts.js 维护）：email -> 账号编号
+const EMAIL_INDEX = 'email:';
+const EMAIL_RE = /^[A-Za-z0-9._%+\-]+@[A-Za-z0-9.\-]+\.[A-Za-z]{2,}$/;
 
 const ID_RE = /^[A-Za-z0-9@]{6,8}$/;
 const VERIFY_MAX = 60;        // 验证语上限（一句）
@@ -66,6 +69,28 @@ async function readAccount(kv, id) {
   return raw;
 }
 
+// 加好友入口统一按邮箱解析（老编号仍兼容）：返回账号对象，解析失败返回 null
+async function resolveAccount(kv, term) {
+  const t = trim(term);
+  if (!t) return null;
+  if (t.indexOf('@') > 0) {
+    const mail = t.toLowerCase();
+    if (mail.length > 254 || !EMAIL_RE.test(mail)) return null;
+    const id = trim(await kv.get(EMAIL_INDEX + mail));
+    if (!id) return null;
+    return await readAccount(kv, id);
+  }
+  if (!ID_RE.test(t)) return null;
+  return await readAccount(kv, t);
+}
+
+function maskMail(mail) {
+  const m = trim(mail);
+  const at = m.indexOf('@');
+  if (at <= 0) return '';
+  return m.charAt(0) + '***' + m.slice(at);
+}
+
 async function isOnline(kv, id, now) {
   const raw = await kv.get(KV_PRESENCE + id, 'json');
   const ts = raw && typeof raw.ts === 'number' ? raw.ts : 0;
@@ -97,23 +122,24 @@ function publicUser(acc, online) {
     id: acc.id || '',
     name: acc.name || acc.id || '',
     official: !!acc.official,
-    online: !!online
+    online: !!online,
+    email: maskMail(acc.email)
   };
 }
 
 /* ---------------- search：按编号精确搜索 ---------------- */
 async function handleSearch(env, me, target) {
   const kv = env.GUESTBOOK;
-  const id = trim(target);
-  if (!ID_RE.test(id)) return fail(400, '请输入正确的账号编号', 'noid');
-  if (id === me) {
-    // 自己搜自己：直接返回本人信息，前端提示「这是你自己的编号」
+  const term = trim(target);
+  if (!term) return fail(400, '请输入对方邮箱', 'noid');
+  const acc = await resolveAccount(kv, term);
+  if (!acc) return fail(404, '未找到该邮箱对应的账号', 'notfound');
+  const realId = acc.id || term;
+  if (realId === me) {
+    // 自己搜自己：直接返回本人信息，前端提示「这是你自己的邮箱」
     const self = await readAccount(kv, me);
     return json({ ok: true, user: publicUser(self || { id: me }, true), relation: 'self' });
   }
-  const acc = await readAccount(kv, id);
-  if (!acc) return fail(404, '未找到该编号对应的账号', 'notfound');
-  const realId = acc.id || id;
   const now = Date.now();
   const online = await isOnline(kv, realId, now);
 
@@ -138,12 +164,12 @@ async function handleSearch(env, me, target) {
 async function handleRequest(env, me, to, msg) {
   const kv = env.GUESTBOOK;
   const target = trim(to);
-  if (!ID_RE.test(target)) return fail(400, '请输入正确的账号编号', 'noid');
-  if (target === me) return fail(400, '不能添加自己为好友', 'self');
+  if (!target) return fail(400, '请输入对方邮箱', 'noid');
 
-  const acc = await readAccount(kv, target);
-  if (!acc) return fail(404, '未找到该编号对应的账号', 'notfound');
+  const acc = await resolveAccount(kv, target);
+  if (!acc) return fail(404, '未找到该邮箱对应的账号', 'notfound');
   const realTo = acc.id || target;
+  if (realTo === me) return fail(400, '不能添加自己为好友', 'self');
 
   const mine = await friendIds(kv, me);
   if (mine.indexOf(realTo) !== -1) return fail(400, '你们已经是好友了', 'already');
