@@ -167,6 +167,163 @@ async function checkAdmin(kv, password) {
   return typeof password === 'string' && password.length > 0 && password === adminPwd;
 }
 
+/* ================= 邮箱验证码：注册强制验证 + 登录二次验证 =================
+ * 注册：名称 + 密码 + 邮箱 + 验证码，验证码校验通过才落库，并写入 email 字段。
+ * 登录：编号 + 密码校验通过后，再向绑定邮箱发码，验证码正确才算登录成功。
+ * 老账号（无 email）首次登录时由用户补填邮箱，验证通过后自动绑定。
+ * 验证码存 KV，按场景分键；10 分钟有效、60 秒发送冷却、24 小时最多 8 次、最多试错 5 次。 */
+const EMAIL_MAX = 254;
+const EMAIL_RE = /^[A-Za-z0-9._%+\-]+@[A-Za-z0-9.\-]+\.[A-Za-z]{2,}$/;
+const VCODE_REG_PREFIX = 'vcode:reg:';
+const VCODE_LOGIN_PREFIX = 'vcode:login:';
+const VCODE_CNT_PREFIX = 'vcode:cnt:';
+const VCODE_TTL = 600;
+const VCODE_COOL = 60;
+const VCODE_SEND_MAX = 8;
+const VCODE_SEND_WINDOW = 86400;
+const VCODE_TRY_MAX = 5;
+const CODE_LEN = 6;
+const CODE_RE = /^[0-9]{6}$/;
+
+function normEmail(v) {
+  return typeof v === 'string' ? v.trim().toLowerCase() : '';
+}
+
+function emailOk(email) {
+  if (!email || email.length > EMAIL_MAX) return false;
+  if (email.indexOf('..') >= 0) return false;
+  return EMAIL_RE.test(email);
+}
+
+// 脱敏：本地部分保留首字符，其余用 *，域名保留（a***@qq.com）
+function maskEmail(email) {
+  const at = email.indexOf('@');
+  if (at <= 0) return '***';
+  return email.charAt(0) + '***' + email.slice(at);
+}
+
+function makeCode() {
+  const buf = new Uint8Array(CODE_LEN);
+  crypto.getRandomValues(buf);
+  let out = '';
+  for (let i = 0; i < CODE_LEN; i++) out += String(buf[i] % 10);
+  return out;
+}
+
+// 邮件通道：优先 Brevo（BREVO_API_KEY），其次 Resend（RESEND_API_KEY），发件人取 MAIL_FROM
+function mailReady(env) {
+  return !!(env && (env.BREVO_API_KEY || env.RESEND_API_KEY));
+}
+
+async function sendMail(env, to, subject, text) {
+  const from = env && typeof env.MAIL_FROM === 'string' ? env.MAIL_FROM.trim() : '';
+  const brevo = env ? env.BREVO_API_KEY : '';
+  const resend = env ? env.RESEND_API_KEY : '';
+  if (!brevo && !resend) return { ok: false, reason: 'mail_not_configured' };
+  if (!from) return { ok: false, reason: 'mail_not_configured' };
+
+  let resp = null;
+  try {
+    if (brevo) {
+      resp = await fetch('https://api.brevo.com/v3/smtp/email', {
+        method: 'POST',
+        headers: {
+          'api-key': String(brevo),
+          'Content-Type': 'application/json',
+          Accept: 'application/json'
+        },
+        body: JSON.stringify({
+          sender: { email: from, name: 'Cealin' },
+          to: [{ email: to }],
+          subject: subject,
+          textContent: text
+        })
+      });
+    } else {
+      resp = await fetch('https://api.resend.com/emails', {
+        method: 'POST',
+        headers: {
+          Authorization: 'Bearer ' + String(resend),
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ from: from, to: [to], subject: subject, text: text })
+      });
+    }
+  } catch (err) {
+    return { ok: false, reason: 'mail_fail' };
+  }
+  if (!resp || !resp.ok) {
+    return { ok: false, reason: 'mail_fail', status: resp ? resp.status : 0 };
+  }
+  return { ok: true, via: brevo ? 'brevo' : 'resend' };
+}
+
+// 生成并写入验证码：先查日限、再查冷却，均通过才发码
+async function issueCode(kv, key, scene, email) {
+  const now = Date.now();
+  const cntKey = VCODE_CNT_PREFIX + scene + ':' + (email || key);
+  let cnt = 0;
+  try {
+    cnt = Number(await kv.get(cntKey)) || 0;
+  } catch (err) {
+    cnt = 0;
+  }
+  if (cnt >= VCODE_SEND_MAX) return { ok: false, code: 'code_daily' };
+
+  let prev = null;
+  try {
+    prev = await kv.get(key, 'json');
+  } catch (err) {
+    prev = null;
+  }
+  if (prev && prev.sentAt && now - prev.sentAt < VCODE_COOL * 1000) {
+    return { ok: false, code: 'code_cooldown', wait: Math.ceil((VCODE_COOL * 1000 - (now - prev.sentAt)) / 1000) };
+  }
+
+  const code = makeCode();
+  try {
+    await kv.put(
+      key,
+      JSON.stringify({ code: code, sentAt: now, tried: 0 }),
+      { expirationTtl: VCODE_TTL }
+    );
+    await kv.put(cntKey, String(cnt + 1), { expirationTtl: VCODE_SEND_WINDOW });
+  } catch (err) {
+    return { ok: false, code: 'server' };
+  }
+  return { ok: true, code: code };
+}
+
+// 校验验证码：正确即删除；错误累计到上限也删除，防止暴力尝试
+async function verifyCode(kv, key, code) {
+  let raw = null;
+  try {
+    raw = await kv.get(key, 'json');
+  } catch (err) {
+    return { ok: false, code: 'server' };
+  }
+  if (!raw || !raw.code) return { ok: false, code: 'code_bad' };
+
+  if (String(raw.code) !== String(code)) {
+    const tried = (Number(raw.tried) || 0) + 1;
+    if (tried >= VCODE_TRY_MAX) {
+      try { await kv.delete(key); } catch (err) {}
+    } else {
+      try {
+        await kv.put(
+          key,
+          JSON.stringify({ code: raw.code, sentAt: raw.sentAt || Date.now(), tried: tried }),
+          { expirationTtl: VCODE_TTL }
+        );
+      } catch (err) {}
+    }
+    return { ok: false, code: 'code_bad' };
+  }
+
+  try { await kv.delete(key); } catch (err) {}
+  return { ok: true };
+}
+
 // 字节长度：KV 存储按 key + value 的字节数计，用于概览里的「估算占用」
 function byteLen(str) {
   if (!str) return 0;
@@ -333,11 +490,132 @@ export async function onRequest(context) {
   // 编号区分大小写（新编号允许小写），只做去空格
   const id = typeof body.id === 'string' ? body.id.trim() : '';
 
-  /* ---------------- 注册：名称 + 密码 → 分配编号 ---------------- */
+  /* ---------------- 临时运维接口：清理历史账号（保留指定编号） ----------------
+   * 仅管理员密码可用；keep 为保留编号数组；dryRun 为 true 时只列出将删除的编号不实际删除。
+   * 该分支仅用于本次一次性清理，执行完毕后从代码中移除。 */
+  if (action === 'purge') {
+    const isAdmin = await checkAdmin(kv, password);
+    if (!isAdmin) return fail(401, '密码错误', 'admin_pwd');
+
+    const keepList = Array.isArray(body.keep) ? body.keep : [];
+    const keep = {};
+    for (let i = 0; i < keepList.length; i++) {
+      const k = typeof keepList[i] === 'string' ? keepList[i].trim() : '';
+      if (k) keep[k] = true;
+    }
+    const dryRun = body.dryRun === true;
+    const removed = [];
+    const kept = [];
+    let cursor;
+    let page = 0;
+    do {
+      const opts = { prefix: KV_PREFIX, limit: 1000 };
+      if (cursor) opts.cursor = cursor;
+      const res = await kv.list(opts);
+      const keys = (res && res.keys) || [];
+      for (let i = 0; i < keys.length; i++) {
+        const name = keys[i] && keys[i].name ? String(keys[i].name) : '';
+        if (name.indexOf(KV_PREFIX) !== 0) continue;
+        if (name.indexOf(PRESENCE_PREFIX) === 0) continue;
+        const accId = name.slice(KV_PREFIX.length);
+        if (!accId) continue;
+        if (keep[accId]) {
+          kept.push(accId);
+          continue;
+        }
+        if (!dryRun) {
+          try {
+            await kv.delete(name);
+            await kv.delete(PRESENCE_PREFIX + accId);
+            await kv.delete(PWD_RESET_PREFIX + accId);
+          } catch (err) {
+            /* 单条删除失败不阻断后续 */
+          }
+        }
+        removed.push(accId);
+      }
+      cursor = res && !res.list_complete ? res.cursor : null;
+      page++;
+    } while (cursor && page < 20);
+
+    return json({ ok: true, dryRun: dryRun, kept: kept, removed: removed, removedCount: removed.length });
+  }
+
+  /* ---------------- 发送邮箱验证码：注册 / 登录二次验证 ---------------- */
+  if (action === 'sendCode') {
+    const scene = typeof body.scene === 'string' ? body.scene.trim() : '';
+    let email = normEmail(body.email);
+
+    if (scene === 'register') {
+      if (!email) return fail(400, '请填写邮箱', 'email_required');
+      if (!emailOk(email)) return fail(400, '邮箱格式不正确', 'email_bad');
+    } else if (scene === 'login') {
+      if (!ID_RE.test(id)) return fail(400, '编号格式不正确', 'id_bad');
+      let found = null;
+      try {
+        found = await readAccount(kv, id);
+      } catch (err) {
+        return fail(500, '服务异常，请稍后重试', 'server');
+      }
+      if (!found) return fail(401, '编号或密码错误', 'bad_cred');
+      const bound = normEmail(found.acc.email);
+      // 已绑定邮箱：一律发到绑定邮箱，不接受任意外发；未绑定：使用本次填写的邮箱
+      if (bound) email = bound;
+      if (!email) return fail(400, '该账号尚未绑定邮箱，请先填写邮箱', 'email_required');
+      if (!emailOk(email)) return fail(400, '邮箱格式不正确', 'email_bad');
+    } else {
+      return fail(400, '不支持的验证码场景，请刷新页面重试', 'scene_bad');
+    }
+
+    if (!mailReady(env)) {
+      return fail(503, '邮件服务未配置，暂时无法发送验证码', 'mail_not_configured');
+    }
+
+    const key = scene === 'register' ? VCODE_REG_PREFIX + email : VCODE_LOGIN_PREFIX + id;
+    const issued = await issueCode(kv, key, scene, email);
+    if (!issued.ok) {
+      if (issued.code === 'code_cooldown') {
+        return json({ ok: false, error: '验证码发送过于频繁，请稍后再试', code: 'code_cooldown', wait: issued.wait || VCODE_COOL }, 429);
+      }
+      if (issued.code === 'code_daily') return fail(429, '该邮箱今日收码次数已达上限，请明天再试', 'code_daily');
+      return fail(500, '服务异常，请稍后重试', 'server');
+    }
+
+    const sent = await sendMail(
+      env,
+      email,
+      'Cealin 邮箱验证码',
+      '你的 Cealin 验证码是 ' + issued.code + '，10 分钟内有效。\n若非本人操作，请忽略本邮件。'
+    );
+    if (!sent.ok) {
+      try { await kv.delete(key); } catch (err) {}
+      if (sent.reason === 'mail_not_configured') {
+        return fail(503, '邮件服务未配置，暂时无法发送验证码', 'mail_not_configured');
+      }
+      return fail(502, '验证码发送失败，请稍后重试', 'mail_fail');
+    }
+
+    return json({ ok: true, masked: maskEmail(email), cooldown: VCODE_COOL, ttl: VCODE_TTL });
+  }
+
+  /* ---------------- 注册：名称 + 密码 + 邮箱验证码 → 分配编号 ---------------- */
   if (action === 'register') {
     const name = typeof body.name === 'string' ? body.name.trim() : '';
     if (!name) return fail(400, '请输入名称', 'name_required');
     if (nameLen(name) > NAME_MAX) return fail(400, '名称最多 20 个字符', 'name_long');
+
+    // 注册强制邮箱验证：未配置邮件通道时直接拒绝，避免出现「无验证注册」的口子
+    if (!mailReady(env)) return fail(503, '邮件服务未配置，暂时无法注册', 'mail_not_configured');
+    const email = normEmail(body.email);
+    const code = typeof body.code === 'string' ? body.code.trim() : '';
+    if (!email) return fail(400, '请填写邮箱', 'email_required');
+    if (!emailOk(email)) return fail(400, '邮箱格式不正确', 'email_bad');
+    if (!CODE_RE.test(code)) return fail(400, '请输入 6 位邮箱验证码', 'code_required');
+    const codeCheck = await verifyCode(kv, VCODE_REG_PREFIX + email, code);
+    if (!codeCheck.ok) {
+      if (codeCheck.code === 'server') return fail(500, '服务异常，请稍后重试', 'server');
+      return fail(400, '验证码不正确或已失效，请重新获取', 'code_bad');
+    }
 
     if (pwdHash) {
       // 前端已用 Web Crypto 加盐哈希：只收 64 位十六进制哈希与 32 位盐
@@ -376,7 +654,8 @@ export async function onRequest(context) {
       name: name,
       pwdHash: pwdHash,
       salt: salt,
-      createdAt: Date.now()
+      createdAt: Date.now(),
+      email: email
     };
     try {
       await kv.put(KV_PREFIX + newId, JSON.stringify(record));
@@ -427,12 +706,48 @@ export async function onRequest(context) {
     if (!safeEqual(candidate, acc.pwdHash)) {
       return fail(401, '编号或密码错误', 'bad_cred');
     }
+
+    /* ---- 密码通过后的第二道验证：邮箱验证码 ----
+     * 邮件通道未配置时降级为原密码登录（否则全站登录会被锁死）；
+     * 通道可用时：已绑邮箱必须验证码正确才放行，未绑邮箱则由本次填写的邮箱完成首次绑定。 */
+    if (mailReady(env)) {
+      const boundEmail = normEmail(acc.email);
+      const inputEmail = normEmail(body.email);
+      const code = typeof body.code === 'string' ? body.code.trim() : '';
+      const targetEmail = boundEmail || inputEmail;
+
+      if (!targetEmail) {
+        return fail(401, '该账号尚未绑定邮箱，请填写邮箱并获取验证码', 'email_required');
+      }
+      if (!boundEmail && !emailOk(targetEmail)) {
+        return fail(400, '邮箱格式不正确', 'email_bad');
+      }
+      if (!CODE_RE.test(code)) {
+        return fail(401, '请输入邮箱验证码', 'code_required');
+      }
+      const codeCheck = await verifyCode(kv, VCODE_LOGIN_PREFIX + id, code);
+      if (!codeCheck.ok) {
+        if (codeCheck.code === 'server') return fail(500, '服务异常，请稍后重试', 'server');
+        return fail(401, '验证码不正确或已失效，请重新获取', 'code_bad');
+      }
+      // 首次登录补绑邮箱：验证码已通过，写入账号记录
+      if (!boundEmail) {
+        acc.email = targetEmail;
+        try {
+          await kv.put(found.key, JSON.stringify(acc));
+        } catch (err) {
+          return fail(500, '服务异常，请稍后重试', 'server');
+        }
+      }
+    }
+
     return json({
       ok: true,
       id: acc.id || id,
       name: acc.name || '',
       official: !!acc.official,
-      createdAt: acc.createdAt || 0
+      createdAt: acc.createdAt || 0,
+      email: acc.email ? maskEmail(normEmail(acc.email)) : ''
     });
   }
 

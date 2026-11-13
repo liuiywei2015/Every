@@ -411,6 +411,7 @@
     'acc.regEmail': { zh: '邮箱', en: 'Email', ja: 'メールアドレス', ko: '이메일', es: 'Correo electrónico' },
     'acc.regEmailPh': { zh: '用于接收验证码与找回密码', en: 'Used for verification codes and password recovery', ja: '確認コードの受信とパスワード再設定に使用します', ko: '인증 코드 수신과 비밀번호 찾기에 사용됩니다', es: 'Se usa para códigos de verificación y recuperar la contraseña' },
     'acc.regEmailBad': { zh: '邮箱格式不正确', en: 'That email address is not valid', ja: 'メールアドレスの形式が正しくありません', ko: '이메일 형식이 올바르지 않습니다', es: 'El correo no es válido' },
+    'acc.loginEmailPh': { zh: '已绑定邮箱可留空；首次登录请填写用于绑定', en: 'Leave blank if already linked; first login needs it', ja: '登録済みなら空欄可。初回ログイン時は入力してください', ko: '이미 등록했다면 비워두세요. 첫 로그인 시 입력하세요', es: 'Déjalo vacío si ya lo vinculaste; el primer inicio de sesión lo requiere' },
     'acc.regEmailRequired': { zh: '请填写邮箱', en: 'Please enter your email', ja: 'メールアドレスを入力してください', ko: '이메일을 입력해 주세요', es: 'Escribe tu correo' },
     'acc.codeLabel': { zh: '邮箱验证码', en: 'Email code', ja: 'メール確認コード', ko: '이메일 인증 코드', es: 'Código de correo' },
     'acc.codePh': { zh: '6 位数字', en: '6 digits', ja: '6桁の数字', ko: '6자리 숫자', es: '6 dígitos' },
@@ -513,6 +514,7 @@
     'acc.err.code_daily': { zh: '该邮箱今日收码次数已达上限，请明天再试', en: 'This email has reached its daily code limit—try again tomorrow', ja: 'このメールアドレスは本日の送信上限に達しました。明日お試しください', ko: '이 이메일은 오늘 받을 수 있는 횟수를 초과했습니다. 내일 다시 시도해 주세요', es: 'Este correo alcanzó el límite diario de códigos: prueba mañana' },
     'acc.err.no_email': { zh: '该账号未绑定邮箱，请联系管理员', en: 'This account has no linked email—contact the admin', ja: 'このアカウントにはメールアドレスが登録されていません。管理者にご連絡ください', ko: '이 계정에는 이메일이 등록되어 있지 않습니다. 관리자에게 문의해 주세요', es: 'Esta cuenta no tiene correo vinculado: contacta al administrador' },
     'acc.err.mail_fail': { zh: '验证码发送失败，请稍后重试', en: 'Could not send the code—please try again later', ja: '確認コードを送信できませんでした。しばらくしてからお試しください', ko: '인증 코드를 보내지 못했습니다. 잠시 후 다시 시도해 주세요', es: 'No se pudo enviar el código: inténtalo más tarde' },
+    'acc.err.mail_not_configured': { zh: '邮件服务未配置，暂时无法发送验证码', en: 'Mail service is not configured—codes cannot be sent right now', ja: 'メール送信サービスが未設定のため、確認コードを送信できません', ko: '메일 서비스가 설정되지 않아 인증 코드를 보낼 수 없습니다', es: 'El servicio de correo no está configurado: no se pueden enviar códigos' },
     'acc.err.scene_bad': { zh: '不支持的验证码场景，请刷新页面重试', en: 'Unsupported verification scenario—reload the page and try again', ja: 'サポートされていない確認シナリオです。ページを再読み込みしてください', ko: '지원하지 않는 인증 시나리오입니다. 페이지를 새로고침해 주세요', es: 'Escenario de verificación no admitido: recarga la página' },
     'acc.err.no_kv': { zh: '服务未配置存储，请稍后重试', en: 'Storage is not configured—try again later', ja: 'ストレージが未設定です。しばらくしてからお試しください', ko: '스토리지가 설정되지 않았습니다. 잠시 후 다시 시도해 주세요', es: 'El almacenamiento no está configurado: inténtalo más tarde' },
 

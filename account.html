@@ -438,6 +438,11 @@
   }
 
   button:hover:active:not(:disabled) { transform: translateY(0) scale(0.97); }
+
+  /* 邮箱验证码行：输入框 + 发送按钮并排 */
+  .code-row { display: flex; align-items: stretch; gap: 10px; }
+  .code-row input { flex: 1 1 auto; min-width: 0; }
+  .code-row .code-btn { flex: 0 0 auto; margin: 0; white-space: nowrap; padding-left: 14px; padding-right: 14px; }
 </style>
   <script src="notice-link.js"></script>
   <script src="i18n.js"></script>
@@ -491,6 +496,17 @@
           <input id="regPwd" type="password" maxlength="64" autocomplete="new-password" data-i18n-ph="acc.pwdPh" placeholder="至少 6 位">
         </div>
         <p class="hint" data-i18n="acc.pwdHint">密码经 SHA-256 加盐哈希后存储，不会明文保存</p>
+        <div class="field">
+          <label for="regEmail" data-i18n="acc.regEmail">邮箱</label>
+          <input id="regEmail" type="email" maxlength="254" autocomplete="email" spellcheck="false" data-i18n-ph="acc.regEmailPh" placeholder="用于接收验证码与找回密码">
+        </div>
+        <div class="field">
+          <label for="regCode" data-i18n="acc.codeLabel">邮箱验证码</label>
+          <div class="code-row">
+            <input id="regCode" type="text" maxlength="6" inputmode="numeric" autocomplete="one-time-code" spellcheck="false" data-i18n-ph="acc.codePh" placeholder="6 位数字">
+            <button type="button" class="ghost-btn code-btn" id="btnRegCode" data-i18n="acc.sendCode">获取验证码</button>
+          </div>
+        </div>
         <button type="button" class="primary-btn" id="btnRegister" data-i18n="acc.registerBtn">注册并获取编号</button>
         <p class="msg" id="regMsg"></p>
       </div>
@@ -519,6 +535,17 @@
           <input id="loginPwd" type="password" maxlength="64" autocomplete="current-password" data-i18n-ph="acc.pwdPh" placeholder="至少 6 位">
         </div>
         <p class="hint" data-i18n="acc.idHint">登录只认编号，不认名称</p>
+        <div class="field">
+          <label for="loginEmail" data-i18n="acc.regEmail">邮箱</label>
+          <input id="loginEmail" type="email" maxlength="254" autocomplete="email" spellcheck="false" data-i18n-ph="acc.loginEmailPh" placeholder="已绑定邮箱可留空；首次登录请填写用于绑定">
+        </div>
+        <div class="field">
+          <label for="loginCode" data-i18n="acc.codeLabel">邮箱验证码</label>
+          <div class="code-row">
+            <input id="loginCode" type="text" maxlength="6" inputmode="numeric" autocomplete="one-time-code" spellcheck="false" data-i18n-ph="acc.codePh" placeholder="6 位数字">
+            <button type="button" class="ghost-btn code-btn" id="btnLoginCode" data-i18n="acc.sendCode">获取验证码</button>
+          </div>
+        </div>
         <button type="button" class="primary-btn" id="btnLogin" data-i18n="acc.loginBtn">登录</button>
         <p class="msg" id="loginMsg"></p>
 
@@ -676,11 +703,93 @@
         el.textContent = (data && data.error) ? data.error : T('acc.err.server');
       }
 
+      /* ---------------- 邮箱验证码（注册 / 登录共用） ---------------- */
+      var EMAIL_RE = /^[A-Za-z0-9._%+\-]+@[A-Za-z0-9.\-]+\.[A-Za-z]{2,}$/;
+
+      // 纯文本消息（含变量替换，不参与语言重绘）
+      function setMsgText(el, text, cls) {
+        if (!el) return;
+        el.className = 'msg' + (cls ? ' ' + cls : '');
+        el.removeAttribute('data-msg-key');
+        el.textContent = text || '';
+      }
+
+      function normEmail(v) {
+        return (v || '').replace(/^\s+|\s+$/g, '').toLowerCase();
+      }
+
+      function emailOk(v) {
+        return !!v && v.length <= 254 && v.indexOf('..') < 0 && EMAIL_RE.test(v);
+      }
+
+      // 按钮倒计时：结束后恢复原文案与可点击
+      function countdown(btn, secs, key) {
+        var left = secs || 60;
+        var labelKey = key || 'acc.sendCode';
+        btn.disabled = true;
+        btn.removeAttribute('data-i18n');
+        function tick() {
+          if (left <= 0) {
+            btn.disabled = false;
+            btn.setAttribute('data-i18n', labelKey);
+            btn.textContent = T(labelKey);
+            return;
+          }
+          btn.textContent = T('acc.codeWait', { n: left });
+          left--;
+          setTimeout(tick, 1000);
+        }
+        tick();
+      }
+
+      // 发送验证码：成功后展示脱敏邮箱并进入 60 秒冷却
+      function requestCode(cfg) {
+        var btn = cfg.btn;
+        var msgEl = cfg.msg;
+        var payload = { action: 'sendCode', scene: cfg.scene };
+        if (cfg.email) payload.email = cfg.email;
+        if (cfg.id) payload.id = cfg.id;
+
+        setMsg(msgEl, '');
+        btn.disabled = true;
+
+        post(payload).then(function (data) {
+          if (data && data.ok) {
+            if (data.masked) setMsgText(msgEl, T('acc.codeSentTo', { email: data.masked }), 'ok');
+            else setMsg(msgEl, 'acc.codeSent', 'ok');
+            countdown(btn, data.cooldown || 60, cfg.key);
+            return;
+          }
+          btn.disabled = false;
+          showErr(msgEl, data);
+        }).catch(function () {
+          btn.disabled = false;
+          setMsg(msgEl, 'acc.err.net');
+        });
+      }
+
       /* ---------------- 注册 ---------------- */
       var btnRegister = d.getElementById('btnRegister');
       var regName = d.getElementById('regName');
       var regPwd = d.getElementById('regPwd');
+      var regEmail = d.getElementById('regEmail');
+      var regCode = d.getElementById('regCode');
+      var btnRegCode = d.getElementById('btnRegCode');
       var regMsg = d.getElementById('regMsg');
+
+      btnRegCode.onclick = function () {
+        if (btnRegCode.disabled) return;
+        var email = normEmail(regEmail.value);
+        setMsg(regMsg, '');
+        if (!email) { setMsg(regMsg, 'acc.err.email_required'); regEmail.focus(); return; }
+        if (!emailOk(email)) { setMsg(regMsg, 'acc.err.email_bad'); regEmail.focus(); return; }
+        requestCode({ btn: btnRegCode, msg: regMsg, scene: 'register', email: email, key: 'acc.sendCode' });
+      };
+
+      regCode.oninput = function () {
+        var v = (regCode.value || '').replace(/[^0-9]/g, '').substr(0, 6);
+        if (v !== regCode.value) regCode.value = v;
+      };
 
       function nameLen(s) {
         return Array.from(s).length;
@@ -690,12 +799,17 @@
         if (btnRegister.disabled) return;
         var name = (regName.value || '').replace(/^\s+|\s+$/g, '');
         var pwd = regPwd.value || '';
+        var email = normEmail(regEmail.value);
+        var code = (regCode.value || '').replace(/[^0-9]/g, '');
 
         setMsg(regMsg, '');
         if (!name) { setMsg(regMsg, 'acc.err.name_required'); regName.focus(); return; }
         if (nameLen(name) > 20) { setMsg(regMsg, 'acc.err.name_long'); regName.focus(); return; }
         if (pwd.length < 6) { setMsg(regMsg, 'acc.err.pwd_short'); regPwd.focus(); return; }
         if (pwd.length > 64) { setMsg(regMsg, 'acc.err.pwd_long'); regPwd.focus(); return; }
+        if (!email) { setMsg(regMsg, 'acc.err.email_required'); regEmail.focus(); return; }
+        if (!emailOk(email)) { setMsg(regMsg, 'acc.err.email_bad'); regEmail.focus(); return; }
+        if (code.length !== 6) { setMsg(regMsg, 'acc.err.code_required'); regCode.focus(); return; }
         if (!cryptoReady()) { setMsg(regMsg, 'acc.err.no_crypto'); return; }
 
         var salt = randomHex(16);
@@ -706,12 +820,20 @@
         setBtnLabel(btnRegister, 'acc.registering');
 
         hashed.then(function (pwdHash) {
-          return post({ action: 'register', name: name, salt: salt, pwdHash: pwdHash });
+          return post({
+            action: 'register',
+            name: name,
+            salt: salt,
+            pwdHash: pwdHash,
+            email: email,
+            code: code
+          });
         }).then(function (data) {
           btnRegister.disabled = false;
           setBtnLabel(btnRegister, 'acc.registerBtn');
           if (data && data.ok && data.id) {
             regPwd.value = '';
+            regCode.value = '';
             showDone(data.id, data.name || name, data.createdAt || 0);
             return;
           }
@@ -786,6 +908,9 @@
       var btnLogin = d.getElementById('btnLogin');
       var loginId = d.getElementById('loginId');
       var loginPwd = d.getElementById('loginPwd');
+      var loginEmail = d.getElementById('loginEmail');
+      var loginCode = d.getElementById('loginCode');
+      var btnLoginCode = d.getElementById('btnLoginCode');
       var loginMsg = d.getElementById('loginMsg');
 
       // 编号区分大小写（新编号允许小写与 @），输入时就地过滤非法字符
@@ -795,10 +920,27 @@
         if (v !== loginId.value) loginId.value = v;
       };
 
+      loginCode.oninput = function () {
+        var v = (loginCode.value || '').replace(/[^0-9]/g, '').substr(0, 6);
+        if (v !== loginCode.value) loginCode.value = v;
+      };
+
+      btnLoginCode.onclick = function () {
+        if (btnLoginCode.disabled) return;
+        var id = (loginId.value || '').replace(ACCEPT_RE, '');
+        var email = normEmail(loginEmail.value);
+        setMsg(loginMsg, '');
+        if (id.length !== 6 && id.length !== 8) { setMsg(loginMsg, 'acc.err.id_short'); loginId.focus(); return; }
+        if (email && !emailOk(email)) { setMsg(loginMsg, 'acc.err.email_bad'); loginEmail.focus(); return; }
+        requestCode({ btn: btnLoginCode, msg: loginMsg, scene: 'login', id: id, email: email, key: 'acc.sendCode' });
+      };
+
       btnLogin.onclick = function () {
         if (btnLogin.disabled) return;
         var id = (loginId.value || '').replace(ACCEPT_RE, '');
         var pwd = loginPwd.value || '';
+        var email = normEmail(loginEmail.value);
+        var code = (loginCode.value || '').replace(/[^0-9]/g, '');
 
         setMsg(loginMsg, '');
         if (id.length !== 6 && id.length !== 8) { setMsg(loginMsg, 'acc.err.id_short'); loginId.focus(); return; }
@@ -808,12 +950,12 @@
         btnLogin.disabled = true;
         setBtnLabel(btnLogin, 'acc.loggingIn');
 
-        // 先取盐，再本地算哈希，明文密码不出浏览器
+        // 先取盐，再本地算哈希，明文密码不出浏览器；密码通过后服务端还会要求邮箱验证码
         post({ action: 'challenge', id: id }).then(function (data) {
           if (!data || !data.ok || !data.salt) return { ok: false, code: (data && data.code) || 'bad_cred' };
           return sha256Hex(data.salt + ':' + pwd).then(function (pwdHash) {
             if (!pwdHash) return { ok: false, code: 'no_crypto' };
-            return post({ action: 'login', id: id, pwdHash: pwdHash });
+            return post({ action: 'login', id: id, pwdHash: pwdHash, email: email, code: code });
           });
         }).then(function (data) {
           if (data && data.ok) {
@@ -838,6 +980,8 @@
           }
           btnLogin.disabled = false;
           setBtnLabel(btnLogin, 'acc.loginBtn');
+          if (data && data.code === 'email_required') { loginEmail.focus(); }
+          if (data && (data.code === 'code_required' || data.code === 'code_bad')) { loginCode.focus(); }
           showErr(loginMsg, data);
         }).catch(function () {
           btnLogin.disabled = false;
