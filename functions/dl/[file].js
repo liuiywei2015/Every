@@ -12,6 +12,16 @@ const FILES = {
     url: 'https://github.com/liuiywei2015/Every/releases/download/dynamic-island-v1.0.0/DynamicIsland-1.0.0-win-x64.zip',
     name: 'DynamicIsland-1.0.0-win-x64.zip',
     type: 'application/zip'
+  },
+  'cealin-win': {
+    url: 'https://github.com/liuiywei2015/Every/releases/download/v26.11.8/Cealin-26.11.8-x64.exe',
+    name: 'Cealin-26.11.8-x64.exe',
+    type: 'application/octet-stream'
+  },
+  'cealin-admin-win': {
+    url: 'https://github.com/liuiywei2015/Every/releases/download/v26.11.8/Cealin-admin-26.11.8-x64.exe',
+    name: 'Cealin-admin-26.11.8-x64.exe',
+    type: 'application/octet-stream'
   }
 };
 
@@ -25,7 +35,7 @@ export async function onRequest(context) {
     return new Response('Method Not Allowed', { status: 405, headers: { Allow: 'GET, HEAD' } });
   }
 
-  const key = String((params && params.file) || '').toLowerCase().replace(/\.zip$/, '');
+  const key = String((params && params.file) || '').toLowerCase().replace(/\.(zip|exe)$/, '');
   const item = FILES[key];
   if (!item) {
     return new Response('Not Found', { status: 404, headers: { 'Content-Type': 'text/plain; charset=utf-8' } });
