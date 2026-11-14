@@ -14,8 +14,8 @@ const FILES = {
     type: 'application/zip'
   },
   'cealin-win': {
-    url: 'https://github.com/liuiywei2015/Every/releases/download/v26.11.8/Cealin-26.11.8-x64.exe',
-    name: 'Cealin-26.11.8-x64.exe',
+    url: 'https://github.com/liuiywei2015/Every/releases/download/v26.11.14/Cealin-26.11.14-x64.exe',
+    name: 'Cealin-26.11.14-x64.exe',
     type: 'application/octet-stream'
   },
   'cealin-admin-win': {
