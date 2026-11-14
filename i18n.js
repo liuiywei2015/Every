@@ -142,6 +142,15 @@
     'settings.about': { zh: '关于', en: 'About', ja: 'このサイトについて', ko: '정보', es: 'Acerca de' },
     'settings.hint': { zh: '设置会自动保存到本地，下次打开仍然生效', en: 'Your settings are saved on this device and stay the way you left them', ja: '設定はこの端末に自動保存され、次回も引き継がれます', ko: '설정은 이 기기에 자동 저장되어 다음에도 그대로 유지됩니다', es: 'Los ajustes se guardan en este dispositivo y se mantienen la próxima vez' },
     'settings.version': { zh: 'CEALIN · 个人', en: 'CEALIN · Personal', ja: 'CEALIN · パーソナル', ko: 'CEALIN · 개인', es: 'CEALIN · Personal' },
+    'settings.twofa': { zh: '二级验证（登录邮箱验证码）', en: 'Two-step verification (email code at sign-in)', ja: '二段階認証（ログイン時のメールコード）', ko: '2단계 인증(로그인 시 이메일 코드)', es: 'Verificación en dos pasos (código por correo al entrar)' },
+    'settings.twofaHint': { zh: '开启后登录需邮箱验证码；关闭则仅凭密码登录', en: 'On: signing in also needs an email code. Off: your password alone is enough.', ja: 'オンにするとログイン時にメールの確認コードが必要です。オフならパスワードのみで入れます。', ko: '켜면 로그인 시 이메일 인증 코드가 필요하고, 끄면 비밀번호만으로 로그인합니다.', es: 'Activado: al entrar también se pide un código por correo. Desactivado: basta la contraseña.' },
+    'settings.twofaMail': { zh: '验证码将发送至已绑定邮箱：{mail}', en: 'Codes go to your bound email: {mail}', ja: '確認コードは登録メール（{mail}）に届きます', ko: '인증 코드는 등록된 이메일({mail})로 전송됩니다', es: 'Los códigos se envían a tu correo vinculado: {mail}' },
+    'settings.twofaPwdTip': { zh: '请输入当前密码以确认', en: 'Enter your current password to confirm', ja: '確認のため現在のパスワードを入力してください', ko: '확인을 위해 현재 비밀번호를 입력하세요', es: 'Escribe tu contraseña actual para confirmar' },
+    'settings.confirm': { zh: '确定', en: 'Confirm', ja: '確定', ko: '확인', es: 'Confirmar' },
+    'settings.cancel': { zh: '取消', en: 'Cancel', ja: 'キャンセル', ko: '취소', es: 'Cancelar' },
+    'settings.twofaSaved': { zh: '已开启二级验证，下次登录需输入邮箱验证码', en: 'Two-step verification is on—next sign-in needs an email code', ja: '二段階認証を有効にしました。次回ログイン時はメールの確認コードが必要です', ko: '2단계 인증을 켰습니다. 다음 로그인부터 이메일 인증 코드가 필요합니다', es: 'Verificación en dos pasos activada: el próximo acceso pedirá un código por correo' },
+    'settings.twofaNeedEmail': { zh: '该账号尚未绑定邮箱，请先在账号页绑定邮箱后再开启', en: 'No email is linked to this account yet—link one on the account page first', ja: 'このアカウントにはメールが未登録です。先にアカウントページで登録してください', ko: '아직 이메일이 연결되지 않았습니다. 먼저 계정 페이지에서 이메일을 등록하세요', es: 'Esta cuenta no tiene correo vinculado: vincúlalo antes en la página de cuenta' },
+    'settings.twofaOffTip': { zh: '已关闭二级验证，以后登录只需密码', en: 'Two-step verification is off—from now on your password alone signs you in', ja: '二段階認証を無効にしました。今後はパスワードのみでログインできます', ko: '2단계 인증을 껐습니다. 이제 비밀번호만으로 로그인합니다', es: 'Verificación en dos pasos desactivada: desde ahora basta tu contraseña' },
 
     /* ---------- 公告管理 ---------- */
     'na.title': { zh: '公告管理', en: 'Notice management', ja: 'お知らせ管理', ko: '공지사항 관리', es: 'Gestión de anuncios' },
@@ -418,6 +427,7 @@
     'acc.codeBad': { zh: '验证码应为 6 位数字', en: 'The code must be 6 digits', ja: '確認コードは6桁の数字です', ko: '인증 코드는 6자리 숫자입니다', es: 'El código debe tener 6 dígitos' },
     'acc.codeRequired': { zh: '请输入邮箱验证码', en: 'Please enter the email code', ja: 'メール確認コードを入力してください', ko: '이메일 인증 코드를 입력해 주세요', es: 'Escribe el código del correo' },
     'acc.sendCode': { zh: '获取验证码', en: 'Get code', ja: 'コードを取得', ko: '코드 받기', es: 'Obtener código' },
+    'acc.needCodeTip': { zh: '该账号已开启二级验证，请输入邮箱验证码完成登录', en: 'This account uses two-step verification—enter the email code to finish signing in', ja: 'このアカウントは二段階認証が有効です。メールの確認コードを入力してログインしてください', ko: '이 계정은 2단계 인증을 사용합니다. 이메일 인증 코드를 입력해 로그인하세요', es: 'Esta cuenta usa verificación en dos pasos: introduce el código del correo para entrar' },
     'acc.codeSent': { zh: '验证码已发送，请查收邮箱（10 分钟内有效）', en: 'Code sent—check your inbox (valid for 10 minutes)', ja: '確認コードを送信しました。メールをご確認ください（10分間有効）', ko: '인증 코드를 보냈습니다. 메일을 확인해 주세요(10분간 유효)', es: 'Código enviado: revisa tu correo (válido 10 minutos)' },
     'acc.codeSentTo': { zh: '验证码已发送至 {email}（10 分钟内有效）', en: 'Code sent to {email} (valid for 10 minutes)', ja: '確認コードを {email} に送信しました（10分間有効）', ko: '{email}(으)로 인증 코드를 보냈습니다(10분간 유효)', es: 'Código enviado a {email} (válido 10 minutos)' },
     'acc.codeWait': { zh: '{n} 秒后可重发', en: 'Resend in {n}s', ja: '{n} 秒後に再送できます', ko: '{n}초 후 재전송 가능', es: 'Reenviar en {n}s' },

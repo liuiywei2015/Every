@@ -557,8 +557,9 @@
           <label for="loginPwd" data-i18n="acc.pwd">密码</label>
           <input id="loginPwd" type="password" maxlength="64" autocomplete="current-password" data-i18n-ph="acc.pwdPh" placeholder="至少 6 位">
         </div>
-        <p class="hint" data-i18n="acc.loginHint2">每次登录都需要邮箱验证码，加好友时用它核对身份</p>
-        <div class="field">
+        <p class="hint" data-i18n="acc.loginHint2">开启了二级验证的账号，登录时还需输入邮箱验证码</p>
+        <!-- 二级验证验证码区：仅在挑战接口返回 twofa=true 时显示（默认/未开启时隐藏） -->
+        <div class="field" id="loginCodeBox" style="display:none;">
           <label for="loginCode" data-i18n="acc.codeLabel">邮箱验证码</label>
           <div class="code-row">
             <input id="loginCode" type="text" maxlength="6" inputmode="numeric" autocomplete="one-time-code" spellcheck="false" data-i18n-ph="acc.codePh" placeholder="6 位数字">
@@ -775,6 +776,7 @@
       }
 
       // 发送验证码：成功后展示脱敏邮箱并进入 60 秒冷却
+      // quiet: true 时不改提示文案（登录页自动发码时由调用方保留「请输入验证码」提示）
       function requestCode(cfg) {
         var btn = cfg.btn;
         var msgEl = cfg.msg;
@@ -782,12 +784,14 @@
         if (cfg.email) payload.email = cfg.email;
         if (cfg.id) payload.id = cfg.id;
 
-        setMsg(msgEl, '');
+        if (!cfg.quiet) setMsg(msgEl, '');
         btn.disabled = true;
 
         post(payload).then(function (data) {
           if (data && data.ok) {
-            if (data.masked) setMsgText(msgEl, T('acc.codeSentTo', { email: data.masked }), 'ok');
+            if (cfg.quiet) {
+              // 保留调用方已设置的提示，只走冷却
+            } else if (data.masked) setMsgText(msgEl, T('acc.codeSentTo', { email: data.masked }), 'ok');
             else setMsg(msgEl, 'acc.codeSent', 'ok');
             countdown(btn, data.cooldown || 60, cfg.key);
             return;
@@ -973,13 +977,24 @@
         d.getElementById('loginPwd').focus();
       };
 
-      /* ---------------- 登录：邮箱 + 密码 + 邮箱验证码 ---------------- */
+      /* ---------------- 登录：邮箱 + 密码（开启二级验证时再补邮箱验证码） ---------------- */
       var btnLogin = d.getElementById('btnLogin');
       var loginAcct = d.getElementById('loginAcct');
       var loginPwd = d.getElementById('loginPwd');
+      var loginCodeBox = d.getElementById('loginCodeBox');
       var loginCode = d.getElementById('loginCode');
       var btnLoginCode = d.getElementById('btnLoginCode');
       var loginMsg = d.getElementById('loginMsg');
+
+      // 验证码区只在确认「该账号开启了二级验证」后展示；隐藏时一并清空输入
+      var loginCodeSent = false;
+      function showCodeBox(on) {
+        loginCodeBox.style.display = on ? '' : 'none';
+        if (!on) {
+          loginCode.value = '';
+          loginCodeSent = false;
+        }
+      }
 
       // 编号仍保留给历史账号（如 88888888）：输入不含 @ 时按编号处理
       var ACCEPT_RE = /[^A-Za-z0-9@._%+\-]/g;
@@ -1006,9 +1021,12 @@
 
       btnLoginCode.onclick = function () {
         if (btnLoginCode.disabled) return;
+        // 验证码区隐藏时不允许触发：未开二级验证的账号不需要验证码
+        if (loginCodeBox.style.display === 'none') return;
         var a = acct();
         setMsg(loginMsg, '');
         if (acctBad(a)) { setMsg(loginMsg, acctErr(a)); loginAcct.focus(); return; }
+        loginCodeSent = true;
         requestCode({ btn: btnLoginCode, msg: loginMsg, scene: 'login', id: a.id, email: a.email, key: 'acc.sendCode' });
       };
 
@@ -1017,24 +1035,45 @@
         var a = acct();
         var pwd = loginPwd.value || '';
         var code = (loginCode.value || '').replace(/[^0-9]/g, '');
+        var codeShown = loginCodeBox.style.display !== 'none';
 
         setMsg(loginMsg, '');
         if (acctBad(a)) { setMsg(loginMsg, acctErr(a)); loginAcct.focus(); return; }
         if (!pwd) { setMsg(loginMsg, 'acc.err.pwd_required'); loginPwd.focus(); return; }
-        if (code.length !== 6) { setMsg(loginMsg, 'acc.err.code_required'); loginCode.focus(); return; }
+        // 已展开验证码区且码没填满：只提示补齐，不重复请求验证码
+        if (codeShown && code.length > 0 && code.length !== 6) { setMsg(loginMsg, 'acc.err.code_required'); loginCode.focus(); return; }
         if (!cryptoReady()) { setMsg(loginMsg, 'acc.err.no_crypto'); return; }
 
         btnLogin.disabled = true;
         setBtnLabel(btnLogin, 'acc.loggingIn');
 
-        // 先取盐，再本地算哈希，明文密码不出浏览器；密码通过后服务端仍会校验邮箱验证码
+        // 先取盐（顺带拿到该账号是否开启二级验证），再本地算哈希，明文密码不出浏览器
         post({ action: 'challenge', id: a.id, email: a.email }).then(function (data) {
           if (!data || !data.ok || !data.salt) return { ok: false, code: (data && data.code) || 'bad_cred' };
+          // 未开启二级验证的账号不需要验证码，顺手收起验证码区
+          if (data.twofa !== true) showCodeBox(false);
           return sha256Hex(data.salt + ':' + pwd).then(function (pwdHash) {
             if (!pwdHash) return { ok: false, code: 'no_crypto' };
             return post({ action: 'login', id: a.id, email: a.email, pwdHash: pwdHash, code: code });
           });
         }).then(function (data) {
+          // 账号开了二级验证但还没填码：服务端会要求验证码，此时再展开验证码区
+          if (data && !data.ok && !code && (data.code === 'code_required' || data.code === 'code_bad')) {
+            showCodeBox(true);
+            setMsg(loginMsg, 'acc.needCodeTip', 'ok');
+            btnLogin.disabled = false;
+            setBtnLabel(btnLogin, 'acc.loginBtn');
+            // 首次只自动发一次码，之后由用户点「获取验证码」重发，避免反复请求
+            if (!loginCodeSent) {
+              loginCodeSent = true;
+              requestCode({
+                btn: btnLoginCode, msg: loginMsg, scene: 'login',
+                id: a.id, email: a.email, key: 'acc.sendCode', quiet: true
+              });
+            }
+            loginCode.focus();
+            return;
+          }
           if (data && data.ok) {
             try {
               sessionStorage.setItem(SID_KEY, data.id || a.id);
@@ -1057,7 +1096,11 @@
           btnLogin.disabled = false;
           setBtnLabel(btnLogin, 'acc.loginBtn');
           if (data && data.code === 'email_required') { loginAcct.focus(); }
-          if (data && (data.code === 'code_required' || data.code === 'code_bad')) { loginCode.focus(); }
+          if (data && (data.code === 'code_required' || data.code === 'code_bad')) {
+            // 后端要求验证码（账号开了二级验证）：确保验证码区可见后再聚焦
+            showCodeBox(true);
+            loginCode.focus();
+          }
           showErr(loginMsg, data);
         }).catch(function () {
           btnLogin.disabled = false;

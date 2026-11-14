@@ -238,6 +238,80 @@
     animation: fadeIn 0.85s cubic-bezier(0.22, 1, 0.36, 1) 0.5s forwards;
   }
 
+  /* ========== 二级验证（账号级开关，嵌入 panel 内） ========== */
+  .twofa-note {
+    padding: 0 26px 16px;
+    border-bottom: 1px solid rgba(var(--line-rgb), 0.06);
+    transition: border-color 0.4s ease;
+  }
+  .twofa-note .hint {
+    margin-top: 0;
+    line-height: 1.7;
+    opacity: 1;
+    animation: none;
+  }
+  .twofa-note .hint + .hint { margin-top: 6px; }
+
+  .twofa-pwd {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    flex-wrap: wrap;
+    margin-top: 14px;
+  }
+  .twofa-pwd input {
+    flex: 1 1 170px;
+    min-width: 140px;
+    padding: 10px 14px;
+    border-radius: 10px;
+    border: 1px solid rgba(var(--line-rgb), 0.16);
+    background: var(--input-bg);
+    color: var(--fg);
+    font-family: inherit;
+    font-size: 14px;
+    outline: none;
+    transition: border-color 0.3s ease;
+  }
+  .twofa-pwd input:focus { border-color: var(--gold); }
+  .twofa-pwd input::placeholder { color: var(--muted); }
+
+  .twofa-btns { display: flex; gap: 8px; }
+
+  .primary-btn,
+  .ghost-btn {
+    padding: 9px 20px;
+    border-radius: 999px;
+    font-family: inherit;
+    font-size: 13px;
+    letter-spacing: 0.08em;
+    cursor: pointer;
+    transition: background 0.25s ease, color 0.3s ease, border-color 0.3s ease, transform 0.2s ease;
+  }
+  .primary-btn {
+    border: 1px solid rgba(200, 169, 110, 0.55);
+    background: rgba(200, 169, 110, 0.18);
+    color: var(--fg);
+  }
+  .primary-btn:hover:not(:disabled) { background: rgba(200, 169, 110, 0.34); transform: translateY(-1px); }
+  .primary-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+  .ghost-btn {
+    border: 1px solid rgba(var(--line-rgb), 0.18);
+    background: rgba(var(--line-rgb), 0.05);
+    color: var(--muted);
+  }
+  .ghost-btn:hover { color: var(--fg); border-color: var(--gold); transform: translateY(-1px); }
+
+  .twofa-note .msg {
+    min-height: 18px;
+    margin-top: 10px;
+    font-size: 12px;
+    line-height: 1.7;
+    letter-spacing: 0.05em;
+    color: var(--muted);
+  }
+  .twofa-note .msg.ok { color: var(--gold-light); }
+  .twofa-note .msg.err { color: #d98a72; }
+
   @keyframes fadeIn {
   from { opacity: 0; transform: translateY(14px); }
   to { opacity: 1; transform: translateY(0); }
@@ -293,6 +367,25 @@
         <span data-i18n="settings.autoplay">自动播放</span>
         <span class="switch" id="swAuto" onclick="toggleAuto()"></span>
       </div>
+
+      <!-- 二级验证：账号级开关，状态存储在服务端（未登录或无账号时整行隐藏） -->
+      <div class="panel-row" id="rowTwofa" style="display:none;">
+        <span data-i18n="settings.twofa">二级验证（登录邮箱验证码）</span>
+        <span class="switch" id="swTwofa"></span>
+      </div>
+      <div class="twofa-note" id="twofaNote" style="display:none;">
+        <p class="hint" data-i18n="settings.twofaHint">开启后登录需邮箱验证码；关闭则仅凭密码登录</p>
+        <p class="hint" id="twofaMail" style="display:none;"></p>
+        <div class="twofa-pwd" id="twofaPwd" style="display:none;">
+          <input id="twofaPwdInput" type="password" maxlength="64" autocomplete="current-password" data-i18n-ph="settings.twofaPwdTip" placeholder="请输入当前密码以确认">
+          <div class="twofa-btns">
+            <button type="button" class="primary-btn" id="btnTwofaOk" data-i18n="settings.confirm">确定</button>
+            <button type="button" class="ghost-btn" id="btnTwofaCancel" data-i18n="settings.cancel">取消</button>
+          </div>
+        </div>
+        <p class="msg" id="twofaMsg"></p>
+      </div>
+
       <div class="panel-row">
         <span data-i18n="settings.about">关于</span>
         <span class="lbl">Cealin v26.11.6</span>
@@ -354,6 +447,234 @@
       load();
       apply();
     })();
+  </script>
+
+  <script>
+    /* ---------------- 二级验证：账号级开关（状态存服务端，不属于本地偏好） ----------------
+     * 与上面 settings 的 localStorage 设置互不相干：这里的开关决定「登录是否需要邮箱验证码」，
+     * 任何改动都必须带密码确认，直接走 /api/accounts 的 secInfo / challenge / setTwofa。 */
+    (function (w, d) {
+      'use strict';
+
+      var API = '/api/accounts';
+      var SID_KEY = 'cealin_account_id';
+
+      var rowTwofa = d.getElementById('rowTwofa');
+      var swTwofa = d.getElementById('swTwofa');
+      var twofaNote = d.getElementById('twofaNote');
+      var twofaMail = d.getElementById('twofaMail');
+      var twofaPwd = d.getElementById('twofaPwd');
+      var twofaPwdInput = d.getElementById('twofaPwdInput');
+      var btnTwofaOk = d.getElementById('btnTwofaOk');
+      var btnTwofaCancel = d.getElementById('btnTwofaCancel');
+      var twofaMsg = d.getElementById('twofaMsg');
+
+      // id：当前登录账号编号；twofa：服务端开关状态；hasEmail：是否已绑定邮箱
+      var state = { id: '', twofa: false, hasEmail: false, email: '', busy: false };
+
+      function T(key, vars) {
+        return (w.cealinT ? w.cealinT(key, vars) : '') || '';
+      }
+
+      function accountId() {
+        try { return sessionStorage.getItem(SID_KEY) || ''; } catch (e) { return ''; }
+      }
+
+      function post(payload) {
+        return fetch(API, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload)
+        }).then(function (resp) {
+          return resp.json().then(function (data) {
+            return (data && typeof data === 'object') ? data : { ok: false, code: 'server' };
+          }, function () {
+            return { ok: false, code: 'server' };
+          });
+        });
+      }
+
+      /* ---- 哈希工具（与账号页一致：SHA-256(盐 + ':' + 密码)，明文不出浏览器） ---- */
+      function bytesToHex(bytes) {
+        var s = '';
+        for (var i = 0; i < bytes.length; i++) {
+          s += (bytes[i] < 16 ? '0' : '') + bytes[i].toString(16);
+        }
+        return s;
+      }
+
+      function utf8Bytes(str) {
+        var enc = encodeURIComponent(str);
+        var out = [];
+        for (var i = 0; i < enc.length; i++) {
+          var c = enc.charAt(i);
+          if (c === '%') {
+            out.push(parseInt(enc.substr(i + 1, 2), 16));
+            i += 2;
+          } else {
+            out.push(enc.charCodeAt(i));
+          }
+        }
+        return new Uint8Array(out);
+      }
+
+      function sha256Hex(str) {
+        var subtle = w.crypto && w.crypto.subtle;
+        if (!subtle) return null;
+        return subtle.digest('SHA-256', utf8Bytes(str)).then(function (buf) {
+          return bytesToHex(new Uint8Array(buf));
+        });
+      }
+
+      /* ---- 提示文案 ---- */
+      function setMsg(key, cls) {
+        var cl = 'msg' + (cls ? ' ' + cls : '');
+        twofaMsg.className = cl;
+        if (key) twofaMsg.setAttribute('data-msg-key', key);
+        else twofaMsg.removeAttribute('data-msg-key');
+        twofaMsg.textContent = key ? T(key) : '';
+      }
+
+      function errKeyOf(code) {
+        if (!code) return '';
+        var k = 'acc.err.' + code;
+        return T(k) ? k : '';
+      }
+
+      function showErr(data) {
+        var k = errKeyOf(data && data.code);
+        if (k) { setMsg(k, 'err'); return; }
+        twofaMsg.className = 'msg err';
+        twofaMsg.removeAttribute('data-msg-key');
+        twofaMsg.textContent = (data && data.error) ? data.error : T('acc.err.server');
+      }
+
+      // 已绑定邮箱的脱敏提示（含 {mail} 占位，切语言时按当前状态重算）
+      function renderMailHint() {
+        if (state.hasEmail && state.email) {
+          twofaMail.style.display = '';
+          twofaMail.textContent = T('settings.twofaMail', { mail: state.email });
+        } else {
+          twofaMail.style.display = 'none';
+          twofaMail.textContent = '';
+        }
+      }
+
+      function paint() {
+        swTwofa.classList.toggle('on', state.twofa === true);
+        renderMailHint();
+      }
+
+      /* ---- 密码确认区 ---- */
+      function openPwd() {
+        twofaPwd.style.display = '';
+        twofaPwdInput.value = '';
+        setMsg('');
+        twofaPwdInput.focus();
+      }
+
+      function closePwd() {
+        twofaPwd.style.display = 'none';
+        twofaPwdInput.value = '';
+      }
+
+      /* ---- 打开页面：先问服务端拿开关状态，拿不到就保持整行隐藏 ---- */
+      function loadState() {
+        var id = accountId();
+        if (!id) return;
+        state.id = id;
+        post({ action: 'secInfo', id: id }).then(function (data) {
+          if (!data || !data.ok) return;
+          state.twofa = data.twofa === true;
+          state.hasEmail = data.hasEmail === true;
+          state.email = data.email || '';
+          rowTwofa.style.display = '';
+          twofaNote.style.display = '';
+          paint();
+        }).catch(function () {
+          /* 网络异常时不展示开关，避免误操作 */
+        });
+      }
+
+      /* ---- 点开关：不直接翻转，先要求密码确认 ---- */
+      swTwofa.onclick = function () {
+        if (state.busy || !state.id) return;
+        if (twofaPwd.style.display !== 'none') {
+          twofaPwdInput.focus();
+          return;
+        }
+        setMsg('');
+        openPwd();
+      };
+
+      btnTwofaCancel.onclick = function () {
+        if (state.busy) return;
+        closePwd();
+        setMsg('');
+      };
+
+      btnTwofaOk.onclick = function () {
+        if (state.busy || !state.id) return;
+        var pwd = twofaPwdInput.value || '';
+        if (!pwd) { setMsg('acc.err.pwd_required', 'err'); twofaPwdInput.focus(); return; }
+
+        var target = !state.twofa; // 当前关 → 打开；当前开 → 关闭
+        if (target && !state.hasEmail) { setMsg('settings.twofaNeedEmail', 'err'); return; }
+        if (!sha256Hex) { setMsg('acc.err.no_crypto', 'err'); return; }
+        if (!(w.crypto && w.crypto.subtle)) { setMsg('acc.err.no_crypto', 'err'); return; }
+
+        state.busy = true;
+        btnTwofaOk.disabled = true;
+        btnTwofaCancel.disabled = true;
+
+        // 先取盐，再本地算哈希：只有密码正确服务端才会改开关
+        post({ action: 'challenge', id: state.id }).then(function (data) {
+          if (!data || !data.ok || !data.salt) return { ok: false, code: (data && data.code) || 'bad_cred' };
+          return sha256Hex(data.salt + ':' + pwd).then(function (pwdHash) {
+            if (!pwdHash) return { ok: false, code: 'no_crypto' };
+            return post({ action: 'setTwofa', id: state.id, enabled: target, pwdHash: pwdHash });
+          });
+        }).then(function (data) {
+          state.busy = false;
+          btnTwofaOk.disabled = false;
+          btnTwofaCancel.disabled = false;
+
+          if (data && data.ok) {
+            state.twofa = data.twofa === true;
+            paint();
+            closePwd();
+            setMsg(state.twofa ? 'settings.twofaSaved' : 'settings.twofaOffTip', 'ok');
+            return;
+          }
+          if (data && data.code === 'email_required') { setMsg('settings.twofaNeedEmail', 'err'); return; }
+          if (data && data.code === 'bad_cred') { setMsg('acc.err.bad_cred', 'err'); twofaPwdInput.focus(); return; }
+          showErr(data);
+        }).catch(function () {
+          state.busy = false;
+          btnTwofaOk.disabled = false;
+          btnTwofaCancel.disabled = false;
+          setMsg('acc.err.net', 'err');
+        });
+      };
+
+      twofaPwdInput.onkeydown = function (ev) {
+        if (ev && ev.keyCode === 13) {
+          ev.preventDefault();
+          btnTwofaOk.onclick();
+        }
+      };
+
+      /* ---- 语言切换：data-i18n 由 i18n.js 处理，这里补动态文案 ---- */
+      if (w.cealinOnLangChange) {
+        w.cealinOnLangChange(function () {
+          var k = twofaMsg.getAttribute('data-msg-key');
+          if (k) twofaMsg.textContent = T(k);
+          renderMailHint();
+        });
+      }
+
+      loadState();
+    })(window, document);
   </script>
 
 </body>

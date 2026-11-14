@@ -5,8 +5,10 @@
 //
 // 请求（POST，JSON）：
 //   { action: 'register', name, pwdHash, salt }   或 { action: 'register', name, password }
-//   { action: 'challenge', id }                   -> 返回该编号的盐（登录前取盐）
+//   { action: 'challenge', id }                   -> 返回该编号的盐与二级验证开关状态（登录前取盐）
 //   { action: 'login', id, pwdHash }              或 { action: 'login', id, password }
+//   { action: 'secInfo', id }                     个人设置：查询二级验证开关与绑定邮箱（脱敏）
+//   { action: 'setTwofa', id, enabled, pwdHash }  或 { action: 'setTwofa', id, enabled, password }
 //   { action: 'changeId', id, newId, pwdHash }    或 { action: 'changeId', id, newId, password }
 //   { action: 'changePwd', id, pwdHash, newPwdHash, newSalt? }
 //                                 或 { action: 'changePwd', id, password, newPassword }
@@ -988,7 +990,8 @@ export async function onRequest(context) {
       return fail(500, '服务异常，请稍后重试', 'server');
     }
     if (!found || !found.acc.salt) return fail(401, '邮箱或密码错误', 'bad_cred');
-    return json({ ok: true, id: found.acc.id || targetId, salt: found.acc.salt });
+    // twofa：该账号是否开启了二级验证（登录是否需要邮箱验证码），由前端决定是否显示验证码输入区
+    return json({ ok: true, id: found.acc.id || targetId, salt: found.acc.salt, twofa: found.acc.twofa === true });
   }
 
   /* ---------------- 登录：编号 + 密码 ---------------- */
@@ -1032,10 +1035,11 @@ export async function onRequest(context) {
       return fail(401, '编号或密码错误', 'bad_cred');
     }
 
-    /* ---- 密码通过后的第二道验证：邮箱验证码 ----
-     * 邮件通道未配置时降级为原密码登录（否则全站登录会被锁死）；
-     * 通道可用时：已绑邮箱必须验证码正确才放行，未绑邮箱则由本次填写的邮箱完成首次绑定。 */
-    if (mailReady(env)) {
+    /* ---- 密码通过后的第二道验证：仅在账号自行开启二级验证时执行 ----
+     * 未开启 twofa 的账号：仅凭密码即可登录，不再索要验证码；
+     * 已开启 twofa 的账号：邮件通道可用时必须验证码正确才放行，未绑邮箱则由本次填写的邮箱完成首次绑定；
+     * 邮件通道未配置（mailReady 为 false）时维持原有降级：即使开了 twofa 也仅凭密码登录，避免全站被锁死。 */
+    if (acc.twofa === true && mailReady(env)) {
       const boundEmail = normEmail(acc.email);
       const inputEmail = loginEmailInput;
       const code = typeof body.code === 'string' ? body.code.trim() : '';
@@ -1076,6 +1080,70 @@ export async function onRequest(context) {
       createdAt: acc.createdAt || 0,
       email: acc.email ? maskEmail(normEmail(acc.email)) : ''
     });
+  }
+
+  /* ---------------- 安全信息：个人设置里读取二级验证开关状态 ----------------
+   * 只返回开关与脱敏邮箱，绝不返回哈希 / 盐 / 明文邮箱。 */
+  if (action === 'secInfo') {
+    if (!ID_RE.test(id)) return fail(400, '编号格式不正确', 'id_bad');
+
+    let found = null;
+    try {
+      found = await readAccount(kv, id);
+    } catch (err) {
+      return fail(500, '服务异常，请稍后重试', 'server');
+    }
+    if (!found) return fail(401, '编号或密码错误', 'bad_cred');
+
+    const acc = found.acc;
+    const bound = normEmail(acc.email);
+    return json({
+      ok: true,
+      twofa: acc.twofa === true,
+      hasEmail: !!bound,
+      email: bound ? maskEmail(bound) : ''
+    });
+  }
+
+  /* ---------------- 二级验证开关：密码确认后开启 / 关闭 ----------------
+   * 必须验密码：避免登录态被他人接管后直接把二级验证关掉。
+   * 开启要求账号已绑定邮箱；关闭始终允许。只改动 twofa 一个字段。 */
+  if (action === 'setTwofa') {
+    if (!ID_RE.test(id)) return fail(400, '编号格式不正确', 'id_bad');
+    const enabled = body.enabled === true;
+
+    let found = null;
+    try {
+      found = await readAccount(kv, id);
+    } catch (err) {
+      return fail(500, '服务异常，请稍后重试', 'server');
+    }
+    if (!found) return fail(401, '编号或密码错误', 'bad_cred');
+
+    const acc = found.acc;
+    if (!acc.pwdHash || !acc.salt) return fail(500, '服务异常，请稍后重试', 'server');
+
+    let candidate = '';
+    if (pwdHash) {
+      if (!HEX64.test(pwdHash)) return fail(400, '密码哈希格式不正确', 'hash_bad');
+      candidate = pwdHash;
+    } else {
+      if (!password) return fail(400, '请输入密码', 'pwd_required');
+      candidate = await hashPassword(acc.salt, password);
+    }
+    if (!safeEqual(candidate, acc.pwdHash)) return fail(401, '密码错误', 'bad_cred');
+
+    if (enabled && !normEmail(acc.email)) {
+      return fail(400, '该账号尚未绑定邮箱，请先绑定邮箱后再开启', 'email_required');
+    }
+
+    acc.twofa = enabled;
+    try {
+      await kv.put(found.key, JSON.stringify(acc));
+    } catch (err) {
+      return fail(500, '服务异常，请稍后重试', 'server');
+    }
+    return json({ ok: true, twofa: enabled });
   }
 
   /* ---------------- 更改自己的编号：旧编号 + 密码 + 新编号 ---------------- */
