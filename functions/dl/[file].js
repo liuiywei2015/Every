@@ -19,8 +19,8 @@ const FILES = {
     type: 'application/octet-stream'
   },
   'cealin-admin-win': {
-    url: 'https://github.com/liuiywei2015/Every/releases/download/v26.11.8/Cealin-admin-26.11.8-x64.exe',
-    name: 'Cealin-admin-26.11.8-x64.exe',
+    url: 'https://github.com/liuiywei2015/Every/releases/download/v26.11.14/Cealin-admin-26.11.14-x64.exe',
+    name: 'Cealin-admin-26.11.14-x64.exe',
     type: 'application/octet-stream'
   }
 };
