@@ -1175,8 +1175,11 @@ export async function onRequest(context) {
 
     // 迁移：保留 name / pwdHash / salt / createdAt / official 等全部字段，仅换编号
     const migrated = Object.assign({}, acc, { id: newId, idChangedAt: Date.now() });
+    // 登录主标识是邮箱：编号迁移后必须同步邮箱索引，否则邮箱会反查到已删除的旧编号
+    const boundEmail = normEmail(acc.email);
     try {
       await kv.put(KV_PREFIX + newId, JSON.stringify(migrated));
+      if (boundEmail) await kv.put(EMAIL_INDEX_PREFIX + boundEmail, newId);
     } catch (err) {
       return fail(500, '服务异常，请稍后重试', 'server');
     }
