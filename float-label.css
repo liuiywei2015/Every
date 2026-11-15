@@ -1,0 +1,78 @@
+/* Cealin 全站输入框浮动标签（float-label.css）
+ * 1) 由 float-label.js 自动增强页面上的 input / textarea，不改动页面原有 DOM 结构
+ * 2) 颜色、圆角、字体全部沿用 theme.css 的 CSS 变量，不写死任何色值
+ * 3) 标签的位置与尺寸由 JS 逐像素对齐输入框，这里只负责外观与动效
+ */
+
+/* 承载标签的容器：只补 position，不改变原有布局 */
+.fl-host {
+  position: relative;
+}
+
+/* 原 <label>：增强后隐藏，但保留 DOM，以便 i18n 继续更新文案、屏幕阅读器仍可读取 */
+.fl-src-label {
+  position: absolute !important;
+  width: 1px !important;
+  height: 1px !important;
+  margin: -1px !important;
+  padding: 0 !important;
+  border: 0 !important;
+  overflow: hidden !important;
+  clip: rect(0 0 0 0) !important;
+  clip-path: inset(50%) !important;
+  white-space: nowrap !important;
+  pointer-events: none !important;
+}
+
+/* 浮动标签本体：初始与输入框内提示文字重合，看起来就是占位符 */
+.fl-label {
+  position: absolute;
+  z-index: 3;
+  left: 0;
+  top: 0;
+  display: flex;
+  align-items: center;
+  box-sizing: border-box;
+  padding: 0 14px;
+  color: var(--muted);
+  line-height: 1.2;
+  letter-spacing: inherit;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  pointer-events: none;
+  transform-origin: left top;
+  transition: transform 0.18s ease, color 0.18s ease, top 0.18s ease;
+}
+
+/* 多行输入（textarea）：标签与首行文字对齐，具体落点由 JS 计算 */
+.fl-label.fl-multiline {
+  align-items: flex-start;
+}
+
+/* 聚焦或已有内容：缩小到 0.8 倍并上移到预留区（落点由 float-label.js 精确计算），颜色转为主题色 */
+.fl-label.is-float {
+  transform: scale(0.8);
+  color: var(--gold);
+}
+
+/* 输入框：边框过渡，聚焦时变主题色 */
+.fl-input {
+  transition: border-color 0.18s ease, box-shadow 0.18s ease;
+}
+
+/* 已定位完成后才隐藏原生占位符，避免定位前出现“空框” */
+.fl-input.fl-ready::placeholder {
+  opacity: 0 !important;
+  transition: opacity 0.18s ease;
+}
+
+/* 聚焦：边框变为主题色 */
+.fl-input:focus {
+  border-color: var(--gold) !important;
+}
+
+/* 已有内容（未聚焦）：边框保持可辨识，与空输入框区分 */
+.fl-input.fl-filled {
+  border-color: rgba(var(--line-rgb), 0.24);
+}
