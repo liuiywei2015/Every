@@ -9,8 +9,8 @@
 
 const FILES = {
   'dynamic-island': {
-    url: 'https://github.com/liuiywei2015/Every/releases/download/dynamic-island-v1.0.0/DynamicIsland-1.0.0-win-x64.zip',
-    name: 'DynamicIsland-1.0.0-win-x64.zip',
+    url: 'https://github.com/liuiywei2015/Every/releases/download/dynamic-island-v1.0.1/DynamicIsland-1.0.1-win-x64.zip',
+    name: 'DynamicIsland-1.0.1-win-x64.zip',
     type: 'application/zip'
   },
   'cealin-win': {
