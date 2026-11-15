@@ -569,16 +569,32 @@
         <button type="button" class="primary-btn" id="btnLogin" data-i18n="acc.loginBtn">登录</button>
         <p class="msg" id="loginMsg"></p>
 
-        <!-- 忘记密码：提交重置申请 → 管理员在后台生成临时密码 -->
-        <button type="button" class="ghost-btn" id="btnResetToggle" data-i18n="acc.resetEntry">忘记密码？申请重置密码</button>
+        <!-- 忘记密码：邮箱验证码 → 直接设置新密码（不再经管理员生成临时密码） -->
+        <button type="button" class="ghost-btn" id="btnResetToggle" data-i18n="acc.forgotPwd">忘记密码？用邮箱验证码重置</button>
         <div class="reset-box" id="pwdResetBox" style="display:none;">
-          <p class="hint" data-i18n="acc.resetTip">提交后会通知管理员，由管理员生成一个临时密码给你；用它登录后请尽快改成自己的密码。</p>
+          <p class="hint" data-i18n="acc.resetSelfTitle">输入账号绑定的邮箱，获取验证码后即可自行设置新密码</p>
           <div class="field">
-            <label for="resetId" data-i18n="acc.id">编号</label>
-            <input id="resetId" type="text" maxlength="8" autocomplete="username" spellcheck="false" data-i18n-ph="acc.idPh" placeholder="账号编号（6 或 8 位）">
+            <label for="resetEmail" data-i18n="acc.regEmail">邮箱</label>
+            <input id="resetEmail" type="email" maxlength="254" autocomplete="username" spellcheck="false" data-i18n-ph="acc.regEmailPh" placeholder="账号绑定的邮箱">
           </div>
-          <button type="button" class="primary-btn" id="btnResetSubmit" data-i18n="acc.resetSubmit">提交重置申请</button>
+          <div class="field">
+            <label for="resetCode" data-i18n="acc.codeLabel">邮箱验证码</label>
+            <div class="code-row">
+              <input id="resetCode" type="text" maxlength="6" inputmode="numeric" autocomplete="one-time-code" spellcheck="false" data-i18n-ph="acc.codePh" placeholder="6 位数字">
+              <button type="button" class="ghost-btn code-btn" id="btnResetCode" data-i18n="acc.resetSendCode">发送验证码</button>
+            </div>
+          </div>
+          <div class="field">
+            <label for="resetPwd" data-i18n="acc.resetNewPwd">新密码</label>
+            <input id="resetPwd" type="password" maxlength="64" autocomplete="new-password" data-i18n-ph="acc.pwdPh" placeholder="至少 6 位">
+          </div>
+          <div class="field">
+            <label for="resetPwd2" data-i18n="acc.resetNewPwd2">确认新密码</label>
+            <input id="resetPwd2" type="password" maxlength="64" autocomplete="new-password" data-i18n-ph="acc.pwdPh" placeholder="至少 6 位">
+          </div>
+          <button type="button" class="primary-btn" id="btnResetSubmit" data-i18n="acc.resetSelfSubmit">重置密码</button>
           <p class="msg" id="resetMsg"></p>
+          <p class="hint" data-i18n="acc.resetNoEmailTip">账号未绑定邮箱？无法自助重置，请联系管理员处理。</p>
         </div>
       </div>
     </section>
@@ -780,7 +796,9 @@
       function requestCode(cfg) {
         var btn = cfg.btn;
         var msgEl = cfg.msg;
-        var payload = { action: 'sendCode', scene: cfg.scene };
+        // action 默认走 sendCode（注册 / 登录）；忘记密码走 resetSendCode
+        var payload = { action: cfg.action || 'sendCode' };
+        if (cfg.scene) payload.scene = cfg.scene;
         if (cfg.email) payload.email = cfg.email;
         if (cfg.id) payload.id = cfg.id;
 
@@ -1109,52 +1127,90 @@
         });
       };
 
-      /* ---------------- 忘记密码：提交重置申请 ----------------
-       * 这里只提交「申请」，不会改动账号密码；管理员在后台看到申请后生成临时密码，
-       * 把临时密码告知用户，用户用它登录后自行改成自己的密码（改密后申请记录随即清除）。 */
+      /* ---------------- 忘记密码：邮箱验证码 → 直接设置新密码 ----------------
+       * 向账号绑定的邮箱发码，校验通过后直接覆盖密码并换新盐，全程无需管理员介入；
+       * 旧「提交申请 → 管理员生成临时密码」的流程已下线。 */
       var btnResetToggle = d.getElementById('btnResetToggle');
       var pwdResetBox = d.getElementById('pwdResetBox');
-      var resetId = d.getElementById('resetId');
+      var resetEmail = d.getElementById('resetEmail');
+      var resetCode = d.getElementById('resetCode');
+      var btnResetCode = d.getElementById('btnResetCode');
+      var resetPwd = d.getElementById('resetPwd');
+      var resetPwd2 = d.getElementById('resetPwd2');
       var btnResetSubmit = d.getElementById('btnResetSubmit');
       var resetMsg = d.getElementById('resetMsg');
 
-      resetId.oninput = function () {
-        var v = (resetId.value || '').replace(ACCEPT_RE, '').substr(0, 8);
-        if (v !== resetId.value) resetId.value = v;
+      resetCode.oninput = function () {
+        var v = (resetCode.value || '').replace(/[^0-9]/g, '').substr(0, 6);
+        if (v !== resetCode.value) resetCode.value = v;
       };
 
       btnResetToggle.onclick = function () {
         var open = pwdResetBox.style.display !== 'none';
         pwdResetBox.style.display = open ? 'none' : 'block';
         if (!open) {
-          if (!resetId.value) resetId.value = (loginAcct.value || '').replace(/[^A-Za-z0-9]/g, '');
+          // 用上一步填的邮箱做默认值，减少重复输入
+          if (!resetEmail.value) resetEmail.value = (loginAcct.value || '');
           setMsg(resetMsg, '');
-          resetId.focus();
+          resetEmail.focus();
         }
+      };
+
+      btnResetCode.onclick = function () {
+        if (btnResetCode.disabled) return;
+        var mail = normEmail(resetEmail.value);
+        setMsg(resetMsg, '');
+        if (!emailOk(mail)) { setMsg(resetMsg, 'acc.err.email_bad'); resetEmail.focus(); return; }
+        requestCode({
+          btn: btnResetCode,
+          msg: resetMsg,
+          action: 'resetSendCode',
+          email: mail,
+          key: 'acc.resetSendCode'
+        });
       };
 
       btnResetSubmit.onclick = function () {
         if (btnResetSubmit.disabled) return;
-        var id = (resetId.value || '').replace(ACCEPT_RE, '');
+        var mail = normEmail(resetEmail.value);
+        var code = (resetCode.value || '').replace(/[^0-9]/g, '');
+        var pwd = resetPwd.value || '';
+        var pwd2 = resetPwd2.value || '';
 
         setMsg(resetMsg, '');
-        if (id.length !== 6 && id.length !== 8) { setMsg(resetMsg, 'acc.err.id_short'); resetId.focus(); return; }
+        if (!emailOk(mail)) { setMsg(resetMsg, 'acc.err.email_bad'); resetEmail.focus(); return; }
+        if (code.length !== 6) { setMsg(resetMsg, 'acc.err.code_required'); resetCode.focus(); return; }
+        if (pwd.length < 6) { setMsg(resetMsg, 'acc.err.pwd_short'); resetPwd.focus(); return; }
+        if (pwd.length > 64) { setMsg(resetMsg, 'acc.err.pwd_long'); resetPwd.focus(); return; }
+        if (pwd !== pwd2) { setMsg(resetMsg, 'acc.err.pwd_mismatch'); resetPwd2.focus(); return; }
+        if (!cryptoReady()) { setMsg(resetMsg, 'acc.err.no_crypto'); return; }
+
+        // 新盐在前端生成，服务端只收哈希，密码明文不出本机
+        var salt = randomHex(16);
+        var hashed = sha256Hex(salt + ':' + pwd);
+        if (!hashed) { setMsg(resetMsg, 'acc.err.no_crypto'); return; }
 
         btnResetSubmit.disabled = true;
-        setBtnLabel(btnResetSubmit, 'acc.resetSending');
+        setBtnLabel(btnResetSubmit, 'acc.resetSelfSending');
 
-        post({ action: 'resetRequest', id: id }).then(function (data) {
+        hashed.then(function (pwdHash) {
+          return post({ action: 'resetFinish', email: mail, code: code, newSalt: salt, newPwdHash: pwdHash });
+        }).then(function (data) {
           btnResetSubmit.disabled = false;
-          setBtnLabel(btnResetSubmit, 'acc.resetSubmit');
+          setBtnLabel(btnResetSubmit, 'acc.resetSelfSubmit');
           if (data && data.ok) {
-            if (data.status === 'done') { setMsg(resetMsg, 'acc.resetReady', 'ok'); return; }
-            setMsg(resetMsg, data.already ? 'acc.resetQueued' : 'acc.resetOk', 'ok');
+            // 成功即清空敏感输入，并把邮箱带回登录框，方便直接用新密码登录
+            resetCode.value = '';
+            resetPwd.value = '';
+            resetPwd2.value = '';
+            if (!loginAcct.value) loginAcct.value = mail;
+            setMsg(resetMsg, 'acc.resetDone', 'ok');
             return;
           }
           showErr(resetMsg, data);
         }).catch(function () {
           btnResetSubmit.disabled = false;
-          setBtnLabel(btnResetSubmit, 'acc.resetSubmit');
+          setBtnLabel(btnResetSubmit, 'acc.resetSelfSubmit');
           setMsg(resetMsg, 'acc.err.net');
         });
       };
@@ -1172,7 +1228,10 @@
       onEnter(loginAcct, btnLogin);
       onEnter(loginPwd, btnLogin);
       onEnter(loginCode, btnLogin);
-      onEnter(resetId, btnResetSubmit);
+      onEnter(resetEmail, btnResetCode);
+      onEnter(resetCode, btnResetSubmit);
+      onEnter(resetPwd, btnResetSubmit);
+      onEnter(resetPwd2, btnResetSubmit);
 
       /* ---------------- 初始状态 ---------------- */
       // 本页不在 guard.js 的保护清单内，未登录也能访问，因此这里自行决定展示什么：

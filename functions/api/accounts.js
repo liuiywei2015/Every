@@ -16,10 +16,10 @@
 //   { action: 'search', password, q? }            管理员：账号列表 / 按编号或名称搜索（q 留空=全部，60 秒边缘缓存）
 //   { action: 'stats', password }                 管理员：概览统计（在线数、账号数、房间数、消息数估算、KV 用量估算，60 秒边缘缓存）
 //   { action: 'official', password, id, official } 管理员：授予 / 取消官方认证
-//   { action: 'resetRequest', id }                 用户：登录页「忘记密码」提交重置申请（不改密码）
-//   { action: 'resetList', password }              管理员：密码重置申请列表（含已生成的临时密码）
-//   { action: 'resetTemp', password, id }          管理员：为该编号生成临时密码并暂存明文供查看（TTL 7 天）
-//   { action: 'resetDrop', password, id }          管理员：删除重置记录（同时抹掉临时密码明文）
+//   { action: 'resetSendCode', id?, email? }        用户：「忘记密码」→ 向绑定邮箱发送验证码
+//   { action: 'resetFinish', id?, email?, code, newPwdHash, newSalt? }
+//                                 或 { action: 'resetFinish', id?, email?, code, newPassword }
+//                                                 用户：验证码校验通过后直接设置新密码（不经管理员）
 // 响应：{ ok: true, id, name } / { ok: false, error, code }
 //
 // KV 约定（绑定名 GUESTBOOK）：
@@ -53,15 +53,6 @@ const SEARCH_PAGE_SIZE = 1000;
 // 列表最多读取 300 条账号明细、最多扫描 2000 个编号键，避免单次请求无上限膨胀
 const ACCOUNT_READ_MAX = 300;
 const ACCOUNT_SCAN_MAX = 2000;
-
-// 密码重置：用户在登录页提交申请 → 写 pwdreset:{id}；管理员在后台生成临时密码并查看
-// 临时密码明文只存在该键内（7 天 TTL 自动失效），用户自行改密成功后立即删除
-const PWD_RESET_PREFIX = 'pwdreset:';
-const PWD_RESET_TTL = 7 * 24 * 3600;
-// 同一编号的重复申请间隔（毫秒）：重复提交只刷新申请时间，不覆盖已生成的临时密码
-const PWD_RESET_MIN_GAP = 60 * 1000;
-const TEMP_PWD_LEN = 10;
-const TEMP_PWD_CHARS = 'ABCDEFGHJKMNPQRSTUVWXYZ23456789abcdefghjkmnpqrstuvwxyz';
 
 // 在线心跳：account:presence:{id} 带 1800 秒 TTL 自动回收；读取时 20 分钟内有心跳视为在线。
 // 阈值必须明显大于前端心跳间隔（10 分钟 + 0~2 分钟抖动），否则用户会在下一次心跳到来前被判离线。
@@ -105,18 +96,6 @@ function makeId() {
     id += ID_CHARS.charAt(buf[i] % ID_CHARS.length);
   }
   return id;
-}
-
-// 临时密码：管理员重置时生成，排除易混淆字符，便于口头或手抄转告用户
-function makeTempPwd(len) {
-  const size = len || TEMP_PWD_LEN;
-  const buf = new Uint8Array(size);
-  crypto.getRandomValues(buf);
-  let out = '';
-  for (let i = 0; i < size; i++) {
-    out += TEMP_PWD_CHARS.charAt(buf[i] % TEMP_PWD_CHARS.length);
-  }
-  return out;
 }
 
 // Web Crypto：SHA-256(salt + ':' + password) 的十六进制串
@@ -178,6 +157,8 @@ const EMAIL_MAX = 254;
 const EMAIL_RE = /^[A-Za-z0-9._%+\-]+@[A-Za-z0-9.\-]+\.[A-Za-z]{2,}$/;
 const VCODE_REG_PREFIX = 'vcode:reg:';
 const VCODE_LOGIN_PREFIX = 'vcode:login:';
+// 忘记密码：验证码绑定账号编号，校验通过后由用户直接设置新密码（不再经管理员生成临时密码）
+const VCODE_RESET_PREFIX = 'vcode:reset:';
 const VCODE_CNT_PREFIX = 'vcode:cnt:';
 const VCODE_TTL = 600;
 const VCODE_COOL = 60;
@@ -1296,13 +1277,6 @@ export async function onRequest(context) {
       return fail(500, '服务异常，请稍后重试', 'server');
     }
 
-    // 用户自主改密成功后立即抹掉重置记录里的临时密码明文
-    try {
-      await kv.delete(PWD_RESET_PREFIX + (updated.id || id));
-    } catch (err) {
-      /* 清理失败不影响改密结果，记录仍受 TTL 约束自动过期 */
-    }
-
     // 只回编号与名称，哈希与盐不出服务端；登录态不变，无需重新登录
     return json({ ok: true, id: updated.id || id, name: updated.name || '' });
   }
@@ -1396,7 +1370,6 @@ export async function onRequest(context) {
         try {
           await kv.delete(KV_PREFIX + realId);
           await kv.delete(PRESENCE_PREFIX + realId);
-          await kv.delete(PWD_RESET_PREFIX + realId);
           if (mail) await kv.delete(EMAIL_INDEX_PREFIX + mail);
         } catch (err) {
           /* 单条删除失败继续处理其余账号 */
@@ -1764,135 +1737,149 @@ export async function onRequest(context) {
     });
   }
 
-  /* ---------------- 用户：提交密码重置申请 ----------------
-   * 登录页「忘记密码」提交后只写 pwdreset:{id}，作为待处理申请通知管理员；
-   * 不改动账号任何密码字段，所以光凭编号无法劫持他人账号。 */
-  if (action === 'resetRequest') {
-    if (!ID_RE.test(id)) return fail(400, '请输入正确的账号编号', 'id_bad');
+  /* ---------------- 用户：忘记密码 → 向绑定邮箱发验证码 ----------------
+   * 验证码一律发到账号已绑定的邮箱，不接受任意外发；未绑定邮箱的老账号无法自助重置。
+   * 这一步不改动任何密码字段，光凭编号或邮箱无法劫持他人账号。 */
+  if (action === 'resetSendCode') {
+    let email = normEmail(body.email);
+
+    // 解析目标账号：优先按编号，缺编号时按邮箱反查（编号仍是内部主键）
+    let accountId = id;
+    if (!accountId) {
+      if (!email) return fail(400, '请填写邮箱', 'email_required');
+      if (!emailOk(email)) return fail(400, '邮箱格式不正确', 'email_bad');
+      try {
+        accountId = await idByEmail(kv, email);
+      } catch (err) {
+        return fail(500, '服务异常，请稍后重试', 'server');
+      }
+      // 不泄露邮箱是否已注册，统一按凭据错误处理
+      if (!accountId) return fail(401, '邮箱或密码错误', 'bad_cred');
+    } else if (!ID_RE.test(accountId)) {
+      return fail(400, '请输入正确的邮箱', 'email_bad');
+    }
 
     let found = null;
     try {
-      found = await readAccount(kv, id);
+      found = await readAccount(kv, accountId);
     } catch (err) {
       return fail(500, '服务异常，请稍后重试', 'server');
     }
-    if (!found) return fail(404, '该编号不存在，请检查后重试', 'id_not_found');
+    if (!found) return fail(401, '邮箱或密码错误', 'bad_cred');
 
-    const realId = found.acc.id || id;
-    const key = PWD_RESET_PREFIX + realId;
-    const now = Date.now();
+    const realId = found.acc.id || accountId;
+    const bound = normEmail(found.acc.email);
+    if (!bound) return fail(400, '该账号尚未绑定邮箱，无法自助重置密码，请联系管理员', 'email_unbound');
+    email = bound;
+    if (!emailOk(email)) return fail(400, '邮箱格式不正确', 'email_bad');
+    if (!found.acc.pwdHash) return fail(500, '服务异常，请稍后重试', 'server');
 
-    let existing = null;
-    try {
-      const raw = await kv.get(key);
-      if (raw) existing = JSON.parse(raw);
-    } catch (err) {
-      existing = null;
+    if (!mailReady(env)) {
+      return fail(503, '邮件服务未配置，暂时无法自助重置密码，请联系管理员', 'mail_not_configured');
     }
 
-    // 已生成临时密码：原样保留，避免把管理员看过的密码覆盖掉
-    if (existing && existing.status === 'done' && existing.tempPwd) {
-      return json({
-        ok: true, id: realId, status: 'done', already: true,
-        reqAt: existing.reqAt || 0, doneAt: existing.doneAt || 0
-      });
-    }
-    // 短时间内的重复提交：只回执，不重复写 KV
-    if (existing && existing.status !== 'done' && now - (existing.reqAt || 0) < PWD_RESET_MIN_GAP) {
-      return json({ ok: true, id: realId, status: 'pending', already: true, reqAt: existing.reqAt || now });
-    }
-
-    const record = { id: realId, name: found.acc.name || '', reqAt: now, status: 'pending' };
-    try {
-      await kv.put(key, JSON.stringify(record), { expirationTtl: PWD_RESET_TTL });
-    } catch (err) {
-      return fail(500, '服务异常，请稍后重试', 'server');
-    }
-    return json({ ok: true, id: realId, status: 'pending', already: false, reqAt: now });
-  }
-
-  /* ---------------- 管理员：密码重置申请列表 ----------------
-   * 只返回编号 / 名称 / 申请时间 / 状态 / 已生成的临时密码（如有），
-   * 账号的 pwdHash 与 salt 一律不出服务端。 */
-  if (action === 'resetList') {
-    let admin = false;
-    try {
-      admin = await checkAdmin(kv, password);
-    } catch (err) {
-      return fail(500, '服务异常，请稍后重试', 'server');
-    }
-    if (!admin) return fail(401, '密码错误', 'admin_pwd');
-
-    let keys = [];
-    try {
-      const res = await kv.list({ prefix: PWD_RESET_PREFIX, limit: 200 });
-      keys = (res && res.keys) || [];
-    } catch (err) {
+    const key = VCODE_RESET_PREFIX + realId;
+    const issued = await issueCode(kv, key, 'reset', email);
+    if (!issued.ok) {
+      if (issued.code === 'code_cooldown') {
+        return json({ ok: false, error: '验证码发送过于频繁，请稍后再试', code: 'code_cooldown', wait: issued.wait || VCODE_COOL }, 429);
+      }
+      if (issued.code === 'code_daily') return fail(429, '该邮箱今日收码次数已达上限，请明天再试', 'code_daily');
       return fail(500, '服务异常，请稍后重试', 'server');
     }
 
-    const rows = await Promise.all(
-      keys.map(async (k) => {
-        const name = k && k.name ? String(k.name) : '';
-        if (name.length <= PWD_RESET_PREFIX.length) return null;
-        try {
-          const raw = await kv.get(name);
-          if (!raw) return null;
-          const it = JSON.parse(raw);
-          if (!it || typeof it !== 'object') return null;
-          return {
-            id: it.id || name.slice(PWD_RESET_PREFIX.length),
-            name: it.name || '',
-            reqAt: it.reqAt || 0,
-            status: it.status === 'done' ? 'done' : 'pending',
-            tempPwd: typeof it.tempPwd === 'string' ? it.tempPwd : '',
-            doneAt: it.doneAt || 0
-          };
-        } catch (err) {
-          return null;
-        }
-      })
+    const sent = await sendMail(
+      env,
+      email,
+      'Cealin 密码重置验证码',
+      '你正在重置 Cealin 账号密码，验证码是 ' + issued.code + '，10 分钟内有效。\n' +
+        '若非本人操作，请忽略本邮件，你的密码不会有任何变化。'
     );
+    if (!sent.ok) {
+      try { await kv.delete(key); } catch (err) {}
+      if (sent.reason === 'mail_not_configured') {
+        return fail(503, '邮件服务未配置，暂时无法自助重置密码，请联系管理员', 'mail_not_configured');
+      }
+      return fail(502, '验证码发送失败，请稍后重试', 'mail_fail');
+    }
 
-    const items = rows.filter(Boolean);
-    items.sort(function (a, b) { return (b.reqAt || 0) - (a.reqAt || 0); });
-    return json({ ok: true, items: items, count: items.length, ttl: PWD_RESET_TTL });
+    return json({ ok: true, masked: maskEmail(email), cooldown: VCODE_COOL, ttl: VCODE_TTL });
   }
 
-  /* ---------------- 管理员：为指定编号生成临时密码 ----------------
-   * 用新盐 + 新哈希覆盖账号密码（登录逻辑无需改动），并把明文暂存进重置记录供管理员查看；
-   * 明文只在 7 天内有效，用户自行改密后立即删除。 */
-  if (action === 'resetTemp') {
-    let admin = false;
-    try {
-      admin = await checkAdmin(kv, password);
-    } catch (err) {
-      return fail(500, '服务异常，请稍后重试', 'server');
-    }
-    if (!admin) return fail(401, '密码错误', 'admin_pwd');
+  /* ---------------- 用户：验证码校验通过 → 直接设置新密码 ----------------
+   * 与 changePwd 的区别：不需要旧密码，凭邮箱验证码证明身份后即可覆盖密码。
+   * 顺序刻意固定为「参数校验 → 验证码校验 → 落库」，避免验证码被白白消耗。 */
+  if (action === 'resetFinish') {
+    const code = typeof body.code === 'string' ? body.code.trim() : '';
+    let email = normEmail(body.email);
+    const newPwdHash = typeof body.newPwdHash === 'string' ? body.newPwdHash.trim().toLowerCase() : '';
+    const newSalt = typeof body.newSalt === 'string' ? body.newSalt.trim().toLowerCase() : '';
+    const newPassword = typeof body.newPassword === 'string' ? body.newPassword : '';
 
-    if (!ID_RE.test(id)) return fail(400, '编号格式不正确', 'id_bad');
+    let accountId = id;
+    if (!accountId) {
+      if (!email) return fail(400, '请填写邮箱', 'email_required');
+      if (!emailOk(email)) return fail(400, '邮箱格式不正确', 'email_bad');
+      try {
+        accountId = await idByEmail(kv, email);
+      } catch (err) {
+        return fail(500, '服务异常，请稍后重试', 'server');
+      }
+      if (!accountId) return fail(401, '邮箱或密码错误', 'bad_cred');
+    } else if (!ID_RE.test(accountId)) {
+      return fail(400, '请输入正确的邮箱', 'email_bad');
+    }
 
     let found = null;
     try {
-      found = await readAccount(kv, id);
+      found = await readAccount(kv, accountId);
     } catch (err) {
       return fail(500, '服务异常，请稍后重试', 'server');
     }
-    if (!found) return fail(404, '账号不存在', 'id_not_found');
+    if (!found) return fail(401, '邮箱或密码错误', 'bad_cred');
 
-    const now = Date.now();
-    const realId = found.acc.id || id;
-    const tempPwd = makeTempPwd();
-    const nextSalt = randomHex(16);
-    const nextHash = await hashPassword(nextSalt, tempPwd);
+    const acc = found.acc;
+    const realId = acc.id || accountId;
+    const bound = normEmail(acc.email);
+    if (!bound) return fail(400, '该账号尚未绑定邮箱，无法自助重置密码，请联系管理员', 'email_unbound');
+    email = bound;
 
-    const updated = Object.assign({}, found.acc, {
-      id: realId,
+    if (!CODE_RE.test(code)) return fail(400, '请输入 6 位邮箱验证码', 'code_required');
+    if (!newPwdHash && !newPassword) return fail(400, '请输入新密码', 'new_pwd_required');
+
+    // 先算出新密码的哈希与盐（不校验证书之前就把格式错误挡掉）
+    let nextHash = '';
+    let nextSalt = '';
+    if (newPwdHash) {
+      if (!HEX64.test(newPwdHash)) return fail(400, '密码哈希格式不正确', 'hash_bad');
+      nextSalt = newSalt || randomHex(16);
+      if (!HEX32.test(nextSalt)) return fail(400, '盐格式不正确', 'salt_bad');
+      nextHash = newPwdHash;
+    } else {
+      if (newPassword.length < PWD_MIN) return fail(400, '密码至少需要 6 位', 'pwd_short');
+      if (newPassword.length > PWD_MAX) return fail(400, '密码最长 64 位', 'pwd_long');
+      // 换盐后无法用哈希比对旧密码，先用原盐算一次，拦住「新密码与旧密码相同」
+      if (acc.salt && acc.pwdHash) {
+        const sameAsOld = await hashPassword(acc.salt, newPassword);
+        if (safeEqual(sameAsOld, acc.pwdHash)) {
+          return fail(400, '新密码不能与当前密码相同', 'pwd_same');
+        }
+      }
+      nextSalt = randomHex(16);
+      nextHash = await hashPassword(nextSalt, newPassword);
+    }
+
+    // 验证码校验放在最后一步之前：正确即删除，错误累计到上限也会删除
+    const codeCheck = await verifyCode(kv, VCODE_RESET_PREFIX + realId, code);
+    if (!codeCheck.ok) {
+      if (codeCheck.code === 'code_bad') return fail(401, '验证码错误或已过期', 'code_bad');
+      return fail(500, '服务异常，请稍后重试', 'server');
+    }
+
+    const updated = Object.assign({}, acc, {
       pwdHash: nextHash,
       salt: nextSalt,
-      pwdChangedAt: now,
-      pwdResetAt: now
+      pwdChangedAt: Date.now()
     });
     try {
       await kv.put(found.key, JSON.stringify(updated));
@@ -1900,60 +1887,7 @@ export async function onRequest(context) {
       return fail(500, '服务异常，请稍后重试', 'server');
     }
 
-    const key = PWD_RESET_PREFIX + realId;
-    let reqAt = now;
-    try {
-      const raw = await kv.get(key);
-      if (raw) {
-        const old = JSON.parse(raw);
-        if (old && old.reqAt) reqAt = old.reqAt;
-      }
-    } catch (err) {
-      /* 无历史申请时按当前时间记录 */
-    }
-
-    const record = {
-      id: realId,
-      name: updated.name || '',
-      reqAt: reqAt,
-      status: 'done',
-      tempPwd: tempPwd,
-      doneAt: now
-    };
-    try {
-      await kv.put(key, JSON.stringify(record), { expirationTtl: PWD_RESET_TTL });
-    } catch (err) {
-      // 记录写入失败时密码已经改掉：如实告知，避免用户以为可以查看旧密码
-      return fail(500, '密码已重置但记录写入失败，请刷新后重新生成', 'reset_record');
-    }
-
-    return json({
-      ok: true,
-      id: realId,
-      name: updated.name || '',
-      tempPwd: tempPwd,
-      doneAt: now,
-      expiresAt: now + PWD_RESET_TTL * 1000
-    });
-  }
-
-  /* ---------------- 管理员：删除重置记录（同时抹掉临时密码明文） ---------------- */
-  if (action === 'resetDrop') {
-    let admin = false;
-    try {
-      admin = await checkAdmin(kv, password);
-    } catch (err) {
-      return fail(500, '服务异常，请稍后重试', 'server');
-    }
-    if (!admin) return fail(401, '密码错误', 'admin_pwd');
-
-    if (!ID_RE.test(id)) return fail(400, '编号格式不正确', 'id_bad');
-    try {
-      await kv.delete(PWD_RESET_PREFIX + id);
-    } catch (err) {
-      return fail(500, '服务异常，请稍后重试', 'server');
-    }
-    return json({ ok: true, id: id });
+    return json({ ok: true, id: realId, masked: maskEmail(email) });
   }
 
   return fail(400, '未知的操作类型', 'unknown_action');

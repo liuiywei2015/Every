@@ -43,7 +43,7 @@ every/
 | 页面 | 职责 | 依赖接口 |
 |---|---|---|
 | index.html | 首页 + 登录分流（仅游客登录，管理员身份只在客户端注入） | /api/messages |
-| account.html | 账号：注册（名称+密码→系统分配 8 位编号）、登录（编号+密码+邮箱验证码） | /api/accounts |
+| account.html | 账号：注册（名称+密码→系统分配 8 位编号）、登录（编号+密码+邮箱验证码）、忘记密码（邮箱验证码自助重置，不经管理员） | /api/accounts |
 | guest.html | 游客界面，公告只读 | /api/notice |
 | client.html | 桌面客户端内置页（当前账号 / 官方公告，只读） | /api/notice |
 | chat.html | 聊天室（房间创建/加入/退出、公告弹窗、举报入口） | /api/rooms, /api/notice, /api/reports |
