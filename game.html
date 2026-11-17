@@ -1,0 +1,89 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+
+<!-- 运行环境识别（客户端 / 浏览器），必须最先执行 -->
+<script src="client-detect.js"></script><meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+
+<!-- 主题引导 + 全站共享主题样式（明亮模式在 <head> 最早应用，避免闪烁） -->
+<script src="theme.js"></script>
+<link rel="stylesheet" href="theme.css">
+<link rel="stylesheet" href="game.css">
+<title>游戏 - Cealin</title>
+</head>
+<body>
+
+  <!-- 顶部导航 -->
+  <header class="topbar">
+    <a class="logo" href="index.html">Cealin</a>
+    <div class="nav-right">
+      <ul class="menu">
+        <li><a href="index.html" data-i18n="nav.home">首页</a></li>
+        <li><a href="project.html" data-i18n="nav.project">项目</a></li>
+        <li><a href="platform.html" data-i18n="nav.platform">平台</a></li>
+        <li><a href="game.html" class="active" data-i18n="nav.game">游戏</a></li>
+        <li><a href="chat.html" data-i18n="nav.chat">聊天室</a></li>
+        <li><a href="friends.html" data-i18n="nav.friends">好友</a></li>
+        <li><a href="articles.html" data-i18n="nav.articles">文章</a></li>
+        <li><a href="suggestion.html" data-i18n="nav.suggestion">建议</a></li>
+        <li><a href="guest.html" data-i18n="nav.notice">公告</a></li>
+        <li><a href="download.html" data-i18n="nav.download">下载</a></li>
+        <li><a href="mine.html" data-i18n="nav.mine">我的</a></li>
+      </ul>
+      <a class="avatar" href="settings.html" title="设置" data-i18n-title="nav.settings"></a>
+    </div>
+  </header>
+
+  <!-- 页面主体 -->
+  <main class="hero">
+    <div class="page-head">
+      <h1 class="page-title" data-i18n="game.title">霓虹打砖块</h1>
+      <p class="page-sub" data-i18n="game.sub">单机小游戏 · 纯本地运行，不联网、不可联机</p>
+    </div>
+
+    <div class="game-shell">
+      <div class="game-main">
+        <section class="hud">
+          <div class="hud-chip">
+            <span class="hud-label" data-i18n="game.score">得分</span>
+            <span class="hud-value gold" id="hudScore">0</span>
+          </div>
+          <div class="hud-chip">
+            <span class="hud-label" data-i18n="game.level">关卡</span>
+            <span class="hud-value" id="hudLevel">1</span>
+          </div>
+          <div class="hud-chip">
+            <span class="hud-label" data-i18n="game.lives">生命</span>
+            <span class="hud-value hearts" id="hudLives">♥♥♥</span>
+          </div>
+          <div class="hud-chip">
+            <span class="hud-label" data-i18n="game.best">最高分</span>
+            <span class="hud-value" id="hudBest">0</span>
+          </div>
+        </section>
+
+        <div class="stage" id="stage">
+          <canvas id="board"></canvas>
+          <div class="overlay" id="overlay"></div>
+        </div>
+
+        <div class="controls">
+          <button type="button" class="btn primary" id="btnPause">暂停</button>
+          <button type="button" class="btn" id="btnRestart" data-i18n="game.restart">重新开始</button>
+          <button type="button" class="btn" id="btnSound">音效开</button>
+          <span class="hint" data-i18n="game.hint">鼠标移动 / 手指拖动 / ← → 控制挡板；空格或 Esc 暂停</span>
+        </div>
+      </div>
+
+      <aside class="board">
+        <h2 class="board-title" data-i18n="game.board">本机排行 TOP 5</h2>
+        <div id="boardList"></div>
+      </aside>
+    </div>
+  </main>
+
+  <script src="i18n.js"></script>
+  <script src="game.js"></script>
+</body>
+</html>
