@@ -1,0 +1,133 @@
+﻿<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+
+<!-- 运行环境识别（客户端 / 浏览器），必须最先执行 -->
+<script src="client-detect.js"></script><meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+
+<!-- 未登录守卫：必须在任何内容渲染前执行（与全站受限页一致） -->
+<script src="guard.js"></script>
+<!-- 主题引导 + 全站共享主题样式（明亮模式在 <head> 最早应用，避免闪烁） -->
+<script src="theme.js"></script>
+<link rel="stylesheet" href="theme.css">
+<link rel="stylesheet" href="bike.css">
+<title data-i18n="title.bike">单车 - Cealin</title>
+</head>
+<body>
+
+  <!-- 顶部导航 -->
+  <header class="topbar">
+    <a class="logo" href="index.html">Cealin</a>
+    <div class="nav-right">
+      <ul class="menu">
+        <li><a href="index.html" data-i18n="nav.home">首页</a></li>
+        <li><a href="project.html" data-i18n="nav.project">项目</a></li>
+        <li><a href="platform.html" data-i18n="nav.platform">平台</a></li>
+        <li><a href="game.html" data-i18n="nav.game">游戏</a></li>
+        <li><a href="bike.html" class="active" data-i18n="nav.bike">单车</a></li>
+        <li><a href="chat.html" data-i18n="nav.chat">聊天室</a></li>
+        <li><a href="friends.html" data-i18n="nav.friends">好友</a></li>
+        <li><a href="articles.html" data-i18n="nav.articles">文章</a></li>
+        <li><a href="suggestion.html" data-i18n="nav.suggestion">建议</a></li>
+        <li><a href="guest.html" data-i18n="nav.notice">公告</a></li>
+        <li><a href="download.html" data-i18n="nav.download">下载</a></li>
+        <li><a href="mine.html" data-i18n="nav.mine">我的</a></li>
+      </ul>
+      <a class="avatar" href="settings.html" title="设置" data-i18n-title="nav.settings"></a>
+    </div>
+  </header>
+
+  <!-- 页面主体 -->
+  <main class="hero">
+    <div class="page-head">
+      <h1 class="page-title" data-i18n="bike.title">山地速降</h1>
+      <p class="page-sub" data-i18n="bike.sub">低多边形 3D 速降 · 真实刚体物理 · 纯单机不联机</p>
+    </div>
+
+    <div class="bike-shell">
+      <div class="bike-main">
+        <section class="hud">
+          <div class="hud-chip">
+            <span class="hud-label" data-i18n="bike.time">用时</span>
+            <span class="hud-value gold" id="hudTime">0:00.00</span>
+          </div>
+          <div class="hud-chip">
+            <span class="hud-label" data-i18n="bike.best">最佳用时</span>
+            <span class="hud-value" id="hudBest">--:--</span>
+          </div>
+          <div class="hud-chip">
+            <span class="hud-label" data-i18n="bike.speed">速度</span>
+            <span class="hud-value" id="hudSpeed">0 km/h</span>
+          </div>
+          <div class="hud-chip">
+            <span class="hud-label" data-i18n="bike.dist">里程</span>
+            <span class="hud-value" id="hudDist">0 / 1032 m</span>
+          </div>
+          <div class="hud-chip">
+            <span class="hud-label" data-i18n="bike.trick">特技分</span>
+            <span class="hud-value" id="hudTrick">0</span>
+          </div>
+          <div class="hud-chip">
+            <span class="hud-label" data-i18n="bike.crashCount">摔倒</span>
+            <span class="hud-value" id="hudCrash">0</span>
+          </div>
+          <div class="hud-chip">
+            <span class="hud-label" data-i18n="bike.cp">检查点</span>
+            <span class="hud-value" id="hudCp">0 / 5</span>
+          </div>
+          <div class="hud-chip">
+            <span class="hud-label" data-i18n="bike.surf">路面</span>
+            <span class="hud-value" id="hudSurf">泥地</span>
+          </div>
+        </section>
+
+        <div class="progress"><i id="hudProgress"></i></div>
+
+        <div class="stage" id="stage">
+          <canvas id="bikeCanvas"></canvas>
+          <div class="toast hide" id="bikeToast"></div>
+
+          <div class="overlay" id="bikeOverlay">
+            <div class="overlay-card">
+              <h2 class="overlay-title" id="ovTitle">准备下坡</h2>
+              <p class="overlay-desc" id="ovDesc"></p>
+              <div class="overlay-stats" id="ovStats"></div>
+              <button type="button" class="btn primary" id="ovBtn" data-i18n="bike.start">开始下坡</button>
+            </div>
+          </div>
+
+          <div class="touchpad" id="touchpad">
+            <button type="button" class="tbtn" id="tLeanB" data-i18n="bike.tLeanB">后仰</button>
+            <button type="button" class="tbtn" id="tLeanF" data-i18n="bike.tLeanF">前倾</button>
+            <button type="button" class="tbtn wide jump" id="tJump" data-i18n="bike.tJump">兔跳</button>
+            <button type="button" class="tbtn" id="tBrake" data-i18n="bike.tBrake">刹车</button>
+            <button type="button" class="tbtn acc" id="tGas" data-i18n="bike.tGas">油门</button>
+          </div>
+        </div>
+
+        <div class="controls">
+          <button type="button" class="btn primary" id="btnPause" data-i18n="bike.pause">暂停</button>
+          <button type="button" class="btn" id="btnRestart" data-i18n="bike.restart">重新开始</button>
+          <span class="hint" data-i18n="bike.hint">W 加速 / S 刹车 / A·D 或 ← → 重心前后（空中旋转）/ 空格 蓄力兔跳 / R 复位 / Esc 暂停</span>
+        </div>
+      </div>
+
+      <aside class="side">
+        <h2 class="side-title" data-i18n="bike.helpTitle">怎么骑</h2>
+        <p class="side-body" data-i18n="bike.helpBody"></p>
+        <ul class="side-list">
+          <li><span class="dot mud"></span><span data-i18n="bike.surfDirt">泥地</span></li>
+          <li><span class="dot gravel"></span><span data-i18n="bike.surfGravel">碎石</span></li>
+          <li><span class="dot root"></span><span data-i18n="bike.surfRoot">树根段</span></li>
+          <li><span class="dot grass"></span><span data-i18n="bike.surfGrass">草坡</span></li>
+        </ul>
+      </aside>
+    </div>
+  </main>
+
+  <script src="vendor/three.min.js"></script>
+  <script src="i18n.js"></script>
+  <script src="bike.js"></script>
+</body>
+</html>
