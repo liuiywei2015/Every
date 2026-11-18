@@ -1648,9 +1648,11 @@
    * 4. 自行车与骑手（低多边形程序化模型）
    * ========================================================= */
   var bikeGroup = null;
+  var bikeChassis = null;
   var rearWheelRoot = null, frontWheelRoot = null;
   var rearWheelSpin = null, frontWheelSpin = null;
   var crankSpin = null, barGroup = null, riderTorso = null, shadowMesh = null;
+  var steerSm = 0;   // 视觉转向角平滑值
 
   function makeWheel(matTire, matRim, matDark) {
     var root = new THREE.Group();
@@ -1891,6 +1893,7 @@
     BIKE_MATS = { frame: matFrame, tire: matTire, rim: matRim, shirt: matShirt, skin: matSkin, helmet: matHelmet };
 
     var chassis = new THREE.Group();
+    bikeChassis = chassis;
     bikeGroup.add(chassis);
 
     function box(w, h, d, mat, x, y, z, rx) {
@@ -2250,13 +2253,16 @@
 
     // 姿态控制：↑ 前倾（压车头 / 空中前翻）、↓ 后仰（抬前轮 wheelie / 空中后翻）
     var pitchFwdIn = clamp((input.pitchFwd || 0) + (input.leanFwd || 0) * 0.1, 0, 1);
-    var pitchBackIn = clamp((input.pitchBack || 0) + (input.leanBack || 0) * 0.85, 0, 1);
+    // 后仰：键盘 ↓ 与触屏「后仰」等效（沿用旧版 0.85 权重，避免抬前轮手感变化）
+    var pitchBackIn = clamp((input.pitchBack || 0) * 0.85 + (input.leanBack || 0) * 0.85, 0, 1);
     var pitchIn = (pitchFwdIn - pitchBackIn) * act;         // +X 力矩 = 车头下压
-    var yawIn = (input.yawRight - input.yawLeft) * act;
+    // 转向：输入 +1 = 向左转（本地 +Y 为正偏航力矩）
+    var yawIn = (input.yawLeft - input.yawRight) * act;
     backPull = pitchBackIn * act;
     if (grounded) {
-      // 地面：重心前后移动产生俯仰力矩（压头 / 翘头）
-      T_ACC.add(TM.set(pitchIn * 520, yawIn * 40, 0).applyQuaternion(q));
+      // 地面：重心前后移动产生俯仰力矩（压头 / 翘头）；左右转向产生偏航力矩
+      var yawK = 120 / (1 + speed / 40);   // 高速车头更沉，避免一按就甩头
+      T_ACC.add(TM.set(pitchIn * 520, yawIn * yawK, 0).applyQuaternion(q));
       if (backPull > 0.01) {
         // 后仰抬升力矩：油门越大、车速越低，前轮越容易离地（wheelie）
         // 目标仰角随速度收紧：接近目标时力矩自然衰减，超过目标反向压车头，形成可稳定保持的后轮滑行
@@ -2409,8 +2415,17 @@
     rearWheelSpin.rotation.x = w0.spin;
     frontWheelSpin.rotation.x = w1.spin;
     crankSpin.rotation.x = w0.spin * 0.32;
-    var lean = input.leanFwd - input.leanBack;
-    if (riderTorso) { riderTorso.rotation.x = 0.30 + lean * 0.16; }
+
+    // 转向视觉：车把 / 前轮跟着左右偏转，车身与骑手向弯内压
+    var steerIn = (input.yawLeft || 0) - (input.yawRight || 0);
+    steerSm += (steerIn - steerSm) * 0.22;
+    if (Math.abs(steerSm) < 0.002 && !steerIn) { steerSm = 0; }
+    if (barGroup) { barGroup.rotation.y = steerSm * 0.52; }
+    if (frontWheelRoot) { frontWheelRoot.rotation.y = steerSm * 0.44; }
+    if (bikeChassis) { bikeChassis.rotation.z = -steerSm * 0.11; }
+
+    var lean = (input.leanFwd + (input.pitchFwd || 0) * 0.7) - (input.leanBack + (input.pitchBack || 0) * 0.7);
+    if (riderTorso) { riderTorso.rotation.x = 0.30 + lean * 0.16; riderTorso.rotation.z = -steerSm * 0.14; }
     var gy = heightAt(body.pos.x, body.pos.z);
     shadowMesh.position.set(body.pos.x, gy + 0.07, body.pos.z);
     var alt = body.pos.y - gy;
@@ -2659,16 +2674,19 @@
   bindTouch('tLeanB', 'leanBack');
   bindTouch('tLeanF', 'leanFwd');
   bindTouch('tJump', 'jump');
+  bindTouch('tSteerL', 'yawLeft');
+  bindTouch('tSteerR', 'yawRight');
 
   function syncInput() {
     var a = keys['KeyA'] ? 1 : 0, d = keys['KeyD'] ? 1 : 0;
     var al = keys['ArrowLeft'] ? 1 : 0, ar = keys['ArrowRight'] ? 1 : 0;
     input.throttle = Math.max(keys['KeyW'] ? 1 : 0, ext.throttle);
     input.brake = Math.max(keys['KeyS'] ? 1 : 0, ext.brake);
-    input.leanBack = Math.max(a, al, ext.leanBack);
-    input.leanFwd = Math.max(d, ar, ext.leanFwd);
-    input.yawLeft = Math.max(al, ext.yawLeft);
-    input.yawRight = Math.max(ar, ext.yawRight);
+    // A / D 与 ← / → 专用于左右转向；车头俯仰交给 W 之外的 ↑ / ↓（触屏用后仰 / 前倾键）
+    input.leanBack = ext.leanBack;
+    input.leanFwd = ext.leanFwd;
+    input.yawLeft = Math.max(a, al, ext.yawLeft);
+    input.yawRight = Math.max(d, ar, ext.yawRight);
     input.pitchFwd = Math.max(keys['ArrowUp'] ? 1 : 0, ext.pitchFwd || 0);
     input.pitchBack = Math.max(keys['ArrowDown'] ? 1 : 0, ext.pitchBack || 0);
     input.jump = !!(keys['Space'] || ext.jump);
@@ -3409,7 +3427,7 @@
     input.throttle = 0; input.brake = 0; input.leanBack = 0; input.leanFwd = 0;
     input.yawLeft = 0; input.yawRight = 0; input.jump = false;
     jumpCharge = 0; jumpHeld = false;
-    var ids = ['tGas', 'tBrake', 'tLeanB', 'tLeanF', 'tJump'], i, e2;
+    var ids = ['tGas', 'tBrake', 'tLeanB', 'tLeanF', 'tJump', 'tSteerL', 'tSteerR'], i, e2;
     for (i = 0; i < ids.length; i++) {
       e2 = byId(ids[i]);
       if (e2) { e2.classList.remove('on'); }

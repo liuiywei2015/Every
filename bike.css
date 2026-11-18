@@ -488,6 +488,7 @@ body.bike-page {
   transition: transform 0.1s ease, background 0.1s ease, color 0.1s ease;
 }
 .tbtn.acc { background: rgba(245, 194, 67, 0.86); color: var(--bike-ink); }
+.tbtn.steer { border-color: rgba(245, 194, 67, 0.34); }
 .tbtn.active { transform: scale(0.95); background: var(--bike-gold); color: var(--bike-ink); }
 
 .ingame-hint {
@@ -566,6 +567,13 @@ body.bike-page {
   }
   .touchpad .tbtn.jump { width: 56px; height: 56px; font-size: 11px; }
   .touchpad .tbtn.acc { width: 78px; height: 78px; font-size: 14px; }
+  /* 左簇：转向 / 重心两排两列，拇指就近按 */
+  .touchpad .tpad-side.tpad-left {
+    display: grid;
+    grid-template-columns: repeat(2, auto);
+    align-content: end;
+    gap: 8px;
+  }
   .panel-layer { align-items: flex-end; justify-content: center; padding: 14px; }
   .panel-card { width: 100%; max-height: 74vh; border-radius: 20px; }
   /* 暂停/重开移到右侧中部，避开顶部 HUD 与底部拇指簇 */

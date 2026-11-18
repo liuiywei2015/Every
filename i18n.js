@@ -116,6 +116,8 @@
     'bike.tBrake': { zh: '刹车', en: 'Brake', ja: 'ブレーキ', ko: '브레이크', es: 'Freno' },
     'bike.tLeanB': { zh: '后仰', en: 'Back', ja: '後傾', ko: '뒤로', es: 'Atrás' },
     'bike.tLeanF': { zh: '前倾', en: 'Fwd', ja: '前傾', ko: '앞으로', es: 'Adelante' },
+    'bike.tSteerL': { zh: '左转', en: 'Left', ja: '左折', ko: '좌회전', es: 'Izq.' },
+    'bike.tSteerR': { zh: '右转', en: 'Right', ja: '右折', ko: '우회전', es: 'Der.' },
     'bike.tJump': { zh: '兔跳', en: 'Hop', ja: 'ホップ', ko: '홉', es: 'Salto' },
     'bike.helpTitle': { zh: '怎么骑', en: 'How to ride', ja: '操作方法', ko: '조작 방법', es: 'Cómo jugar' },
     'bike.helpBody': { zh: '油门给扭矩，坡道给重力，抓地力有上限：泥地容易打滑、碎石颠、树根连续冲击、草坡中等。空中用左右键旋转车身，落地角度太大就翻车。', en: 'Throttle gives torque, the slope gives gravity, grip has a hard limit: mud slips, gravel rattles, roots hammer the wheels, grass is in between. Spin the bike in the air — land too sideways and you eat dirt.', ja: 'アクセルはトルク、坂は重力、グリップには限界があります。マッドは滑り、グラベルは振動、ルーツは連続衝撃、グラスは中間。空中で回転させ、着地角度が大きいと転倒します。', ko: '가속은 토크, 경사는 중력, 접지력에는 한계가 있습니다. 머드는 미끄럽고 자갈은 튀고 뿌리는 연속 충격을 줍니다. 공중에서 회전하고 착지 각도가 크면 넘어집니다.', es: 'El gas da par, la pendiente da gravedad y la adherencia tiene límite: el barro resbala, la grava vibra, las raíces golpean. Gira en el aire y aterriza recto.' },
