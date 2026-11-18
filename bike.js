@@ -59,6 +59,15 @@
   var AC = null, sndEngine = null;   // WebAudio 节点
   var DUST = null, DUST_N = 44, DUST_LIST = [];   // 尘土 / 雪雾粒子
 
+  /* ---- 昼夜时刻 / 镜头自定义（用户可调，写 localStorage） ---- */
+  var TIME_H = 12;               // 0~24 小时，12 点等于赛道原生配色
+  var TIME_AUTO = false;         // 自动昼夜
+  var TIME_BASE = null;          // 当前赛道原始光照配色
+  var timeAcc = 0;
+  var CAM_DIST = 5.3;            // 第三人称跟随距离
+  var CAM_HIGH = 2.15;           // 第三人称机位高度
+  var CAM_FOV = 60;              // 基础视场角
+
   /* 涂装 / 改装 / 自定义赛道 静态定义（须在 boot 之前完成赋值） */
   var PAINT_SWATCH = ['#e0663a', '#f2c045', '#5fb0e8', '#8fd47a', '#d96ba0', '#ffffff',
     '#2b2f36', '#7a5cff', '#c0392b', '#1f9d8b', '#e8a33d', '#9aa3a8'];
@@ -86,7 +95,12 @@
     { k: 'urban', name: '\u57ce\u5e02' },
     { k: 'dune', name: '\u6c99\u4e18' },
     { k: 'snow', name: '\u96ea\u5730' },
-    { k: 'factory', name: '\u5de5\u5382' }
+    { k: 'factory', name: '\u5de5\u5382' },
+    { k: 'indoor', name: '\u5ba4\u5185' },
+    { k: 'stair', name: '\u697c\u68af' },
+    { k: 'ridge', name: '\u5ca9\u810a' },
+    { k: 'mud', name: '\u6ce5\u6cfd' },
+    { k: 'night', name: '\u591c\u6797' }
   ];
 
   var PICKUPS = null;            // 本次赛道零件组
@@ -202,6 +216,9 @@
     if (m.style === 'dune') { return duneProfileY(s, u, code); }
     if (m.style === 'snow') { return snowProfileY(s, u, code); }
     if (m.style === 'factory') { return factoryProfileY(s, u, code); }
+    if (m.style === 'ridge') { return ridgeProfileY(s, u, code); }
+    if (m.style === 'mud') { return mudProfileY(s, u, code); }
+    if (m.style === 'night') { return nightProfileY(s, u, code); }
     return trailProfileY(s, u, code);
   }
 
@@ -215,6 +232,29 @@
       n = Math.floor((s - seg.s0) / seg.step);
       if (n > seg.count) { n = seg.count; }
       y -= n * seg.rise;
+    }
+    return y;
+  }
+
+  /* 夜间林道：窄路肩 + 周期性树根小台阶 + 弯道倾斜路面 */
+  function nightProfileY(s, u, code) {
+    var au = Math.abs(u), th = CFG.trackHalf, y = 0, tt;
+    var ph = (s / 22) - Math.floor(s / 22);
+    var root = 0;
+    if (ph < 0.10) { root = 0.30 * smooth01(ph / 0.10); }
+    else if (ph < 0.30) { root = 0.30 * (1 - smooth01((ph - 0.10) / 0.20)); }
+    var bank = 0.10 * Math.sin(s * 0.021 + 0.7);
+    if (au <= th) {
+      y += root * (1 - clamp((au - 2.4) / 3.2, 0, 1));
+      y += bank * u;
+      y += 0.30 * smooth01((au - (th - 2.0)) / 2.0);
+      y += 0.06 * vnoise(s * 0.5, u * 0.5);
+      y += jumpY(s) * (1 - clamp((au - 2.2) / 4.2, 0, 1));
+    } else if (au <= th + 2.2) {
+      tt = (au - th) / 2.2;
+      y += 0.30 + 0.90 * smooth01(tt) + 0.10 * vnoise(s * 0.3, u * 0.3);
+    } else {
+      y += 1.20 + 0.70 * vnoise(s * 0.15, u * 0.15);
     }
     return y;
   }
@@ -289,8 +329,9 @@
   /* 沙漠蚀谷：大起伏沙丘 + 背风陡坡（下坡一侧更陡，容易飞起来） */
   function duneProfileY(s, u, code) {
     var au = Math.abs(u), th = CFG.trackHalf, y = 0, t = s * 0.011, k;
+    var hillA = (MP && typeof MP.hill === 'number') ? MP.hill : 9.0;
     var dune = Math.sin(t) * Math.cos(t * 0.37 + 1.1);
-    y += dune * (CFG.hill * 0.85);
+    y += dune * (hillA * 0.85);
     y += Math.sin(s * 0.052 + 0.4) * 2.6;
     y += Math.sin(s * 0.021 + 2.2) * 4.4;
     y += vnoise(s * 0.042, u * 0.06) * 1.15;
@@ -321,14 +362,17 @@
   /* 废弃工厂：混凝土基准台 + 池坑 + 铁轨缝，落差猛 */
   function factoryProfileY(s, u, code) {
     var au = Math.abs(u), th = CFG.trackHalf, y = 0;
-    var step = Math.floor(s / 46);
-    y += (step % 2 === 0 ? 1.0 : -1.2);
+    var slot = s / 46, ph = slot - Math.floor(slot);
+    var lvlA = (Math.floor(slot) % 2 === 0) ? 1.0 : -1.2;
+    var lvlB = (Math.floor(slot + 1) % 2 === 0) ? 1.0 : -1.2;
+    var mix = smooth01(clamp((ph - 0.80) / 0.20, 0, 1));
+    y += lvlA + (lvlB - lvlA) * mix;
     y += Math.sin(s * 0.029) * 1.5;
     y += vnoise(s * 0.08, u * 0.09) * 0.42;
     var sc = clamp(au / th, 0, 1);
     // 两侧平台落差（装卸台）
     y += smooth01(sc) * 1.7;
-    if (au > th * 0.94) { y -= 2.4; }
+    if (au > th * 0.94) { y -= Math.min(2.4, (au - th * 0.94) * 1.6); }
     y -= (s - CFG.startS) * 0.09;
     // 周期性下水井/检修坑
     var pit = s - Math.floor(s / 130) * 130;
@@ -336,6 +380,38 @@
       var d = Math.sin((pit - 96) / 16 * Math.PI);
       y -= d * 1.9;
     }
+    return y;
+  }
+
+  /* 岩石山脊：锯齿状岩板台阶 + 陡峭岩壁 + 大落差 */
+  function ridgeProfileY(s, u, code) {
+    var au = Math.abs(u), th = CFG.trackHalf, y = 0;
+    var slot = Math.floor(s / 26);
+    var jag = ((slot * 7919) % 13) / 13;
+    y += (slot % 2 === 0 ? 1 : -0.62) * (0.55 + jag * 2.15);
+    y += 0.85 * Math.sin(s * 0.088) + 0.68 * vnoise(s * 0.11, u * 0.13);
+    y += jumpY(s) * (1 - clamp((au - 2.4) / 4.2, 0, 1));
+    var sc = clamp(au / th, 0, 1);
+    y += smooth01(sc) * (3.1 + 1.9 * Math.sin(s * 0.068));
+    if (au > th) { y += Math.floor((au - th) / 1.7) * 0.95; }
+    y -= (s - CFG.startS) * (CFG.slope || 0.2) * 0.9;
+    return y;
+  }
+
+  /* 雨后泥地：两道深车辙 + 周期性泥坑 + 低抓地 */
+  function mudProfileY(s, u, code) {
+    var au = Math.abs(u), th = CFG.trackHalf, y = 0;
+    var rutA = Math.exp(-Math.pow((au - 2.1) / 0.86, 2));
+    var rutB = Math.exp(-Math.pow((au - 4.5) / 0.92, 2));
+    y -= 0.46 * rutA + 0.46 * rutB;
+    y += 0.22 * vnoise(s * 0.55, u * 0.9) + 0.10 * vnoise(s * 2.1, u * 2.4);
+    var pud = s - Math.floor(s / 60) * 60;
+    if (pud > 18 && pud < 34 && au < th) {
+      y -= Math.sin((pud - 18) / 16 * Math.PI) * 0.58;
+    }
+    y += smooth01(clamp(au / th, 0, 1)) * 1.35;
+    y += jumpY(s) * (1 - clamp((au - 2.4) / 4.2, 0, 1));
+    y -= (s - CFG.startS) * (CFG.slope || 0.11);
     return y;
   }
 
@@ -900,11 +976,425 @@
     }
   }
 
+  /* =========================================================
+   * 6b. 场景模型工厂：几何体拼装 + 顶点着色 + 实例化
+   *     每个独立模型 = 1 个 InstancedMesh，避免 draw call 膨胀
+   * ========================================================= */
+  var KIT_BASE = null;
+  function kitBases() {
+    if (KIT_BASE) { return KIT_BASE; }
+    KIT_BASE = {
+      box: new THREE.BoxGeometry(1, 1, 1),
+      cyl: new THREE.CylinderGeometry(0.5, 0.5, 1, 10),
+      taper: new THREE.CylinderGeometry(0.34, 0.5, 1, 10),
+      cone: new THREE.ConeGeometry(0.5, 1, 8),
+      sph: new THREE.SphereGeometry(0.5, 8, 5)
+    };
+    return KIT_BASE;
+  }
+  function kitStart() { return { p: [], n: [], c: [] }; }
+  var _kq = null, _ke = null, _km = null, _kp = null, _ksc = null, _kcl = null;
+  function kitAdd(kit, base, hex, sx, sy, sz, px, py, pz, rx, ry, rz) {
+    if (!_kq) {
+      _kq = new THREE.Quaternion(); _ke = new THREE.Euler(); _km = new THREE.Matrix4();
+      _kp = new THREE.Vector3(); _ksc = new THREE.Vector3(); _kcl = new THREE.Color();
+    }
+    var g = base.index ? base.toNonIndexed() : base.clone();
+    _ke.set(rx || 0, ry || 0, rz || 0, 'XYZ');
+    _kq.setFromEuler(_ke);
+    _kp.set(px || 0, py || 0, pz || 0);
+    _ksc.set(sx === undefined ? 1 : sx, sy === undefined ? 1 : sy, sz === undefined ? 1 : sz);
+    _km.compose(_kp, _kq, _ksc);
+    g.applyMatrix4(_km);
+    var pa = g.attributes.position.array;
+    var na = g.attributes.normal ? g.attributes.normal.array : null;
+    _kcl.set(hex);
+    var i, nx, ny, nz;
+    for (i = 0; i < pa.length; i += 3) {
+      kit.p.push(pa[i], pa[i + 1], pa[i + 2]);
+      nx = na ? na[i] : 0; ny = na ? na[i + 1] : 1; nz = na ? na[i + 2] : 0;
+      kit.n.push(nx, ny, nz);
+      kit.c.push(_kcl.r, _kcl.g, _kcl.b);
+    }
+    g.dispose();
+  }
+  function kb(k, hex, sx, sy, sz, px, py, pz, rx, ry, rz) { kitAdd(k, kitBases().box, hex, sx, sy, sz, px, py, pz, rx, ry, rz); }
+  function kc(k, hex, sx, sy, sz, px, py, pz, rx, ry, rz) { kitAdd(k, kitBases().cyl, hex, sx, sy, sz, px, py, pz, rx, ry, rz); }
+  function kt(k, hex, sx, sy, sz, px, py, pz, rx, ry, rz) { kitAdd(k, kitBases().taper, hex, sx, sy, sz, px, py, pz, rx, ry, rz); }
+  function ko(k, hex, sx, sy, sz, px, py, pz, rx, ry, rz) { kitAdd(k, kitBases().cone, hex, sx, sy, sz, px, py, pz, rx, ry, rz); }
+  function ks(k, hex, sx, sy, sz, px, py, pz, rx, ry, rz) { kitAdd(k, kitBases().sph, hex, sx, sy, sz, px, py, pz, rx, ry, rz); }
+  function kitFinish(kit) {
+    var g = new THREE.BufferGeometry();
+    g.setAttribute('position', new THREE.Float32BufferAttribute(kit.p, 3));
+    g.setAttribute('normal', new THREE.Float32BufferAttribute(kit.n, 3));
+    g.setAttribute('color', new THREE.Float32BufferAttribute(kit.c, 3));
+    g.computeBoundingSphere();
+    return g;
+  }
+  function kitInst(geo, list) {
+    if (!geo || !list || !list.length) { return null; }
+    var mat = new THREE.MeshLambertMaterial({ vertexColors: true, flatShading: true });
+    var mesh = new THREE.InstancedMesh(geo, mat, list.length);
+    mesh.frustumCulled = false;
+    mesh.castShadow = false;
+    var m = new THREE.Matrix4(), q = new THREE.Quaternion(), ax = new THREE.Vector3(0, 1, 0);
+    var pt = new THREE.Vector3(), sc = new THREE.Vector3();
+    for (var i = 0; i < list.length; i++) {
+      var it = list[i], f = it.sc || 1;
+      q.setFromAxisAngle(ax, it.yaw || 0);
+      sc.set(f * (it.sx || 1), f * (it.sy || 1), f * (it.sz || 1));
+      pt.set(it.x, it.y, it.z);
+      m.compose(pt, q, sc);
+      mesh.setMatrixAt(i, m);
+    }
+    mesh.instanceMatrix.needsUpdate = true;
+    var hasTint = false, k;
+    for (k = 0; k < list.length; k++) { if (list[k].tint) { hasTint = true; break; } }
+    if (hasTint) {
+      var tc = new THREE.Color();
+      for (k = 0; k < list.length; k++) {
+        var tv = list[k].tint || 1;
+        tc.setRGB(tv, tv, tv);
+        mesh.setColorAt(k, tc);
+      }
+      if (mesh.instanceColor) { mesh.instanceColor.needsUpdate = true; }
+    }
+    ensureProps().add(mesh);
+    return mesh;
+  }
+
+  /* 沿赛道两侧散布一组模型 */
+  function scatter(geo, o) {
+    if (!geo) { return 0; }
+    var rng = o.rng, list = [], s, side, u, x, z, gy;
+    var step = o.step || 40;
+    var offA = (o.offA === undefined) ? 3 : o.offA;
+    var offB = (o.offB === undefined) ? 9 : o.offB;
+    var scMin = (o.scMin === undefined) ? 1 : o.scMin;
+    var scMax = (o.scMax === undefined) ? scMin : o.scMax;
+    for (s = (o.s0 === undefined ? 14 : o.s0); s < CFG.finishS - 6; s += step * (0.62 + rng() * 0.76)) {
+      if (o.skip && rng() < o.skip) { continue; }
+      side = (o.side === 0) ? (rng() < 0.5 ? -1 : 1) : (o.side || 1);
+      u = side * (CFG.trackHalf + offA + rng() * (offB - offA));
+      x = cxAt(s) + u; z = -s;
+      gy = heightAt(x, z);
+      list.push({
+        x: x, y: gy + (o.y || 0), z: z,
+        yaw: yawAt(s) + (o.face ? Math.PI : 0) + (rng() - 0.5) * (o.yawJ === undefined ? 0.35 : o.yawJ),
+        sc: scMin + rng() * (scMax - scMin),
+        tint: 0.84 + rng() * 0.32
+      });
+    }
+    kitInst(geo, list);
+    return list.length;
+  }
+
+  /* 横跨赛道的门架 / 拱门 */
+  function placeAcross(geo, step, rng) {
+    if (!geo) { return 0; }
+    var list = [], s, x;
+    for (s = CFG.startS + 36; s < CFG.finishS - 24; s += step * (0.82 + rng() * 0.42)) {
+      x = cxAt(s);
+      list.push({ x: x, y: heightAt(x, -s), z: -s, yaw: yawAt(s), sc: 1 });
+    }
+    kitInst(geo, list);
+    return list.length;
+  }
+
+  /* ---------------- 独立模型（每个都是拼装几何） ---------------- */
+  function mkWoodRamp() {
+    var k = kitStart(), an = -Math.atan2(2.1, 5.4);
+    kb(k, 0xa9793f, 2.6, 0.2, 5.9, 0, 1.05, 2.7, an, 0, 0);
+    kb(k, 0x8a5f31, 0.18, 0.55, 5.9, 1.28, 0.78, 2.7, an, 0, 0);
+    kb(k, 0x8a5f31, 0.18, 0.55, 5.9, -1.28, 0.78, 2.7, an, 0, 0);
+    kb(k, 0x6f4b28, 0.22, 1.0, 0.22, 1.16, 0.5, 0.9);
+    kb(k, 0x6f4b28, 0.22, 1.0, 0.22, -1.16, 0.5, 0.9);
+    kb(k, 0x6f4b28, 0.22, 1.9, 0.22, 1.16, 0.95, 4.5);
+    kb(k, 0x6f4b28, 0.22, 1.9, 0.22, -1.16, 0.95, 4.5);
+    kb(k, 0xb1854a, 2.9, 0.22, 1.4, 0, 2.12, 5.4);
+    return kitFinish(k);
+  }
+  function mkLamp(headHex) {
+    var k = kitStart();
+    kb(k, 0x2b3036, 0.34, 0.3, 0.34, 0, 0.15, 0);
+    kb(k, 0x3c4249, 0.16, 6.0, 0.16, 0, 3.2, 0);
+    kb(k, 0x3c4249, 1.2, 0.14, 0.14, 0.6, 6.1, 0);
+    kb(k, headHex || 0xffe9a8, 0.6, 0.18, 0.44, 1.1, 5.98, 0);
+    return kitFinish(k);
+  }
+  function mkTrussTower() {
+    var k = kitStart(), y;
+    for (y = 0; y < 8; y += 2) {
+      kb(k, 0x8d949c, 0.14, 2.0, 0.14, 0.95, y + 1, 0.95);
+      kb(k, 0x8d949c, 0.14, 2.0, 0.14, -0.95, y + 1, 0.95);
+      kb(k, 0x8d949c, 0.14, 2.0, 0.14, 0.95, y + 1, -0.95);
+      kb(k, 0x8d949c, 0.14, 2.0, 0.14, -0.95, y + 1, -0.95);
+      kb(k, 0x6f767e, 2.05, 0.12, 0.12, 0, y + 2, 0.95);
+      kb(k, 0x6f767e, 2.05, 0.12, 0.12, 0, y + 2, -0.95);
+      kb(k, 0x6f767e, 0.12, 0.12, 2.05, 0.95, y + 2, 0);
+      kb(k, 0x6f767e, 0.12, 0.12, 2.05, -0.95, y + 2, 0);
+    }
+    kb(k, 0x9aa1a8, 2.5, 0.18, 2.5, 0, 8.1, 0);
+    return kitFinish(k);
+  }
+  function mkStand() {
+    var k = kitStart(), i, cols = [0xe0663a, 0xf2c045, 0x5fb0e8, 0x8fd47a, 0xd96ba0, 0xf0f0f0];
+    for (i = 0; i < 3; i++) {
+      kb(k, 0x4c525a, 12, 0.9 + i * 0.9, 1.8 + i * 1.6, 0, (0.9 + i * 0.9) / 2, i * 0.4);
+    }
+    for (i = 0; i < 12; i++) {
+      ks(k, cols[i % cols.length], 0.5, 0.66, 0.5, -5.4 + (i % 4) * 3.6, 1.35 + (i % 3) * 0.95, (i % 3) * 0.5 - 0.5);
+    }
+    return kitFinish(k);
+  }
+  function mkTires() {
+    var k = kitStart(), i;
+    for (i = 0; i < 4; i++) { kc(k, 0x23262b, 1.16, 0.26, 1.16, 0, 0.14 + i * 0.28, 0); }
+    kc(k, 0x7d838a, 1.0, 0.1, 1.0, 0, 1.24, 0);
+    return kitFinish(k);
+  }
+  function mkCactus() {
+    var k = kitStart();
+    kc(k, 0x4a7a3f, 0.66, 3.4, 0.66, 0, 1.7, 0);
+    kc(k, 0x4a7a3f, 0.34, 1.3, 0.34, 0.62, 1.9, 0, 0, 0, Math.PI / 2);
+    kc(k, 0x4a7a3f, 0.34, 0.9, 0.34, 1.2, 2.35, 0);
+    kc(k, 0x4a7a3f, 0.34, 1.0, 0.34, -0.6, 1.3, 0, 0, 0, Math.PI / 2);
+    kc(k, 0x4a7a3f, 0.34, 0.8, 0.34, -1.15, 1.7, 0);
+    ks(k, 0x5d8f4a, 0.5, 0.4, 0.5, 0, 3.42, 0);
+    return kitFinish(k);
+  }
+  function mkPine() {
+    var k = kitStart();
+    kc(k, 0x4a3524, 0.28, 2.0, 0.28, 0, 1.0, 0);
+    ko(k, 0x2f4a3a, 3.2, 2.6, 3.2, 0, 2.6, 0);
+    ko(k, 0x33513d, 2.4, 2.2, 2.4, 0, 4.2, 0);
+    ko(k, 0x3a5a42, 1.5, 1.9, 1.5, 0, 5.6, 0);
+    return kitFinish(k);
+  }
+  function mkCableTower() {
+    var k = kitStart();
+    kb(k, 0x6b7784, 0.3, 9.0, 0.3, -1.2, 4.5, 0, 0, 0, 0.12);
+    kb(k, 0x6b7784, 0.3, 9.0, 0.3, 1.2, 4.5, 0, 0, 0, -0.12);
+    kb(k, 0x8a949f, 3.0, 0.28, 0.28, 0, 8.9, 0);
+    kb(k, 0x8a949f, 0.5, 0.5, 1.6, -1.1, 8.6, 0);
+    kb(k, 0x8a949f, 0.5, 0.5, 1.6, 1.1, 8.6, 0);
+    kb(k, 0x2b3036, 1.3, 1.2, 1.5, 1.1, 7.7, 0);
+    kb(k, 0xc0392b, 1.34, 0.2, 1.54, 1.1, 8.2, 0);
+    return kitFinish(k);
+  }
+  function mkTank() {
+    var k = kitStart();
+    kc(k, 0x9aa1a8, 3.2, 3.4, 3.2, 0, 2.0, 0);
+    kc(k, 0xb8bfc6, 3.3, 0.2, 3.3, 0, 3.5, 0);
+    ko(k, 0x8d949c, 3.1, 0.7, 3.1, 0, 3.9, 0);
+    kb(k, 0x6f767e, 0.24, 0.6, 0.24, 1.2, 0.3, 1.2);
+    kb(k, 0x6f767e, 0.24, 0.6, 0.24, -1.2, 0.3, 1.2);
+    kb(k, 0x6f767e, 0.24, 0.6, 0.24, 1.2, 0.3, -1.2);
+    kb(k, 0x6f767e, 0.24, 0.6, 0.24, -1.2, 0.3, -1.2);
+    return kitFinish(k);
+  }
+  function mkPipeRack() {
+    var k = kitStart();
+    kb(k, 0x6f767e, 0.3, 3.4, 0.3, 0, 1.7, -2.4);
+    kb(k, 0x6f767e, 0.3, 3.4, 0.3, 0, 1.7, 2.4);
+    kb(k, 0x7d838a, 3.2, 0.24, 0.24, 0, 3.3, 0);
+    kc(k, 0x8a5a3a, 0.7, 6.0, 0.7, 0.7, 2.4, 0, 0, 0, Math.PI / 2);
+    kc(k, 0x9aa1a8, 0.5, 6.0, 0.5, -0.8, 2.9, 0, 0, 0, Math.PI / 2);
+    return kitFinish(k);
+  }
+  function mkContainer() {
+    var k = kitStart();
+    kb(k, 0x2f6f8f, 6.0, 2.6, 2.4, 0, 1.3, 0);
+    kb(k, 0x9c3a2e, 5.2, 2.6, 2.2, 0.3, 3.9, 0.2);
+    kb(k, 0xc8a34a, 3.0, 2.6, 2.0, -1.2, 6.5, 0.1);
+    return kitFinish(k);
+  }
+  function mkChimney() {
+    var k = kitStart();
+    kt(k, 0x8d949c, 2.6, 12, 2.6, 0, 6, 0);
+    kc(k, 0xb03a2e, 2.0, 0.9, 2.0, 0, 11.2, 0);
+    kc(k, 0xe8eef2, 1.95, 0.6, 1.95, 0, 10.3, 0);
+    kc(k, 0xb03a2e, 1.9, 0.5, 1.9, 0, 12.1, 0);
+    return kitFinish(k);
+  }
+  function mkBillboard() {
+    var k = kitStart();
+    kb(k, 0x4a5057, 0.28, 6.0, 0.28, -2.2, 3.0, 0);
+    kb(k, 0x4a5057, 0.28, 6.0, 0.28, 2.2, 3.0, 0);
+    kb(k, 0x2b3036, 6.4, 3.4, 0.24, 0, 6.4, 0);
+    kb(k, 0xf2c045, 5.9, 2.9, 0.14, 0, 6.4, 0.16);
+    kb(k, 0xe0663a, 4.4, 0.7, 0.1, 0, 7.2, 0.24);
+    kb(k, 0x2b3036, 3.0, 0.4, 0.1, 0, 5.7, 0.24);
+    return kitFinish(k);
+  }
+  function mkWaterTower() {
+    var k = kitStart();
+    kb(k, 0x5a6068, 0.26, 3.2, 0.26, 1.0, 1.6, 1.0);
+    kb(k, 0x5a6068, 0.26, 3.2, 0.26, -1.0, 1.6, 1.0);
+    kb(k, 0x5a6068, 0.26, 3.2, 0.26, 1.0, 1.6, -1.0);
+    kb(k, 0x5a6068, 0.26, 3.2, 0.26, -1.0, 1.6, -1.0);
+    kc(k, 0x7a5a42, 3.4, 3.0, 3.4, 0, 4.8, 0);
+    ko(k, 0x4a3324, 3.4, 1.2, 3.4, 0, 6.9, 0);
+    kb(k, 0x5a6068, 2.6, 0.2, 0.2, 0, 3.4, 1.4);
+    return kitFinish(k);
+  }
+  function mkCabin() {
+    var k = kitStart();
+    kb(k, 0x8a5f31, 4.6, 2.9, 3.8, 0, 1.45, 0);
+    kb(k, 0x7a2f24, 2.9, 0.22, 4.4, -1.15, 3.5, 0, 0, 0, 0.62);
+    kb(k, 0x7a2f24, 2.9, 0.22, 4.4, 1.15, 3.5, 0, 0, 0, -0.62);
+    kb(k, 0x4a3324, 1.0, 1.9, 0.16, 0, 0.95, 1.95);
+    kb(k, 0xffe9a8, 0.9, 0.8, 0.14, -1.35, 1.9, 1.95);
+    kb(k, 0xffe9a8, 0.9, 0.8, 0.14, 1.35, 1.9, 1.95);
+    kb(k, 0x6f4b28, 0.4, 1.6, 0.4, 1.4, 4.2, -1.0);
+    return kitFinish(k);
+  }
+  function mkFence() {
+    var k = kitStart();
+    kb(k, 0x8a6a44, 0.16, 1.3, 0.16, -2.0, 0.65, 0);
+    kb(k, 0x8a6a44, 0.16, 1.3, 0.16, 0, 0.65, 0);
+    kb(k, 0x8a6a44, 0.16, 1.3, 0.16, 2.0, 0.65, 0);
+    kb(k, 0xa98455, 4.2, 0.16, 0.1, 0, 1.05, 0);
+    kb(k, 0xa98455, 4.2, 0.16, 0.1, 0, 0.6, 0);
+    return kitFinish(k);
+  }
+  function mkRockArch() {
+    var k = kitStart();
+    ks(k, 0x8a8177, 2.4, 5.2, 2.4, -1.9, 2.6, 0);
+    ks(k, 0x8a8177, 2.4, 5.2, 2.4, 1.9, 2.6, 0);
+    ks(k, 0x948b80, 3.0, 3.4, 2.2, 0, 5.6, 0);
+    ks(k, 0x7d7568, 2.2, 1.6, 2.0, 0.6, 6.6, 0);
+    return kitFinish(k);
+  }
+  function mkGateArch() {
+    var k = kitStart();
+    kb(k, 0x3c4249, 0.4, 6.6, 0.4, -4.2, 3.3, 0);
+    kb(k, 0x3c4249, 0.4, 6.6, 0.4, 4.2, 3.3, 0);
+    kb(k, 0x4a5057, 9.0, 0.7, 0.6, 0, 6.9, 0);
+    kb(k, 0xf2c045, 7.6, 1.0, 0.12, 0, 6.6, 0.34);
+    kb(k, 0xe0663a, 1.4, 1.0, 0.12, 0, 5.5, 0.34);
+    return kitFinish(k);
+  }
+  function mkGantry() {
+    var k = kitStart();
+    kb(k, 0xc8a34a, 0.5, 9.0, 0.5, -6.0, 4.5, 0);
+    kb(k, 0xc8a34a, 0.5, 9.0, 0.5, 6.0, 4.5, 0);
+    kb(k, 0xc8a34a, 13.0, 0.7, 0.7, 0, 9.2, 0);
+    kb(k, 0x9c7a2e, 1.2, 0.8, 1.2, 2.4, 8.5, 0);
+    kb(k, 0x3c4249, 0.1, 3.4, 0.1, 2.4, 6.6, 0);
+    kb(k, 0x3c4249, 1.0, 0.4, 0.4, 2.4, 4.8, 0);
+    return kitFinish(k);
+  }
+  function mkBench() {
+    var k = kitStart();
+    kb(k, 0x6f4b28, 2.2, 0.14, 0.6, 0, 0.5, 0);
+    kb(k, 0x6f4b28, 2.2, 0.14, 0.5, 0, 0.86, -0.26, 0.25, 0, 0);
+    kb(k, 0x3c4249, 0.12, 0.5, 0.5, -0.85, 0.25, 0);
+    kb(k, 0x3c4249, 0.12, 0.5, 0.5, 0.85, 0.25, 0);
+    kc(k, 0x4a5057, 0.66, 1.0, 0.66, 1.8, 0.5, 0);
+    kc(k, 0x2b3036, 0.72, 0.1, 0.72, 1.8, 1.02, 0);
+    return kitFinish(k);
+  }
+  function mkDerrick() {
+    var k = kitStart();
+    kb(k, 0xb8b2a6, 0.22, 8.0, 0.22, -1.5, 4.0, -1.5, 0.16, 0, 0.16);
+    kb(k, 0xb8b2a6, 0.22, 8.0, 0.22, 1.5, 4.0, -1.5, -0.16, 0, -0.16);
+    kb(k, 0xb8b2a6, 0.22, 8.0, 0.22, -1.5, 4.0, 1.5, -0.16, 0, 0.16);
+    kb(k, 0xb8b2a6, 0.22, 8.0, 0.22, 1.5, 4.0, 1.5, 0.16, 0, -0.16);
+    kb(k, 0xb8b2a6, 3.4, 0.16, 0.16, 0, 4.0, -1.5);
+    kb(k, 0xb8b2a6, 3.4, 0.16, 0.16, 0, 4.0, 1.5);
+    kb(k, 0xb8b2a6, 0.16, 0.16, 3.4, -1.5, 6.6, 0);
+    kb(k, 0x6f767e, 1.2, 0.5, 1.2, 0, 8.2, 0);
+    return kitFinish(k);
+  }
+  function mkWreck() {
+    var k = kitStart();
+    kb(k, 0x8a5a3a, 4.2, 1.0, 2.0, 0, 0.75, 0);
+    kb(k, 0x6f4b28, 2.2, 0.9, 1.8, -0.3, 1.6, 0);
+    kc(k, 0x23262b, 0.9, 0.4, 0.9, 1.3, 0.45, 1.0, 0, 0, Math.PI / 2);
+    kc(k, 0x23262b, 0.9, 0.4, 0.9, -1.3, 0.45, 1.0, 0, 0, Math.PI / 2);
+    kc(k, 0x23262b, 0.9, 0.4, 0.9, 1.3, 0.45, -1.0, 0, 0, Math.PI / 2);
+    kc(k, 0x23262b, 0.9, 0.4, 0.9, -1.3, 0.45, -1.0, 0, 0, Math.PI / 2);
+    kb(k, 0x9aa1a8, 4.3, 0.18, 2.05, 0, 1.3, 0);
+    return kitFinish(k);
+  }
+
+  /* ---------------- 各场景独立布置 ---------------- */
+  function sceneIndoor(rng) {
+    scatter(mkWoodRamp(), { rng: rng, step: 60, side: 0, offA: 3.0, offB: 5.2, scMin: 0.9, scMax: 1.25 });
+    scatter(mkTrussTower(), { rng: rng, step: 46, side: 0, offA: 7.0, offB: 11, scMin: 0.9, scMax: 1.35 });
+    scatter(mkStand(), { rng: rng, step: 82, side: 0, offA: 9.5, offB: 13, scMin: 0.9, scMax: 1.15 });
+    scatter(mkTires(), { rng: rng, step: 38, side: 0, offA: 3.2, offB: 5.6, scMin: 0.8, scMax: 1.3 });
+    placeAcross(mkGateArch(), 200, rng);
+  }
+  function sceneOutdoor(rng) {
+    scatter(mkWoodRamp(), { rng: rng, step: 68, side: 0, offA: 3.2, offB: 6.0, scMin: 0.95, scMax: 1.3 });
+    scatter(mkTires(), { rng: rng, step: 44, side: 0, offA: 3.0, offB: 5.2, scMin: 0.85, scMax: 1.2 });
+    scatter(mkFence(), { rng: rng, step: 22, side: 0, offA: 3.4, offB: 4.4, scMin: 0.9, scMax: 1.1 });
+    scatter(mkCabin(), { rng: rng, step: 140, side: 0, offA: 11, offB: 19, scMin: 0.9, scMax: 1.2 });
+    placeAcross(mkGateArch(), 210, rng);
+  }
+  function sceneStair(rng) {
+    scatter(mkLamp(0xffe9a8), { rng: rng, step: 44, side: 1, offA: 2.4, offB: 3.2, scMin: 0.9, scMax: 1.1 });
+    scatter(mkBench(), { rng: rng, step: 56, side: -1, offA: 2.6, offB: 4.0, scMin: 0.9, scMax: 1.1 });
+    scatter(mkFence(), { rng: rng, step: 19, side: 0, offA: 2.8, offB: 3.6, scMin: 0.9, scMax: 1.05 });
+    scatter(mkTrussTower(), { rng: rng, step: 105, side: 0, offA: 8.5, offB: 13, scMin: 0.7, scMax: 1.0 });
+  }
+  function sceneUrban(rng) {
+    scatter(mkLamp(0xfff3c0), { rng: rng, step: 28, side: 0, offA: 2.4, offB: 3.2, scMin: 0.95, scMax: 1.15 });
+    scatter(mkBillboard(), { rng: rng, step: 62, side: 0, offA: 5.5, offB: 10, scMin: 0.9, scMax: 1.35 });
+    scatter(mkWaterTower(), { rng: rng, step: 70, side: 0, offA: 15, offB: 24, scMin: 0.9, scMax: 1.4 });
+    scatter(mkContainer(), { rng: rng, step: 72, side: 0, offA: 4.8, offB: 8.5, scMin: 0.7, scMax: 1.0 });
+    scatter(mkGantry(), { rng: rng, step: 185, side: 0, offA: 11, offB: 17, scMin: 0.9, scMax: 1.2 });
+    placeAcross(mkGateArch(), 230, rng);
+  }
+  function sceneDune(rng) {
+    scatter(mkCactus(), { rng: rng, step: 19, side: 0, offA: 2.8, offB: 15, scMin: 0.8, scMax: 1.6 });
+    scatter(mkRockArch(), { rng: rng, step: 92, side: 0, offA: 8, offB: 19, scMin: 0.9, scMax: 1.6 });
+    scatter(mkDerrick(), { rng: rng, step: 145, side: 0, offA: 11, offB: 22, scMin: 0.9, scMax: 1.3 });
+    scatter(mkWreck(), { rng: rng, step: 112, side: 0, offA: 4.5, offB: 11, scMin: 0.9, scMax: 1.2 });
+    scatter(mkFence(), { rng: rng, step: 32, side: 0, offA: 3.2, offB: 4.0, scMin: 0.9, scMax: 1.05 });
+  }
+  function sceneSnow(rng) {
+    scatter(mkPine(), { rng: rng, step: 11, side: 0, offA: 3.4, offB: 20, scMin: 0.7, scMax: 1.5 });
+    scatter(mkCableTower(), { rng: rng, step: 92, side: 0, offA: 9, offB: 15, scMin: 0.95, scMax: 1.25 });
+    scatter(mkCabin(), { rng: rng, step: 115, side: 0, offA: 7, offB: 15, scMin: 0.85, scMax: 1.15 });
+    scatter(mkRockArch(), { rng: rng, step: 160, side: 0, offA: 11, offB: 20, scMin: 0.9, scMax: 1.5 });
+  }
+  function sceneFactory(rng) {
+    scatter(mkTank(), { rng: rng, step: 40, side: 0, offA: 5.5, offB: 11, scMin: 0.85, scMax: 1.3 });
+    scatter(mkPipeRack(), { rng: rng, step: 32, side: 0, offA: 4.0, offB: 8.5, scMin: 0.9, scMax: 1.2 });
+    scatter(mkChimney(), { rng: rng, step: 115, side: 0, offA: 13, offB: 22, scMin: 0.9, scMax: 1.3 });
+    scatter(mkContainer(), { rng: rng, step: 56, side: 0, offA: 5.5, offB: 13, scMin: 0.85, scMax: 1.1 });
+    scatter(mkTrussTower(), { rng: rng, step: 48, side: 0, offA: 4.4, offB: 7.5, scMin: 0.9, scMax: 1.2 });
+    scatter(mkGantry(), { rng: rng, step: 180, side: 0, offA: 9, offB: 15, scMin: 0.9, scMax: 1.15 });
+  }
+  function sceneTrail(key, rng) {
+    scatter(mkWoodRamp(), { rng: rng, step: 92, side: 0, offA: 3.4, offB: 6.2, scMin: 0.9, scMax: 1.2 });
+    scatter(mkFence(), { rng: rng, step: 28, side: 0, offA: 3.0, offB: 4.2, scMin: 0.85, scMax: 1.05, skip: 0.3 });
+    scatter(mkTires(), { rng: rng, step: 70, side: 0, offA: 3.0, offB: 5.0, scMin: 0.8, scMax: 1.1 });
+    placeAcross(mkGateArch(), 250, rng);
+    if (key === 'night') {
+      scatter(mkLamp(0xffe2a0), { rng: rng, step: 24, side: 0, offA: 2.4, offB: 3.2, scMin: 0.95, scMax: 1.1 });
+    } else if (key === 'ridge') {
+      scatter(mkRockArch(), { rng: rng, step: 74, side: 0, offA: 6.5, offB: 17, scMin: 0.9, scMax: 1.7 });
+      scatter(mkFence(), { rng: rng, step: 16, side: 1, offA: 2.6, offB: 3.4, scMin: 0.9, scMax: 1.05, skip: 0.5 });
+    } else if (key === 'rain') {
+      scatter(mkCabin(), { rng: rng, step: 125, side: 0, offA: 7.5, offB: 15, scMin: 0.85, scMax: 1.1 });
+      scatter(mkFence(), { rng: rng, step: 17, side: 0, offA: 3.2, offB: 4.0, scMin: 0.9, scMax: 1.05 });
+    } else if (key === 'dusk') {
+      scatter(mkBench(), { rng: rng, step: 66, side: 0, offA: 4.8, offB: 7.5, scMin: 0.9, scMax: 1.1 });
+      scatter(mkLamp(0xffd9a0), { rng: rng, step: 50, side: 0, offA: 2.8, offB: 3.8, scMin: 0.95, scMax: 1.1 });
+    }
+  }
+
   function buildProps() {
     var style = (MP && MP.style) || 'trail';
+    var key = (MP && MP.key) || 'dusk';
     // 各场景装饰需要一个固定种子的随机源，否则室外/城市赛道的道具布置会直接抛错
     var rng = mulberry32(CFG.seed + 31);
-    if (style === 'trail') { buildTrailProps(); }
+    // 第一层：原有基础结构（墙面 / 楼栋 / 台阶 / 树石）
+    if (style === 'trail' || style === 'night' || style === 'ridge' || style === 'mud') { buildTrailProps(); }
     else if (style === 'indoor') { dressingIndoor(rng); }
     else if (style === 'outdoor') { dressingOutdoor(rng); }
     else if (style === 'stair') { dressingStair(rng); }
@@ -912,6 +1402,18 @@
     else if (style === 'dune') { dressingBiome(rng, 'dune'); }
     else if (style === 'snow') { dressingBiome(rng, 'snow'); }
     else if (style === 'factory') { dressingBiome(rng, 'factory'); }
+    // 第二层：各场景专属的独立模型（几何体各不相同，不只是换颜色）
+    var rng2 = mulberry32(CFG.seed + 977);
+    if (style === 'indoor') { sceneIndoor(rng2); }
+    else if (style === 'outdoor') { sceneOutdoor(rng2); }
+    else if (style === 'stair') { sceneStair(rng2); }
+    else if (style === 'urban') { sceneUrban(rng2); }
+    else if (style === 'dune') { sceneDune(rng2); }
+    else if (style === 'snow') { sceneSnow(rng2); }
+    else if (style === 'factory') { sceneFactory(rng2); }
+    else {
+      var tkey = (style === 'night') ? 'night' : (style === 'ridge') ? 'ridge' : (style === 'mud') ? 'rain' : key;
+      sceneTrail(tkey, rng2); }
   }
 
   function buildTrailProps() {
@@ -1779,8 +2281,8 @@
     if (flat.lengthSq() < 1e-4) { flat.set(0, 0, -1); }
     flat.normalize();
 
-    var backDist = 5.3 + speed * 0.11;
-    var height = 2.15 + speed * 0.022;
+    var backDist = CAM_DIST + speed * 0.11;
+    var height = CAM_HIGH + speed * 0.022;
     var desired = T8.copy(body.pos).addScaledVector(flat, -backDist).addScaledVector(CAM_UP, height);
     var gh = heightAt(desired.x, desired.z) + 1.3;
     if (desired.y < gh) { desired.y = gh; }
@@ -1793,7 +2295,7 @@
 
     camera.position.copy(camPos);
     camera.lookAt(camLook);
-    var targetFov = 60 + clamp(speed * 0.85, 0, 22);
+    var targetFov = CAM_FOV + clamp(speed * 0.85, 0, 22);
     camera.fov = lerp(camera.fov, targetFov, 1 - Math.exp(-dt * 3));
     camera.updateProjectionMatrix();
   }
@@ -1816,7 +2318,7 @@
     camLook.lerp(look, 1 - Math.exp(-dt * 15));
     camera.position.copy(camPos);
     camera.lookAt(camLook);
-    var targetFov = 70 + clamp(speed * 0.9, 0, 20);
+    var targetFov = CAM_FOV + 10 + clamp(speed * 0.9, 0, 20);
     camera.fov = lerp(camera.fov, targetFov, 1 - Math.exp(-dt * 3));
     camera.updateProjectionMatrix();
   }
@@ -2059,6 +2561,11 @@
 
     syncInput();
 
+    if (TIME_AUTO) {
+      timeAcc += dt;
+      if (timeAcc > 0.7) { timeAcc = 0; setTimeOfDay(TIME_H + 0.05, true); }
+    }
+
     if (state === 'running' || state === 'crash') {
       acc += dt;
       if (acc > STEP * 14) { acc = STEP * 14; }
@@ -2268,7 +2775,7 @@
     if (MAPS && BIKES) { return; }
     MAPS = [
       {
-        key: 'dusk', nameKey: 'bike.mapDusk', name: '\u9ec4\u660f\u6797\u9053',
+        key: 'dusk', style: 'trail', nameKey: 'bike.mapDusk', name: '\u9ec4\u660f\u6797\u9053',
         descKey: 'bike.mapDuskDesc', tint: 0xd08a4a, diff: 1,
         seed: 20261117, length: 1060, startS: 8, cpEvery: 200, finishS: 1040, trackHalf: 6.5,
         cw1: 15, cf1: 0.0058, cw2: 6, cf2: 0.0155, slope: 0.128,
@@ -2287,7 +2794,7 @@
         }
       },
       {
-        key: 'rain', nameKey: 'bike.mapRain', name: '\u96e8\u540e\u6ce5\u5730',
+        key: 'rain', style: 'mud', nameKey: 'bike.mapRain', name: '\u96e8\u540e\u6ce5\u5730',
         descKey: 'bike.mapRainDesc', tint: 0x5d7a72, diff: 2,
         seed: 20261118, length: 1240, startS: 8, cpEvery: 220, finishS: 1220, trackHalf: 7.6,
         cw1: 19, cf1: 0.0046, cw2: 7.5, cf2: 0.0182, slope: 0.112,
@@ -2306,7 +2813,7 @@
         }
       },
       {
-        key: 'ridge', nameKey: 'bike.mapRidge', name: '\u5ca9\u77f3\u5c71\u810a',
+        key: 'ridge', style: 'ridge', nameKey: 'bike.mapRidge', name: '\u5ca9\u77f3\u5c71\u810a',
         descKey: 'bike.mapRidgeDesc', tint: 0xb79a72, diff: 3,
         seed: 20261119, length: 880, startS: 8, cpEvery: 170, finishS: 860, trackHalf: 5.6,
         cw1: 22, cf1: 0.0062, cw2: 9, cf2: 0.0212, slope: 0.205,
@@ -2407,7 +2914,7 @@
         }
       },
       {
-        key: 'night', nameKey: 'bike.mapNight', name: '\u6697\u591c\u5c71\u810a',
+        key: 'night', style: 'night', nameKey: 'bike.mapNight', name: '\u6697\u591c\u5c71\u810a',
         descKey: 'bike.mapNightDesc', tint: 0x2a3550, diff: 3,
         seed: 20261124, length: 1140, startS: 8, cpEvery: 200, finishS: 1120, trackHalf: 6.0,
         cw1: 17, cf1: 0.0054, cw2: 6.4, cf2: 0.0166, slope: 0.132,
@@ -2426,7 +2933,7 @@
         }
       },
       {
-        key: 'desert', nameKey: 'bike.mapDesert', name: '\u6c99\u6f20\u8680\u8c37',
+        key: 'desert', style: 'dune', nameKey: 'bike.mapDesert', name: '\u6c99\u6f20\u8680\u8c37',
         descKey: 'bike.mapDesertDesc', tint: 0xd9a24e, diff: 2,
         seed: 20261125, length: 1180, startS: 8, cpEvery: 210, finishS: 1160, trackHalf: 8.2,
         cw1: 20, cf1: 0.0042, cw2: 8.0, cf2: 0.0158, slope: 0.118,
@@ -2445,7 +2952,7 @@
         }
       },
       {
-        key: 'snow', nameKey: 'bike.mapSnow', name: '\u96ea\u7ebf\u901f\u964d',
+        key: 'snow', style: 'snow', nameKey: 'bike.mapSnow', name: '\u96ea\u7ebf\u901f\u964d',
         descKey: 'bike.mapSnowDesc', tint: 0xcfe0ec, diff: 3,
         seed: 20261126, length: 1080, startS: 8, cpEvery: 190, finishS: 1060, trackHalf: 7.0,
         cw1: 21, cf1: 0.0040, cw2: 8.4, cf2: 0.0170, slope: 0.122,
@@ -2464,7 +2971,7 @@
         }
       },
       {
-        key: 'factory', nameKey: 'bike.mapFactory', name: '\u5e9f\u5f03\u5de5\u5382',
+        key: 'factory', style: 'factory', nameKey: 'bike.mapFactory', name: '\u5e9f\u5f03\u5de5\u5382',
         descKey: 'bike.mapFactoryDesc', tint: 0x7a7166, diff: 2,
         seed: 20261127, length: 980, startS: 8, cpEvery: 180, finishS: 960, trackHalf: 6.8,
         cw1: 16, cf1: 0.0050, cw2: 6.0, cf2: 0.0160, slope: 0.108,
@@ -2568,6 +3075,90 @@
     clearPickups();
   }
 
+  /* =========================================================
+   * 7b. 昼夜时刻 / 镜头参数（用户可调，持久化到 localStorage）
+   * ========================================================= */
+  function loadViewPrefs() {
+    var th = parseFloat(store('cealin_bike_time'));
+    TIME_H = isFinite(th) ? clamp(th, 0, 24) : 12;
+    TIME_AUTO = store('cealin_bike_timeauto') === '1';
+    var cd = parseFloat(store('cealin_bike_dist'));
+    CAM_DIST = isFinite(cd) ? clamp(cd, 3, 10) : 5.3;
+    var ch = parseFloat(store('cealin_bike_chan'));
+    CAM_HIGH = isFinite(ch) ? clamp(ch, 0.8, 5.5) : 2.15;
+    var cf = parseFloat(store('cealin_bike_fov'));
+    CAM_FOV = isFinite(cf) ? clamp(cf, 45, 95) : 60;
+  }
+  function fmtHour(h) {
+    var hh = Math.floor(h) % 24;
+    var mm = Math.round((h - Math.floor(h)) * 60);
+    if (mm >= 60) { hh = (hh + 1) % 24; mm = 0; }
+    return (hh < 10 ? '0' : '') + hh + ':' + (mm < 10 ? '0' : '') + mm;
+  }
+  var _tSky = null, _tFog = null, _tSun = null, _tA = null, _tB = null;
+  function applyTimeOfDay() {
+    if (!TIME_BASE) { return; }
+    if (!_tSky) {
+      _tSky = new THREE.Color(); _tFog = new THREE.Color(); _tSun = new THREE.Color();
+      _tA = new THREE.Color(); _tB = new THREE.Color();
+    }
+    var h = TIME_H;
+    var alt = Math.sin((h - 6) / 12 * Math.PI);      // 6 点升、18 点落
+    var day = clamp(alt, 0, 1);
+    var night = clamp(-alt, 0, 1);
+    var duskF = clamp(1 - Math.abs(alt) * 3.0, 0, 1);
+    _tSky.setHex(TIME_BASE.sky);
+    _tFog.setHex(TIME_BASE.fog);
+    _tSun.setHex(TIME_BASE.sunColor);
+    _tA.setHex(0x0a1024);
+    _tSky.lerp(_tA, night * 0.84);
+    _tFog.lerp(_tA, night * 0.88);
+    _tB.setHex(0xe0662a);
+    _tSky.lerp(_tB, duskF * 0.55);
+    _tFog.lerp(_tB, duskF * 0.42);
+    _tSun.lerp(_tB, duskF * 0.85);
+    _tB.setHex(0x9fb6e8);
+    _tSun.lerp(_tB, night * 0.8);
+    if (scene.background && scene.background.copy) { scene.background.copy(_tSky); }
+    if (scene.fog) {
+      scene.fog.color.copy(_tFog);
+      scene.fog.near = TIME_BASE.fogNear * (1 - night * 0.5);
+      scene.fog.far = TIME_BASE.fogFar * (1 - night * 0.55);
+    }
+    if (sun) {
+      sun.color.copy(_tSun);
+      sun.intensity = TIME_BASE.sunI * (0.14 + 0.96 * day);
+      var az = (h - 12) / 12 * Math.PI;
+      sun.position.set(-Math.cos(az) * 95, 26 + day * 92, Math.sin(az) * 72 + 18);
+    }
+    if (hemi) { hemi.intensity = TIME_BASE.hemiI * (0.32 + 0.74 * day); }
+    if (amb) { amb.intensity = TIME_BASE.ambI + night * 0.24; }
+  }
+  function setTimeOfDay(h, silent) {
+    TIME_H = ((h % 24) + 24) % 24;
+    applyTimeOfDay();
+    if (!silent) { save('cealin_bike_time', TIME_H.toFixed(2)); }
+  }
+  function setTimeAuto(on) {
+    TIME_AUTO = !!on;
+    save('cealin_bike_timeauto', TIME_AUTO ? '1' : '0');
+    renderSettings();
+    toastMsg(TIME_AUTO ? tr('bike.autoTimeOn', '\u81ea\u52a8\u663c\u591c\u5f00') : tr('bike.autoTimeOff', '\u81ea\u52a8\u663c\u591c\u5173'));
+  }
+  function setCamPref(k, v, silent) {
+    if (k === 'dist') { CAM_DIST = clamp(v, 3, 10); if (!silent) { save('cealin_bike_dist', CAM_DIST.toFixed(2)); } }
+    else if (k === 'high') { CAM_HIGH = clamp(v, 0.8, 5.5); if (!silent) { save('cealin_bike_chan', CAM_HIGH.toFixed(2)); } }
+    else if (k === 'fov') { CAM_FOV = clamp(v, 45, 95); if (!silent) { save('cealin_bike_fov', CAM_FOV.toFixed(1)); } }
+  }
+  function resetCamPrefs() {
+    CAM_DIST = 5.3; CAM_HIGH = 2.15; CAM_FOV = 60;
+    save('cealin_bike_dist', '5.30');
+    save('cealin_bike_chan', '2.15');
+    save('cealin_bike_fov', '60.0');
+    renderSettings();
+    toastMsg(tr('bike.camReset', '\u955c\u5934\u5df2\u590d\u4f4d'));
+  }
+
   function applyMap(idx, keepBike) {
     ensureDefs();
     curMapIdx = clamp(idx, 0, MAPS.length - 1);
@@ -2580,6 +3171,10 @@
     CFG.cpEvery = mp.cpEvery;
     CFG.finishS = mp.finishS;
     CFG.trackHalf = mp.trackHalf;
+    TIME_BASE = {
+      sky: mp.sky, fog: mp.fog, fogNear: mp.fogNear, fogFar: mp.fogFar,
+      sunColor: mp.sunColor, sunI: mp.sunI, hemiI: mp.hemiI, ambI: mp.ambI
+    };
     if (scene.background && scene.background.setHex) { scene.background.setHex(mp.sky); }
     if (scene.fog) {
       scene.fog.color.setHex(mp.fog);
@@ -2595,6 +3190,8 @@
     }
     if (hemi) { hemi.intensity = mp.hemiI; }
     if (amb) { amb.intensity = mp.ambI; }
+    // 在赛道原始配色的基础上叠加用户设定时刻的昼夜效果
+    applyTimeOfDay();
     state = 'ready';
     clearWorld();
     buildTrack();
@@ -2642,6 +3239,7 @@
     SND_ON = store('cealin_bike_sound') !== '0';
     oilMode = (store('cealin_bike_oil') === 'real') ? 'real' : 'oil';
     camMode = (store('cealin_bike_cam') === 'first') ? 'first' : 'third';
+    loadViewPrefs();
     if (store('cealin_bike_custom')) { syncCustomMap(); }
     var bi = -1, mi = -1, i;
     var bk = store('cealin_bike_ride');
@@ -3418,9 +4016,29 @@
   function onPanelInput(ev) {
     var el = ev && ev.target;
     if (!el || !el.getAttribute) { return; }
-    if (!el.getAttribute('data-cus')) { return; }
     var row = el.parentNode;
     var b = row && row.querySelector ? row.querySelector('b') : null;
+    var rng = el.getAttribute('data-rng');
+    if (rng) {
+      var v = parseFloat(el.value);
+      if (!isFinite(v)) { return; }
+      var ls = (ev.type !== 'change');
+      if (rng === 'time') {
+        setTimeOfDay(v, ls);
+        if (b) { b.textContent = fmtHour(TIME_H); }
+      } else if (rng === 'dist') {
+        setCamPref('dist', v, ls);
+        if (b) { b.textContent = CAM_DIST.toFixed(1); }
+      } else if (rng === 'high') {
+        setCamPref('high', v, ls);
+        if (b) { b.textContent = CAM_HIGH.toFixed(2); }
+      } else if (rng === 'fov') {
+        setCamPref('fov', v, ls);
+        if (b) { b.textContent = CAM_FOV.toFixed(0) + '\u00b0'; }
+      }
+      return;
+    }
+    if (!el.getAttribute('data-cus')) { return; }
     if (b) { b.textContent = el.value; }
   }
 
@@ -3447,6 +4065,26 @@
       '" data-set="cam">' + (camMode === 'first' ? tr('bike.camFirst', '\u7b2c\u4e00\u4eba\u79f0') : tr('bike.camThird', '\u7b2c\u4e09\u4eba\u79f0')) + '</button></div>';
     html += '<button type="button" class="opt-btn' + (SND_ON ? ' on' : '') +
       '" data-set="sound">' + (SND_ON ? tr('bike.soundOn', '音效开') : tr('bike.soundOff', '音效关')) + '</button>';
+    html += '<div class="panel-sep"></div>';
+    html += '<div class="gear-title">' + tr('bike.timeTitle', '\u65f6\u523b\u4e0e\u5149\u7ebf') + '</div>';
+    html += '<p class="panel-note">' + tr('bike.timeNote',
+      '\u62d6\u52a8\u53ef\u6539\u4e00\u5929\u4e2d\u7684\u65f6\u95f4\uff0c\u5929\u8272\u3001\u9634\u5f71\u4e0e\u5149\u7ebf\u5f3a\u5ea6\u5b9e\u65f6\u53d8\u5316\u3002') + '</p>';
+    html += '<div class="custom-row"><label>' + tr('bike.timeHour', '\u65f6\u95f4') + '</label>' +
+      '<input class="custom-range" type="range" min="0" max="24" step="0.25" value="' + TIME_H.toFixed(2) +
+      '" data-rng="time"><b>' + fmtHour(TIME_H) + '</b></div>';
+    html += '<button type="button" class="opt-btn' + (TIME_AUTO ? ' on' : '') + '" data-set="timeauto">' +
+      (TIME_AUTO ? tr('bike.autoTimeOn', '\u81ea\u52a8\u663c\u591c\uff1a\u5f00') : tr('bike.autoTimeOff', '\u81ea\u52a8\u663c\u591c\uff1a\u5173')) + '</button>';
+    html += '<div class="gear-title">' + tr('bike.camTitle', '\u955c\u5934\u81ea\u5b9a\u4e49') + '</div>';
+    html += '<div class="custom-row"><label>' + tr('bike.camDist', '\u8ddf\u968f\u8ddd\u79bb') + '</label>' +
+      '<input class="custom-range" type="range" min="3" max="10" step="0.1" value="' + CAM_DIST.toFixed(2) +
+      '" data-rng="dist"><b>' + CAM_DIST.toFixed(1) + '</b></div>';
+    html += '<div class="custom-row"><label>' + tr('bike.camHigh', '\u673a\u4f4d\u9ad8\u5ea6') + '</label>' +
+      '<input class="custom-range" type="range" min="0.8" max="5.5" step="0.05" value="' + CAM_HIGH.toFixed(2) +
+      '" data-rng="high"><b>' + CAM_HIGH.toFixed(2) + '</b></div>';
+    html += '<div class="custom-row"><label>' + tr('bike.camFov', '\u89c6\u91ce\u89d2\u5ea6') + '</label>' +
+      '<input class="custom-range" type="range" min="45" max="95" step="1" value="' + CAM_FOV.toFixed(0) +
+      '" data-rng="fov"><b>' + CAM_FOV.toFixed(0) + '\u00b0</b></div>';
+    html += '<button type="button" class="opt-btn" data-set="camreset">' + tr('bike.camReset', '\u955c\u5934\u590d\u4f4d') + '</button>';
     html += '<div class="panel-sep"></div><div class="opt-row">';
     html += '<button type="button" class="opt-btn" data-set="reset">' + tr('bike.settingsReset',
       '\u6e05\u7a7a\u672c\u8d5b\u9053\u6210\u7ee9') + '</button>';
@@ -3480,8 +4118,9 @@
     _idleB.set(x - 1.6, gy + 1.2, z - 5.5);
     camera.position.lerp(_idleA, 1 - Math.exp(-dt * 2.2));
     camera.lookAt(_idleB);
-    if (Math.abs(camera.fov - 56) > 0.5) {
-      camera.fov = 56;
+    var idleFov = 56 + (CAM_FOV - 60) * 0.6;
+    if (Math.abs(camera.fov - idleFov) > 0.5) {
+      camera.fov = idleFov;
       camera.updateProjectionMatrix();
     }
   }
@@ -3593,6 +4232,7 @@
     }
     if (panelBodyEl) {
       panelBodyEl.addEventListener('input', onPanelInput);
+    panelBodyEl.addEventListener('change', onPanelInput);
       panelBodyEl.addEventListener('click', function (ev) {
         var b = closestAttr(ev.target, 'data-bike');
         if (b) {
@@ -3669,6 +4309,10 @@
           } else if (set === 'cam') {
             setCamMode(camMode === 'first' ? 'third' : 'first');
             renderSettings();
+          } else if (set === 'timeauto') {
+            setTimeAuto(!TIME_AUTO);
+          } else if (set === 'camreset') {
+            resetCamPrefs();
           } else if (set === 'sound') {
             setSound(!SND_ON);
             renderSettings();

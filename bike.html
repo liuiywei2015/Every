@@ -101,11 +101,15 @@
 
   <!-- 触屏俯仰 / 油门刹车 -->
   <div class="touchpad" id="touchpad">
-    <button type="button" class="tbtn" id="tLeanB" data-i18n="bike.tLeanB">后仰</button>
-    <button type="button" class="tbtn" id="tLeanF" data-i18n="bike.tLeanF">前倾</button>
-    <button type="button" class="tbtn wide jump" id="tJump" data-i18n="bike.tJump">兔跳</button>
-    <button type="button" class="tbtn" id="tBrake" data-i18n="bike.tBrake">刹车</button>
-    <button type="button" class="tbtn acc" id="tGas" data-i18n="bike.tGas">油门</button>
+    <div class="tpad-side tpad-left">
+      <button type="button" class="tbtn" id="tLeanB" data-i18n="bike.tLeanB">后仰</button>
+      <button type="button" class="tbtn" id="tLeanF" data-i18n="bike.tLeanF">前倾</button>
+    </div>
+    <div class="tpad-side tpad-right">
+      <button type="button" class="tbtn jump" id="tJump" data-i18n="bike.tJump">兔跳</button>
+      <button type="button" class="tbtn" id="tBrake" data-i18n="bike.tBrake">刹车</button>
+      <button type="button" class="tbtn acc" id="tGas" data-i18n="bike.tGas">油门</button>
+    </div>
   </div>
 
   <!-- 骑行中的按钮 -->
