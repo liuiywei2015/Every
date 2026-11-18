@@ -41,7 +41,8 @@
   var replayTimer = 0;
   var wheelieActive = false;
   var wheelieTime = 0;
-  var wheeliePeak = 0;
+  var wheeliePeak = 0;        // 本次最长持续时间（秒）
+  var wheeliePeakAng = 0;     // 本次最大仰角（弧度）
   var wheelieBanked = 0;
   var wheelieScoreF = 0;
   var wheelieBest = 0;
@@ -819,16 +820,16 @@
     var noseAng = Math.asin(clamp(noseUp, -1, 1));
     wheelieAngle = noseAng;
     if (state === 'running' && grounded && noseAng > 0.16 && driveLag > 0.05) {
-      if (!wheelieActive) { wheelieActive = true; wheelieTime = 0; wheeliePeak = 0; wheelieBanked = wheelieScoreF; }
+      if (!wheelieActive) { wheelieActive = true; wheelieTime = 0; wheeliePeak = 0; wheeliePeakAng = 0; wheelieBanked = wheelieScoreF; }
       wheelieTime += dt;
-      if (noseAng > wheeliePeak) { wheeliePeak = noseAng; }
+      if (noseAng > wheeliePeakAng) { wheeliePeakAng = noseAng; }
       wheelieScoreF += dt * (32 + 104 * clamp((noseAng - 0.16) / 0.55, 0, 1)) * (0.8 + 0.45 * clamp(speed / 12, 0, 1));
       if (wheelieTime > wheelieBest) {
         wheelieBest = wheelieTime;
         save(scoreKey('wheelie'), wheelieBest.toFixed(2));
       }
       trickScore = trickAir + Math.round(wheelieScoreF);
-      if (noseAng > 0.95) { crashNow('wheelie'); toast(t('bike.wheelieOver')); }
+      if (noseAng > 1.12) { crashNow('wheelie'); toast(t('bike.wheelieOver')); }
     } else if (wheelieActive) {
       wheelieActive = false;
       var wGain = Math.round(wheelieScoreF - wheelieBanked);
@@ -838,6 +839,7 @@
       }
       wheelieTime = 0;
       wheeliePeak = 0;
+      wheeliePeakAng = 0;
     }
 
     // 姿态控制：↑ 前倾（压车头 / 空中前翻）、↓ 后仰（抬前轮 wheelie / 空中后翻）
@@ -851,8 +853,12 @@
       T_ACC.add(TM.set(pitchIn * 520, yawIn * 40, 0).applyQuaternion(q));
       if (backPull > 0.01) {
         // 后仰抬升力矩：油门越大、车速越低，前轮越容易离地（wheelie）
-        var liftK = 430 + 620 * driveLag;
+        // 目标仰角随速度收紧：接近目标时力矩自然衰减，超过目标反向压车头，形成可稳定保持的后轮滑行
+        var thetaMax = 0.68 - 0.12 * clamp(speed / 24, 0, 1);
+        var liftSoft = clamp(1 - noseAng / thetaMax, -0.65, 1);
+        var liftK = (430 + 620 * driveLag) * liftSoft;
         T_ACC.addScaledVector(rightW, -backPull * liftK * (1 - clamp(speed / 30, 0, 0.3)));
+        T_ACC.addScaledVector(rightW, -backPull * 110 * body.ang.dot(rightW));
       }
     } else {
       // 空中：俯仰做前后翻，左右做旋转
@@ -949,7 +955,7 @@
     var spins = Math.round(Math.abs(yawAccum) / (Math.PI * 2));
     lastLanding = { tilt: tilt, vy: lastVy, flips: flips, spins: spins, air: airTime };
 
-    if (tilt > 0.95 || lastVy < -10.5) {
+    if (tilt > 1.20 || lastVy < -13) {
       crashNow('landing');
       return;
     }
@@ -1377,6 +1383,7 @@
         wheelSpin: [WHEELS[0].spin, WHEELS[1].spin],
         wheelie: {
           active: wheelieActive, time: wheelieTime, peak: wheeliePeak,
+          peakAng: wheeliePeakAng, ang: wheelieAngle,
           score: wheelieScoreF, banked: wheelieBanked, map: curMapIdx, bike: curBikeIdx
         },
         fps: fps,
