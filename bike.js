@@ -1319,6 +1319,147 @@
     return kitFinish(k);
   }
 
+  /* ---------------- 赛事护栏 + 观众（全赛道通用） ---------------- */
+  function mkArenaRail(ad) {
+    var k = kitStart(), i;
+    kb(k, 0x8d959e, 0.13, 1.06, 0.13, -2.05, 0.53, 0);
+    kb(k, 0x8d959e, 0.13, 1.06, 0.13, 2.05, 0.53, 0);
+    kb(k, 0xd9dfe6, 4.2, 0.09, 0.09, 0, 0.98, 0);
+    kb(k, 0xb7bfc8, 4.2, 0.07, 0.07, 0, 0.66, 0);
+    kb(k, 0x767e87, 4.2, 0.06, 0.06, 0, 0.3, 0);
+    if (!ad) {
+      for (i = -1; i <= 1; i++) { kb(k, 0xaab2bb, 0.05, 0.86, 0.05, i * 1.35, 0.66, 0); }
+    } else {
+      var c1 = (ad === 1) ? 0xe0663a : 0x3f7fbf;
+      var c2 = (ad === 1) ? 0xf2c045 : 0xe8eef5;
+      kb(k, c1, 3.72, 0.64, 0.11, 0, 0.82, 0);
+      kb(k, c2, 1.5, 0.28, 0.14, -0.88, 0.86, 0);
+      kb(k, c2, 1.0, 0.28, 0.14, 0.86, 0.86, 0);
+    }
+    return kitFinish(k);
+  }
+
+  var ARENA_RAIL_GEO = null;
+  function arenaRailGeos() {
+    if (!ARENA_RAIL_GEO) {
+      ARENA_RAIL_GEO = [mkArenaRail(0), mkArenaRail(1), mkArenaRail(0), mkArenaRail(2)];
+    }
+    return ARENA_RAIL_GEO;
+  }
+
+  function fanBody(k, shirt, pants, skin, pose) {
+    var i;
+    kb(k, pants, 0.17, 0.74, 0.19, -0.13, 0.37, 0);
+    kb(k, pants, 0.17, 0.74, 0.19, 0.13, 0.37, 0);
+    kb(k, shirt, 0.46, 0.62, 0.27, 0, 1.03, 0);
+    ks(k, skin, 0.26, 0.28, 0.26, 0, 1.47, 0);
+    kb(k, 0x2a2420, 0.28, 0.11, 0.28, 0, 1.63, 0);
+    if (pose === 'film') {
+      kb(k, shirt, 0.13, 0.42, 0.14, -0.27, 1.1, 0);
+      kb(k, skin, 0.11, 0.12, 0.11, -0.27, 0.82, 0);
+      kb(k, shirt, 0.13, 0.44, 0.14, 0.3, 1.52, 0.08, -0.55);
+      kb(k, 0x1a1d22, 0.18, 0.28, 0.08, 0.34, 1.72, 0.22);
+      kb(k, 0x8fd0ff, 0.12, 0.2, 0.03, 0.34, 1.72, 0.27);
+    } else if (pose === 'jump') {
+      kb(k, pants, 0.18, 0.52, 0.2, -0.17, 0.46, 0, 0, 0, 0.2);
+      kb(k, pants, 0.18, 0.52, 0.2, 0.17, 0.46, 0, 0, 0, -0.2);
+      kb(k, shirt, 0.46, 0.62, 0.27, 0, 1.05, 0, 0.1);
+      kb(k, shirt, 0.13, 0.54, 0.14, -0.3, 1.36, 0, 0, 0, -0.3);
+      kb(k, shirt, 0.13, 0.54, 0.14, 0.3, 1.36, 0, 0, 0, 0.3);
+      ks(k, skin, 0.11, 0.12, 0.11, -0.39, 1.62, 0);
+      ks(k, skin, 0.11, 0.12, 0.11, 0.39, 1.62, 0);
+    } else if (pose === 'cheer') {
+      kb(k, pants, 0.17, 0.6, 0.19, -0.15, 0.52, 0, 0.6);
+      kb(k, pants, 0.17, 0.74, 0.19, 0.13, 0.37, 0);
+      kb(k, shirt, 0.13, 0.46, 0.14, -0.28, 1.05, 0);
+      kb(k, shirt, 0.13, 0.54, 0.14, 0.28, 1.4, 0, 0, 0, 0.42);
+      ks(k, skin, 0.12, 0.13, 0.12, 0.51, 1.6, 0);
+      kb(k, 0xf2c045, 0.22, 0.15, 0.03, 0.55, 1.76, 0);
+      kb(k, 0xe0663a, 0.1, 0.09, 0.03, 0.49, 1.7, 0);
+    } else {
+      kb(k, shirt, 0.13, 0.46, 0.14, -0.28, 1.05, 0);
+      kb(k, shirt, 0.13, 0.46, 0.14, 0.28, 1.05, 0);
+      kb(k, skin, 0.11, 0.12, 0.11, -0.28, 0.8, 0);
+      kb(k, skin, 0.11, 0.12, 0.11, 0.28, 0.8, 0);
+    }
+  }
+
+  var FAN_GEO = null;
+  function fanGeos() {
+    if (FAN_GEO) { return FAN_GEO; }
+    var shirts = [0xe0663a, 0x5fb0e8, 0xf2c045, 0x8fd47a, 0xd96ba0, 0x34c8a8];
+    var poses = ['watch', 'film', 'jump', 'cheer'], list = [], i, j, k;
+    for (i = 0; i < poses.length; i++) {
+      for (j = 0; j < 3; j++) {
+        k = kitStart();
+        fanBody(k, shirts[(i * 3 + j) % shirts.length], 0x2f3440, 0xd8a884, poses[i]);
+        list.push(kitFinish(k));
+      }
+    }
+    FAN_GEO = list;
+    return FAN_GEO;
+  }
+
+  /* 沿赛道两侧铺一整圈赛事护栏 */
+  function arenaRail(rng) {
+    var geos = arenaRailGeos(), lists = [], i;
+    for (i = 0; i < geos.length; i++) { lists.push([]); }
+    var step = 4.16, s0 = Math.max(2, CFG.startS - 2), s1 = CFG.finishS + 4, seg = 0, s, side, x, z, gy;
+    for (s = s0; s < s1; s += step) {
+      var gi = seg % geos.length;
+      seg++;
+      for (side = -1; side <= 1; side += 2) {
+        x = cxAt(s) + side * (CFG.trackHalf + 1.15);
+        z = -s;
+        gy = heightAt(x, z);
+        lists[gi].push({
+          x: x, y: gy - 0.04, z: z, yaw: yawAt(s) + Math.PI * 0.5, sc: 1,
+          tint: 0.9 + rng() * 0.18
+        });
+      }
+    }
+    for (i = 0; i < geos.length; i++) {
+      var rm = kitInst(geos[i], lists[i]);
+      if (rm) { rm.name = 'arenaRail'; }
+    }
+  }
+
+  /* 护栏外侧的观众：录像 / 蹦跳 / 围观 / 挥旗 */
+  function arenaCrowd(rng) {
+    var geos = fanGeos(), lists = [], i, s, side, n, j, ss, off, x, z, gy, gi;
+    for (i = 0; i < geos.length; i++) { lists.push([]); }
+    var s1 = CFG.finishS - 6;
+    for (s = Math.max(8, CFG.startS + 12); s < s1; s += 22 * (0.62 + rng() * 0.95)) {
+      if (rng() < 0.16) { continue; }
+      for (side = -1; side <= 1; side += 2) {
+        if (rng() < 0.22) { continue; }
+        n = 2 + Math.floor(rng() * 3);
+        var p0 = Math.floor(rng() * 4);
+        for (j = 0; j < n; j++) {
+          ss = s + j * (1.5 + rng() * 1.3);
+          if (ss >= s1) { break; }
+          off = CFG.trackHalf + 1.95 + rng() * 2.7;
+          x = cxAt(ss) + side * off;
+          z = -ss;
+          gy = heightAt(x, z);
+          var pose = (p0 + j + (rng() < 0.3 ? 1 : 0)) % 4;   /* 0 围观 1 录像 2 跳跃 3 挥旗 */
+          if (pose === 2) { gy += 0.2 + rng() * 0.36; }        /* 跳跃者离地腾空 */
+          gi = pose * 3 + Math.floor(rng() * 3);
+          lists[gi].push({
+            x: x, y: gy, z: z,
+            yaw: Math.atan2(-side, -0.3) + yawAt(ss) + (rng() - 0.5) * 0.5,
+            sc: 0.94 + rng() * 0.16,
+            tint: 0.84 + rng() * 0.3
+          });
+        }
+      }
+    }
+    for (i = 0; i < geos.length; i++) {
+      var fm = kitInst(geos[i], lists[i]);
+      if (fm) { fm.name = 'arenaFan'; }
+    }
+  }
+
   /* ---------------- 各场景独立布置 ---------------- */
   function sceneIndoor(rng) {
     scatter(mkWoodRamp(), { rng: rng, step: 60, side: 0, offA: 3.0, offB: 5.2, scMin: 0.9, scMax: 1.25 });
@@ -1414,6 +1555,10 @@
     else {
       var tkey = (style === 'night') ? 'night' : (style === 'ridge') ? 'ridge' : (style === 'mud') ? 'rain' : key;
       sceneTrail(tkey, rng2); }
+    // 第三层：所有赛道通用的赛事护栏与观众
+    var rng3 = mulberry32(CFG.seed + 6151);
+    arenaRail(rng3);
+    arenaCrowd(rng3);
   }
 
   function buildTrailProps() {
