@@ -3658,7 +3658,8 @@
         '" data-map="' + i + '">' +
         '<i class="skin-dot" style="background:#' + hex6(m.tint) + '"></i>' +
         '<span class="sc-body"><b>' + tr(m.nameKey, m.name) + '</b>' +
-        '<em>' + (m.finishS - m.startS) + 'm\u00b7' + diff + ' ' + stars(m.diff, 3) + '</em>' +
+        '<em><span class="sc-tag">' + tr('bike.customStyle' + String(m.style).charAt(0).toUpperCase() + String(m.style).slice(1), m.style) + '</span> ' +
+        (m.finishS - m.startS) + 'm\u00b7' + diff + ' ' + stars(m.diff, 3) + '</em>' +
         '<em>' + tr(m.descKey, '') + '</em>' +
         '<em class="sc-stat">' + mStat + '</em></span></button>';
     }
