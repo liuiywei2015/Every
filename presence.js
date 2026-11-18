@@ -1,27 +1,28 @@
 /* Cealin 在线心跳（原生 ES5，零外部依赖）
- * 作用：登录态页面把「我还在线」这件事轻量上报给后端，供后台概览面板统计在线人数。
+ * 作用：登录态页面把「我还在线」这件事上报给后端，供后台概览面板统计当日活跃人数。
  *
- * 规则（按「每天 1000 人在线」的规模标定，尽量少写 KV）：
- *   1) 心跳基准间隔 10 分钟（CONFIG.interval），首次进入页面立即上报一次；
- *   2) 每次上报在基准间隔上叠加 0~2 分钟随机抖动（CONFIG.jitter），避免整点集中打接口；
- *   3) 页面不可见（切标签页 / 切后台）时暂停心跳；重新可见时只有距上次心跳已超过基准间隔才补发一次；
+ * 规则（按「每天 1000 人活跃」的规模标定，把 KV 写入压到每天每人最多 1 次）：
+ *   1) 同一浏览器同一账号「当天只上报一次」，用 localStorage 记录 cealin_presence_day 去重；
+ *      刷新页面、切换页面、反复进入都不会重复写入 KV；
+ *   2) 页面长时间挂着跨过零点时，用一个 30 分钟的轻量本地检查发现日期变化，再补报当天那一次；
+ *   3) 页面不可见（切标签页 / 切后台）时不发起任何请求；
  *   4) 任何失败（网络异常、接口报错、未登录）一律静默忽略，不影响页面其它功能，也不弹任何提示；
- *   5) 后端 account:presence:{id} 带 1800 秒 TTL 自动回收，在线判定窗口 20 分钟（大于心跳间隔）。
+ *   5) 后端 account:presence:{id} 的 TTL 与在线判定窗口按「当日活跃」口径放大（见 functions/api/accounts.js）。
  *
  * 用法：<script src="presence.js"></script>（有登录态时自动开始）
  *     登录成功后如需立刻补一次上报，可调用 window.cealinPresence.start()；
  *     退出登录时可调用 window.cealinPresence.stop()。
- *     需要临时调整节奏：window.cealinPresence.config.interval = 600000（毫秒）。
  */
 (function (w) {
   'use strict';
 
   var ENDPOINT = '/api/accounts';
+  var DAY_KEY = 'cealin_presence_day';
 
-  // 可配置常量：心跳基准间隔与随机抖动上限（毫秒）
+  // 可配置常量：最短上报间隔（毫秒）与跨天检查节奏
   var CONFIG = {
-    interval: 600000,  // 10 分钟
-    jitter: 120000     // 0~2 分钟随机偏移
+    minGap: 86400000,   // 一天
+    checkEvery: 1800000 // 30 分钟做一次纯本地日期检查，不发请求
   };
 
   var lastSent = 0;
@@ -45,9 +46,38 @@
     }
   }
 
-  // 基准间隔 + 随机抖动：0~jitter 毫秒
-  function nextDelay() {
-    return CONFIG.interval + Math.floor(Math.random() * (CONFIG.jitter + 1));
+  function today() {
+    var d = new Date();
+    return d.getFullYear() + '-' + (d.getMonth() + 1) + '-' + d.getDate();
+  }
+
+  function readMark() {
+    try {
+      var raw = w.localStorage.getItem(DAY_KEY);
+      if (!raw) return null;
+      var obj = JSON.parse(raw);
+      return obj && typeof obj === 'object' ? obj : null;
+    } catch (e) {
+      return null;
+    }
+  }
+
+  function writeMark(id, day) {
+    try {
+      w.localStorage.setItem(DAY_KEY, JSON.stringify({ id: id, day: day, ts: Date.now() }));
+    } catch (e) { /* 本地存储不可用则退化为仅按内存判断 */ }
+  }
+
+  // 当天是否已经为这个账号上报过
+  function alreadyToday(id) {
+    var mark = readMark();
+    if (mark && mark.id === id && mark.day === today()) return true;
+    if (lastSent) {
+      var d = new Date(lastSent);
+      var day = d.getFullYear() + '-' + (d.getMonth() + 1) + '-' + d.getDate();
+      if (day === today()) return true;
+    }
+    return false;
   }
 
   function clearTimer() {
@@ -60,10 +90,10 @@
   function send() {
     var id = readId();
     if (!id) return false;
-    var now = Date.now();
-    // 未到基准间隔（含重复调用 start / 连续恢复可见）不重复写入，保护 KV 写配额
-    if (lastSent && now - lastSent < CONFIG.interval) return true;
-    lastSent = now;
+    // 当天已报过：直接跳过，绝不重复写 KV
+    if (alreadyToday(id)) return true;
+    lastSent = Date.now();
+    writeMark(id, today());
     try {
       var req = w.fetch(ENDPOINT, {
         method: 'POST',
@@ -82,28 +112,24 @@
     return true;
   }
 
-  // 单次定时：到点上报后按「基准 + 新抖动」重新排期，使各页面的心跳自然错峰
-  function schedule() {
+  // 跨天检查：只做本地日期比对，日期没变就什么都不发
+  function watch() {
     clearTimer();
-    if (stopped || isHidden()) return;
+    if (stopped) return;
     timer = w.setTimeout(function () {
       timer = null;
       if (stopped) return;
-      if (isHidden()) return;   // 已切后台：交给 visibilitychange 恢复
-      send();
-      schedule();
-    }, nextDelay());
+      var id = readId();
+      if (id && !alreadyToday(id) && !isHidden()) send();
+      watch();
+    }, CONFIG.checkEvery);
   }
 
   function onVisibility() {
-    if (stopped) return;
-    if (isHidden()) {
-      clearTimer();
-      return;
-    }
-    // 重新可见：距上次心跳已超过基准间隔才补发一次，然后恢复排期
-    if (!lastSent || Date.now() - lastSent >= CONFIG.interval) send();
-    schedule();
+    if (stopped || isHidden()) return;
+    // 回到前台时若已跨天，补报当天那一次；否则不发任何请求
+    var id = readId();
+    if (id && !alreadyToday(id)) send();
   }
 
   function start() {
@@ -115,11 +141,10 @@
         if (typeof document !== 'undefined' && document && document.addEventListener) {
           document.addEventListener('visibilitychange', onVisibility);
         }
-      } catch (e) { /* 环境不支持则只按定时上报 */ }
+      } catch (e) { /* 环境不支持则只按首次进入上报 */ }
     }
-    // 首次进入立即上报一次；若距上次不足一个间隔则自动跳过
     send();
-    schedule();
+    watch();
   }
 
   function stop() {

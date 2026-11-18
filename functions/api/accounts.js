@@ -1,4 +1,4 @@
-﻿// Cloudflare Pages Function: /api/accounts
+// Cloudflare Pages Function: /api/accounts
 // Cealin 账号系统：只用「名称 + 密码」注册，系统自动分配唯一 8 位编号；登录只认编号 + 密码。
 // 密码不以明文入库：客户端用 Web Crypto 计算 SHA-256(salt + ':' + 密码) 后只上传哈希；
 // 若调用方直接传 password，服务端同样用 crypto.subtle 加盐哈希后存储。
@@ -54,11 +54,12 @@ const SEARCH_PAGE_SIZE = 1000;
 const ACCOUNT_READ_MAX = 300;
 const ACCOUNT_SCAN_MAX = 2000;
 
-// 在线心跳：account:presence:{id} 带 1800 秒 TTL 自动回收；读取时 20 分钟内有心跳视为在线。
+// 当日活跃：account:presence:{id} 带 93600 秒 TTL 自动回收；读取时 25 小时内有上报视为「今日活跃」。
+// 前端 presence.js 保证同一账号每天最多写一次 KV，此处窗口按一天口径标定，避免 KV 写配额被打爆。
 // 阈值必须明显大于前端心跳间隔（10 分钟 + 0~2 分钟抖动），否则用户会在下一次心跳到来前被判离线。
 const PRESENCE_PREFIX = 'account:presence:';
-const PRESENCE_TTL = 1800;
-const ONLINE_WINDOW = 20 * 60 * 1000;
+const PRESENCE_TTL = 93600;
+const ONLINE_WINDOW = 25 * 60 * 60 * 1000;
 // 单次心跳表读取上限（防止大量历史键拖垮请求）
 const PRESENCE_READ_LIMIT = 200;
 
@@ -1285,7 +1286,7 @@ export async function onRequest(context) {
   }
 
   /* ---------------- 在线心跳：登录态页面约每 10 分钟上报一次 ----------------
-   * 只写 account:presence:{编号} = { id, ts }，并带 1800 秒 TTL 自动回收，
+   * 只写 account:presence:{编号} = { id, ts }，并带 93600 秒 TTL 自动回收（前端每天最多一次），
    * 因此离开页面无需额外通知，超过 20 分钟没有心跳即视为离线
    * （判定阈值明显大于心跳间隔，保证用户不会在下一次心跳到来前被判离线）。 */
   if (action === 'heartbeat') {
