@@ -48,6 +48,52 @@
   var wheelieBest = 0;
   var wheelieAngle = 0;
 
+  /* ---- 油画画面风格 / 视角 / 涂装 / 性能改装 / 自定义赛道 ---- */
+  var oilMode = 'oil';           // 'oil' 油画 | 'real' 写实
+  var POST = null;               // 后处理对象
+  var camMode = 'third';         // 'third' 第三人称 | 'first' 第一人称
+  var PAINT = { frame: '', rim: '', helmet: '', shirt: '' };   // 自定义涂装（'' 表示用车型原色）
+  var UPG = { engine: 0, grip: 0, susp: 0, trick: 0 };         // 性能改装等级 0~3
+  var PARTS = 0;                 // 零件库存
+  var SND_ON = true;             // 音效开关
+  var AC = null, sndEngine = null;   // WebAudio 节点
+  var DUST = null, DUST_N = 44, DUST_LIST = [];   // 尘土 / 雪雾粒子
+
+  /* 涂装 / 改装 / 自定义赛道 静态定义（须在 boot 之前完成赋值） */
+  var PAINT_SWATCH = ['#e0663a', '#f2c045', '#5fb0e8', '#8fd47a', '#d96ba0', '#ffffff',
+    '#2b2f36', '#7a5cff', '#c0392b', '#1f9d8b', '#e8a33d', '#9aa3a8'];
+  var PAINT_SLOT = [
+    { k: 'frame', nameKey: 'bike.paintFrame', name: '\u8f66\u67b6' },
+    { k: 'rim', nameKey: 'bike.paintRim', name: '\u8f6e\u5708' },
+    { k: 'helmet', nameKey: 'bike.paintHelmet', name: '\u5934\u76d4' },
+    { k: 'shirt', nameKey: 'bike.paintShirt', name: '\u9a91\u884c\u670d' }
+  ];
+  var UPG_DEF = [
+    { k: 'engine', nameKey: 'bike.upgEngine', name: '\u4f20\u52a8\u7cfb\u7edf', noteKey: 'bike.upgEngineNote', note: '\u63d0\u5347\u8e29\u8e0f\u8f93\u51fa\u4e0e\u6781\u901f' },
+    { k: 'grip', nameKey: 'bike.upgGrip', name: '\u80ce\u9762\u6293\u5730', noteKey: 'bike.upgGripNote', note: '\u63d0\u5347\u5f2f\u9053\u54ac\u5730\u4e0e\u5239\u8f66' },
+    { k: 'susp', nameKey: 'bike.upgSusp', name: '\u60ac\u6302\u5438\u9707', noteKey: 'bike.upgSuspNote', note: '\u5bb9\u8bb8\u66f4\u5927\u89d2\u5ea6\u843d\u5730' },
+    { k: 'trick', nameKey: 'bike.upgTrick', name: '\u7a7a\u4e2d\u63a7\u5236', noteKey: 'bike.upgTrickNote', note: '\u63d0\u5347\u817e\u7a7a\u4e0e\u8f6c\u4f53\u7075\u654f\u5ea6' }
+  ];
+  var UPG_MAX = 3;
+  var UPG_COST = 4;   // 每级消耗零件数
+
+  var CUSTOM_DEF = {
+    length: 900, w1: 18, w2: 7, rough: 1.0, jumpStep: 88, seed: 20261130, style: 'trail'
+  };
+  var CUSTOM_STYLES = [
+    { k: 'trail', name: '\u6797\u9053' },
+    { k: 'outdoor', name: '\u571f\u573a' },
+    { k: 'urban', name: '\u57ce\u5e02' },
+    { k: 'dune', name: '\u6c99\u4e18' },
+    { k: 'snow', name: '\u96ea\u5730' },
+    { k: 'factory', name: '\u5de5\u5382' }
+  ];
+
+  var PICKUPS = null;            // 本次赛道零件组
+  var PICKUP_LIST = [];
+  var PICKUPS_GOT = 0;
+  var CUSTOM = null;             // 自定义赛道参数
+
   var THREE = global.THREE;
   if (!THREE) { return; }
 
@@ -148,9 +194,155 @@
     return y;
   }
   function profileY(s, u, code) {
+    var m = MP || {};
+    if (m.style === 'indoor') { return indoorProfileY(s, u, code); }
+    if (m.style === 'outdoor') { return outdoorProfileY(s, u, code); }
+    if (m.style === 'stair') { return stairProfileY(s, u, code); }
+    if (m.style === 'urban') { return urbanProfileY(s, u, code); }
+    if (m.style === 'dune') { return duneProfileY(s, u, code); }
+    if (m.style === 'snow') { return snowProfileY(s, u, code); }
+    if (m.style === 'factory') { return factoryProfileY(s, u, code); }
+    return trailProfileY(s, u, code);
+  }
+
+  /* 楼梯累计落差：每组台阶逐级下降 */
+  function stairDropY(s) {
+    var st = (MP && MP.stairs) || null, y = 0, i, seg, n;
+    if (!st) { return 0; }
+    for (i = 0; i < st.length; i++) {
+      seg = st[i];
+      if (s <= seg.s0) { continue; }
+      n = Math.floor((s - seg.s0) / seg.step);
+      if (n > seg.count) { n = seg.count; }
+      y -= n * seg.rise;
+    }
+    return y;
+  }
+
+  /* 室内 BMX 馆：平整木地板 + 连续小跳 + 边侧弯墙 */
+  function indoorProfileY(s, u, code) {
+    var au = Math.abs(u), th = CFG.trackHalf, y = 0, tt;
+    if (au <= th) {
+      y += 0.03 * vnoise(s * 0.25, u * 0.25);
+      y += 0.28 * smooth01((au - (th - 2.4)) / 2.4);
+      y += jumpY(s) * (1 - clamp((au - 2.0) / 4.4, 0, 1));
+    } else if (au <= th + 2.6) {
+      tt = (au - th) / 2.6;
+      y += 0.28 + 0.8 * smooth01(tt) + 0.03 * vnoise(s * 0.3, u * 0.3);
+    } else {
+      y += 1.08 + 0.04 * vnoise(s * 0.2, u * 0.2);
+    }
+    return y;
+  }
+
+  /* 室外土地场：pump 波浪起伏 + 土坡跳台 + 外侧土堤 */
+  function outdoorProfileY(s, u, code) {
+    var au = Math.abs(u), th = CFG.trackHalf, y = 0, tt;
+    var pump = 0.80 * Math.sin(s * 0.30) + 0.42 * Math.sin(s * 0.63 + 1.1);
+    if (au <= th) {
+      y += pump * (0.55 + 0.45 * Math.cos(u * 0.40));
+      y += 0.07 * vnoise(s * 0.62, u * 0.62);
+      y += jumpY(s) * (1 - clamp((au - 2.0) / 4.6, 0, 1));
+    } else if (au <= th + 3.2) {
+      tt = (au - th) / 3.2;
+      y += pump * 0.5 + 1.15 * smooth01(tt) + 0.10 * vnoise(s * 0.4, u * 0.4);
+    } else {
+      y += pump * 0.35 + 1.15 + 0.55 * vnoise(s * 0.18, u * 0.18);
+    }
+    return y;
+  }
+
+  /* 接楼梯：平台 + 三段连续台阶落差 + 两侧挡墙 */
+  function stairProfileY(s, u, code) {
+    var au = Math.abs(u), th = CFG.trackHalf, y = 0, tt;
+    var drop = stairDropY(s);
+    if (au <= th) {
+      y += drop;
+      y += 0.035 * vnoise(s * 0.5, u * 0.5);
+      y += 0.55 * smooth01((au - (th - 1.5)) / 1.5);
+      y += jumpY(s) * (1 - clamp((au - 2.2) / 4.0, 0, 1));
+    } else if (au <= th + 1.8) {
+      y += drop + 1.0 + 0.04 * vnoise(s * 0.4, u * 0.4);
+    } else {
+      tt = clamp((au - th - 1.8) / 2.6, 0, 1);
+      y += drop + 1.0 + 2.4 * smooth01(tt);
+    }
+    return y;
+  }
+
+  /* 城市速降：街道 + 抛台 + 路缘石 + 沿街地基 */
+  function urbanProfileY(s, u, code) {
+    var au = Math.abs(u), th = CFG.trackHalf, y = 0, tt;
+    if (au <= th) {
+      y += 0.055 * vnoise(s * 0.35, u * 0.35);
+      y += 0.38 * smooth01((au - (th - 1.3)) / 1.3);
+      y += jumpY(s) * (1 - clamp((au - 2.6) / 4.4, 0, 1));
+    } else if (au <= th + 2.4) {
+      y += 0.58 + 0.06 * vnoise(s * 0.45, u * 0.45);
+    } else {
+      tt = clamp((au - th - 2.4) / 2.2, 0, 1);
+      y += 0.58 + 1.1 * smooth01(tt);
+    }
+    return y;
+  }
+
+  /* 沙漠蚀谷：大起伏沙丘 + 背风陡坡（下坡一侧更陡，容易飞起来） */
+  function duneProfileY(s, u, code) {
+    var au = Math.abs(u), th = CFG.trackHalf, y = 0, t = s * 0.011, k;
+    var dune = Math.sin(t) * Math.cos(t * 0.37 + 1.1);
+    y += dune * (CFG.hill * 0.85);
+    y += Math.sin(s * 0.052 + 0.4) * 2.6;
+    y += Math.sin(s * 0.021 + 2.2) * 4.4;
+    y += vnoise(s * 0.042, u * 0.06) * 1.15;
+    var sc = clamp(au / th, 0, 1);
+    // 沙脊：外侧抬高成碗状，单侧更陡
+    y += smooth01(sc) * 2.4;
+    var lip = Math.pow(sc, 3);
+    y += lip * (u > 0 ? 3.6 : 1.5);
+    y -= (s - CFG.startS) * (CFG.slope || 0.1) * 0.55;
+    return y;
+  }
+
+  /* 雪线速降：压实雪脊 + 冰面硬块，抓地偏低、侧向更飘 */
+  function snowProfileY(s, u, code) {
+    var au = Math.abs(u), th = CFG.trackHalf, y = 0;
+    y += Math.sin(s * 0.017 + 0.8) * 6.2;
+    y += Math.sin(s * 0.061 + 2.4) * 1.35;
+    y += vnoise(s * 0.03, u * 0.05) * 0.95;
+    var ridge = Math.sin(s * 0.14) * 0.5 + 0.5;
+    var sc = clamp(au / th, 0, 1);
+    // 雪墙：两侧高起，弯道内侧堆雪
+    y += smooth01(sc) * (1.6 + ridge * 1.9);
+    y += Math.cos(s * 0.008) * 2.1 * sc;
+    y -= (s - CFG.startS) * 0.075;
+    return y;
+  }
+
+  /* 废弃工厂：混凝土基准台 + 池坑 + 铁轨缝，落差猛 */
+  function factoryProfileY(s, u, code) {
+    var au = Math.abs(u), th = CFG.trackHalf, y = 0;
+    var step = Math.floor(s / 46);
+    y += (step % 2 === 0 ? 1.0 : -1.2);
+    y += Math.sin(s * 0.029) * 1.5;
+    y += vnoise(s * 0.08, u * 0.09) * 0.42;
+    var sc = clamp(au / th, 0, 1);
+    // 两侧平台落差（装卸台）
+    y += smooth01(sc) * 1.7;
+    if (au > th * 0.94) { y -= 2.4; }
+    y -= (s - CFG.startS) * 0.09;
+    // 周期性下水井/检修坑
+    var pit = s - Math.floor(s / 130) * 130;
+    if (pit > 96 && pit < 112) {
+      var d = Math.sin((pit - 96) / 16 * Math.PI);
+      y -= d * 1.9;
+    }
+    return y;
+  }
+
+  function trailProfileY(s, u, code) {
     var au = Math.abs(u), y = 0, tt;
-    var rough = (MP && MP.rough) || 1;
-    var hill = (MP && MP.hill) || 11.0;
+    var rough = (MP && typeof MP.rough === 'number') ? MP.rough : 1;
+    var hill = (MP && typeof MP.hill === 'number') ? MP.hill : 11.0;
     if (au <= CFG.trackHalf) {
       y += 0.16 * rough * vnoise(s * 0.09, u * 0.13) - 0.08;
       if (code === 2) {
@@ -173,6 +365,16 @@
   }
 
   function buildTrack() {
+    // 赛道长度与半宽随地图变化，采样网格必须按当前 CFG 重算，
+    // 否则切换到更短/更长的赛道时仍沿用上一张图的行列数，导致地形与终点错位。
+    N = Math.floor(CFG.length / CFG.ds) + 1;
+    M = Math.floor(2 * CFG.hw / CFG.du) + 1;
+    if (H.length !== N * M) {
+      H = new Float32Array(N * M);
+      CX = new Float32Array(N);
+      CY = new Float32Array(N);
+      SURF = new Uint8Array(N);
+    }
     var rng = mulberry32(CFG.seed);
     var i, j, s, k, code, run, r;
 
@@ -234,6 +436,12 @@
     var i0 = Math.floor(fi);
     if (i0 > N - 2) { i0 = N - 2; }
     if (i0 < 0) { i0 = 0; }
+    if (MP && MP.stepped) {
+      i0 = Math.round(fi);
+      if (i0 > N - 1) { i0 = N - 1; }
+      if (i0 < 0) { i0 = 0; }
+      return rowSample(i0, (x - CX[i0] + CFG.hw) / CFG.du);
+    }
     var ti = fi - i0;
     var jA = (x - CX[i0] + CFG.hw) / CFG.du;
     var jB = (x - CX[i0 + 1] + CFG.hw) / CFG.du;
@@ -287,6 +495,134 @@
   scene.add(sun);
   var amb = new THREE.AmbientLight(0xffffff, LIGHTUI ? 0.35 : 0.22);
   scene.add(amb);
+
+  /* =========================================================
+   * 3b. 油画后处理（Kuwahara 四象限取最小方差 + 色阶量化 + 笔触抖动）
+   * ========================================================= */
+  var OIL_VS = [
+    'varying vec2 vUv;',
+    'void main() {',
+    '  vUv = uv;',
+    '  gl_Position = vec4(position.xy, 0.0, 1.0);',
+    '}'
+  ].join('\n');
+
+  var OIL_FS = [
+    'uniform sampler2D tDiffuse;',
+    'uniform vec2 uTexel;',
+    'uniform float uTime;',
+    'uniform float uAmt;',
+    'varying vec2 vUv;',
+    '',
+    'void kwQuad(vec2 uv, vec2 sg, out vec3 mean, out float vari) {',
+    '  vec3 sum = vec3(0.0);',
+    '  vec3 sum2 = vec3(0.0);',
+    '  float n = 0.0;',
+    '  for (int i = -2; i <= 2; i++) {',
+    '    for (int j = -2; j <= 2; j++) {',
+    '      float fi = float(i);',
+    '      float fj = float(j);',
+    '      if (fi * sg.x < 0.0 || fj * sg.y < 0.0) { continue; }',
+    '      vec3 c = texture2D(tDiffuse, uv + vec2(fi, fj) * uTexel * 1.45).rgb;',
+    '      sum += c;',
+    '      sum2 += c * c;',
+    '      n += 1.0;',
+    '    }',
+    '  }',
+    '  sum /= n;',
+    '  sum2 /= n;',
+    '  vec3 vv = abs(sum2 - sum * sum);',
+    '  mean = sum;',
+    '  vari = vv.r + vv.g + vv.b;',
+    '}',
+    '',
+    'void main() {',
+    '  float n = fract(sin(dot(vUv * vec2(311.7, 213.1), vec2(12.9898, 78.233)) + uTime * 0.017) * 43758.5453);',
+    '  vec2 jit = vec2(n, fract(n * 9.71)) - 0.5;',
+    '  vec2 uv = vUv + jit * uTexel * 1.9 * uAmt;',
+    '  vec3 best = vec3(0.0);',
+    '  float bestVar = 1e9;',
+    '  vec3 m;',
+    '  float vr;',
+    '  kwQuad(uv, vec2(1.0, 1.0), m, vr);',
+    '  if (vr < bestVar) { bestVar = vr; best = m; }',
+    '  kwQuad(uv, vec2(-1.0, 1.0), m, vr);',
+    '  if (vr < bestVar) { bestVar = vr; best = m; }',
+    '  kwQuad(uv, vec2(1.0, -1.0), m, vr);',
+    '  if (vr < bestVar) { bestVar = vr; best = m; }',
+    '  kwQuad(uv, vec2(-1.0, -1.0), m, vr);',
+    '  if (vr < bestVar) { bestVar = vr; best = m; }',
+    '',
+    '  vec3 base = texture2D(tDiffuse, vUv).rgb;',
+    '  vec3 col = mix(base, best, uAmt);',
+    '  col = floor(col * 13.0 + 0.5) / 13.0;',
+    '  float lum = dot(col, vec3(0.299, 0.587, 0.114));',
+    '  col = mix(vec3(lum), col, 1.07);',
+    '  col *= vec3(1.035, 1.005, 0.955);',
+    '  col += (n - 0.5) * 0.032;',
+    '  gl_FragColor = vec4(clamp(col, 0.0, 1.0), 1.0);',
+    '}'
+  ].join('\n');
+
+  function initPost() {
+    if (POST) { return POST; }
+    var rt = new THREE.WebGLRenderTarget(4, 4, {
+      minFilter: THREE.LinearFilter, magFilter: THREE.LinearFilter,
+      format: THREE.RGBAFormat, stencilBuffer: false, depthBuffer: true
+    });
+    var ps = new THREE.Scene();
+    var pc = new THREE.OrthographicCamera(-1, 1, 1, -1, 0, 1);
+    var mat = new THREE.ShaderMaterial({
+      uniforms: {
+        tDiffuse: { value: rt.texture },
+        uTexel: { value: new THREE.Vector2(1 / 1024, 1 / 1024) },
+        uTime: { value: 0 },
+        uAmt: { value: 1.0 }
+      },
+      vertexShader: OIL_VS, fragmentShader: OIL_FS,
+      depthTest: false, depthWrite: false
+    });
+    var quad = new THREE.Mesh(new THREE.PlaneGeometry(2, 2), mat);
+    quad.frustumCulled = false;
+    ps.add(quad);
+    POST = { rt: rt, scene: ps, cam: pc, mat: mat, w: 0, h: 0 };
+    return POST;
+  }
+
+  function resizePost(w, h) {
+    var p = initPost();
+    var dpr = renderer.getPixelRatio();
+    var scale = (oilMode === 'oil') ? 0.92 : 1;
+    var rw = Math.max(4, Math.floor(w * dpr * scale));
+    var rh = Math.max(4, Math.floor(h * dpr * scale));
+    if (rw === p.w && rh === p.h) { return; }
+    p.w = rw; p.h = rh;
+    p.rt.setSize(rw, rh);
+    p.mat.uniforms.uTexel.value.set(1 / rw, 1 / rh);
+  }
+
+  /* 统一出图：油画走 rt + 全屏着色器，写实直接渲染 */
+  function renderScene(dt) {
+    if (oilMode !== 'oil') {
+      renderer.setRenderTarget(null);
+      renderer.render(scene, camera);
+      return;
+    }
+    var p = initPost();
+    p.mat.uniforms.uTime.value += (dt || 0.016);
+    renderer.setRenderTarget(p.rt);
+    renderer.clear();
+    renderer.render(scene, camera);
+    renderer.setRenderTarget(null);
+    renderer.render(p.scene, p.cam);
+  }
+
+  function setOilMode(mode) {
+    oilMode = (mode === 'real') ? 'real' : 'oil';
+    save('cealin_bike_oil', oilMode);
+    POST && (POST.w = 0);
+    resize();
+  }
 
   var terrainMesh = null, treesTrunk = null, treesLeaf = null, rocksMesh = null, gateGroup = null;
 
@@ -356,14 +692,237 @@
     scene.add(terrainMesh);
   }
 
+  var propsGroup = null;
+  function ensureProps() {
+    if (!propsGroup) { propsGroup = new THREE.Group(); scene.add(propsGroup); }
+    return propsGroup;
+  }
+
+  /* 通用：沿赛道按桩号布置实例化盒体 */
+  function instBoxes(list, color) {
+    if (!list.length) { return; }
+    var geo = new THREE.BoxGeometry(1, 1, 1);
+    var mat = new THREE.MeshLambertMaterial({ color: color, flatShading: true });
+    var mesh = new THREE.InstancedMesh(geo, mat, list.length);
+    var m = new THREE.Matrix4(), q = new THREE.Quaternion();
+    var pt = new THREE.Vector3(), sc = new THREE.Vector3(), ax = new THREE.Vector3(0, 1, 0);
+    for (var i = 0; i < list.length; i++) {
+      var it = list[i];
+      q.setFromAxisAngle(ax, it.yaw || 0);
+      sc.set(it.w, it.h, it.d);
+      pt.set(it.x, it.y, it.z);
+      m.compose(pt, q, sc);
+      mesh.setMatrixAt(i, m);
+    }
+    mesh.instanceMatrix.needsUpdate = true;
+    ensureProps().add(mesh);
+    return mesh;
+  }
+
+  /* 赛道切线朝向 */
+  function yawAt(s) {
+    var a = cxAt(Math.max(0, s - 3)), b = cxAt(Math.min(CFG.length, s + 3));
+    return Math.atan2(b - a, 6);
+  }
+
+  function dressingIndoor(rng) {
+    var walls = [], beams = [], stands = [], lamps = [];
+    var s, u, x, z, gy, k;
+    for (s = 6; s < CFG.length; s += 13) {
+      for (k = -1; k <= 1; k += 2) {
+        u = k * (CFG.trackHalf + 3.4);
+        x = cxAt(s) + u; z = -s; gy = heightAt(x, z);
+        walls.push({ x: x, y: gy + 2.1, z: z, w: 12.8, h: 4.2, d: 0.5, yaw: yawAt(s) });
+        if (((s / 13) | 0) % 3 === 0) {
+          stands.push({ x: cxAt(s) + k * (CFG.trackHalf + 8.6), y: gy + 0.9, z: z,
+            w: 12, h: 1.8, d: 5.2, yaw: yawAt(s) });
+        }
+      }
+    }
+    for (s = 26; s < CFG.length; s += 39) {
+      x = cxAt(s); z = -s; gy = heightAt(x, z);
+      beams.push({ x: x, y: gy + 7.6, z: z, w: CFG.trackHalf * 2 + 9, h: 0.45, d: 0.55, yaw: yawAt(s) });
+      for (k = -1; k <= 1; k += 2) {
+        lamps.push({ x: cxAt(s) + k * (CFG.trackHalf - 0.6), y: gy + 7.0, z: z,
+          w: 1.6, h: 0.22, d: 0.5, yaw: yawAt(s) });
+      }
+    }
+    instBoxes(walls, 0x6c5238);
+    instBoxes(stands, 0x585c63);
+    instBoxes(beams, 0x4a4e55);
+    var lampMesh = instBoxes(lamps, 0xfff2c4);
+    if (lampMesh) { lampMesh.material = new THREE.MeshBasicMaterial({ color: 0xfff2c4 }); }
+  }
+
+  function dressingOutdoor(rng) {
+    var moundGeo = new THREE.SphereGeometry(1, 7, 4);
+    var moundMat = new THREE.MeshLambertMaterial({ color: 0x8a6a42, flatShading: true });
+    var list = [], s, k, u, x, z, gy, sc;
+    for (s = 8; s < CFG.length; s += 17) {
+      for (k = -1; k <= 1; k += 2) {
+        u = k * (CFG.trackHalf + 4.6 + rng() * 3.2);
+        x = cxAt(s) + u; z = -s; gy = heightAt(x, z);
+        list.push({ x: x, y: gy + 0.25, z: z, r: 2.1 + rng() * 2.2 });
+      }
+    }
+    var mesh = new THREE.InstancedMesh(moundGeo, moundMat, list.length);
+    var m = new THREE.Matrix4(), q = new THREE.Quaternion(), pt = new THREE.Vector3(), scl = new THREE.Vector3();
+    for (var i = 0; i < list.length; i++) {
+      sc = list[i].r;
+      scl.set(sc, sc * 0.42, sc);
+      pt.set(list[i].x, list[i].y, list[i].z);
+      m.compose(pt, q, scl);
+      mesh.setMatrixAt(i, m);
+    }
+    mesh.instanceMatrix.needsUpdate = true;
+    ensureProps().add(mesh);
+
+    var poles = [], flags = [];
+    for (s = 30; s < CFG.length; s += 62) {
+      for (k = -1; k <= 1; k += 2) {
+        x = cxAt(s) + k * (CFG.trackHalf + 2.4); z = -s; gy = heightAt(x, z);
+        poles.push({ x: x, y: gy + 3.4, z: z, w: 0.14, h: 6.8, d: 0.14 });
+        flags.push({ x: x + k * 0.55, y: gy + 6.2, z: z, w: 1.0, h: 0.9, d: 0.08, yaw: yawAt(s) });
+      }
+    }
+    instBoxes(poles, 0xb8b2a6);
+    instBoxes(flags, 0xe0663a);
+  }
+
+  function dressingStair(rng) {
+    var steps = [], s, i, seg, n, x, z, gy, y, k, walls = [], rails = [], lamps = [];
+    var st = (MP && MP.stairs) || [];
+    for (i = 0; i < st.length; i++) {
+      seg = st[i];
+      for (n = 0; n < seg.count; n++) {
+        s = seg.s0 + n * seg.step;
+        x = cxAt(s); z = -s; gy = heightAt(x, z);
+        steps.push({ x: x, y: gy - 0.36, z: z, w: CFG.trackHalf * 2 + 1.2, h: 0.72, d: seg.step + 0.3 });
+      }
+    }
+    instBoxes(steps, 0x9a938a);
+    for (s = 4; s < CFG.length; s += 16) {
+      x = cxAt(s); z = -s; gy = heightAt(x, z);
+      for (k = -1; k <= 1; k += 2) {
+        walls.push({ x: cxAt(s) + k * (CFG.trackHalf + 2.2), y: gy + 1.6, z: z,
+          w: 15.6, h: 3.4, d: 0.6, yaw: yawAt(s) });
+        rails.push({ x: cxAt(s) + k * (CFG.trackHalf + 0.9), y: gy + 1.25, z: z,
+          w: 0.12, h: 1.0, d: 0.12 });
+      }
+    }
+    instBoxes(walls, 0x8d8579);
+    instBoxes(rails, 0x5b6167);
+    for (s = 30; s < CFG.length; s += 55) {
+      x = cxAt(s) + (CFG.trackHalf + 2.0); z = -s; gy = heightAt(x, z);
+      lamps.push({ x: x, y: gy + 2.6, z: z, w: 0.14, h: 5.2, d: 0.14 });
+      lamps.push({ x: x - 0.5, y: gy + 5.2, z: z, w: 1.0, h: 0.2, d: 0.4 });
+    }
+    instBoxes(lamps, 0xd8cdb6);
+  }
+
+  function dressingUrban(rng) {
+    var bld = [], s, k, u, x, z, gy, h, w, d, lamps = [], rails = [];
+    for (s = 10; s < CFG.length; s += 21) {
+      for (k = -1; k <= 1; k += 2) {
+        u = k * (CFG.trackHalf + 7 + rng() * 15);
+        x = cxAt(s) + u; z = -s; gy = heightAt(x, z);
+        h = 9 + rng() * 34;
+        w = 7 + rng() * 11;
+        d = 10 + rng() * 12;
+        bld.push({ x: x, y: gy + h / 2, z: z, w: w, h: h, d: d, yaw: yawAt(s) + (rng() - 0.5) * 0.12 });
+      }
+    }
+    instBoxes(bld, 0x3d4653);
+    for (s = 24; s < CFG.length; s += 46) {
+      for (k = -1; k <= 1; k += 2) {
+        x = cxAt(s) + k * (CFG.trackHalf + 1.1); z = -s; gy = heightAt(x, z);
+        lamps.push({ x: x, y: gy + 3.2, z: z, w: 0.16, h: 6.4, d: 0.16 });
+        lamps.push({ x: x, y: gy + 6.4, z: z, w: 0.9, h: 0.22, d: 0.9 });
+      }
+    }
+    instBoxes(lamps, 0xc8d2e0);
+    for (s = 8; s < CFG.length; s += 11) {
+      for (k = -1; k <= 1; k += 2) {
+        x = cxAt(s) + k * (CFG.trackHalf + 2.0); z = -s; gy = heightAt(x, z);
+        rails.push({ x: x, y: gy + 0.55, z: z, w: 10.6, h: 0.12, d: 0.12, yaw: yawAt(s) });
+      }
+    }
+    instBoxes(rails, 0x76808d);
+  }
+
+  /* 沙漠 / 雪原 / 工厂 三个生物群系的侧边装饰 */
+  function dressingBiome(rng, kind) {
+    var th = CFG.trackHalf, s, u, x, z, gy, k;
+    var a = [], b = [], c = [];
+    var step = kind === 'factory' ? 24 : 13;
+    for (s = 10; s < CFG.finishS; s += step * (0.55 + rng())) {
+      u = (rng() < 0.5 ? -1 : 1) * (th + 2.2 + rng() * (kind === 'factory' ? 12 : 18));
+      x = cxAt(s) + u; z = -s;
+      gy = heightAt(x, z);
+      k = rng();
+      if (kind === 'dune') {
+        if (k < 0.4) {
+          a.push({ x: x, y: gy + 1.3, z: z, w: 0.5, h: 2.6, d: 0.5, yaw: rng() * 3 });
+          a.push({ x: x + 0.45, y: gy + 1.7, z: z, w: 0.85, h: 0.3, d: 0.28 });
+          a.push({ x: x - 0.4, y: gy + 1.3, z: z, w: 0.75, h: 0.28, d: 0.26 });
+        } else if (k < 0.7) {
+          b.push({ x: x, y: gy + 2.0, z: z, w: 0.8 + rng() * 1.4, h: 4.0 + rng() * 3.2, d: 0.8 + rng() * 1.2, yaw: rng() * 3 });
+        } else {
+          c.push({ x: x, y: gy + 0.28, z: z, w: 1.6 + rng(), h: 0.55, d: 1.6 + rng(), yaw: rng() * 3 });
+        }
+      } else if (kind === 'snow') {
+        if (k < 0.5) {
+          a.push({ x: x, y: gy + 1.6, z: z, w: 0.42, h: 3.2, d: 0.42, yaw: rng() * 3 });
+          a.push({ x: x, y: gy + 2.2, z: z, w: 1.9, h: 1.2, d: 1.9, yaw: rng() * 3 });
+          a.push({ x: x, y: gy + 3.1, z: z, w: 1.2, h: 1.0, d: 1.2, yaw: rng() * 3 });
+        } else if (k < 0.82) {
+          c.push({ x: x, y: gy + 0.4, z: z, w: 2.0 + rng() * 2.4, h: 0.8, d: 2.0 + rng() * 2.4, yaw: rng() * 3 });
+        } else {
+          b.push({ x: x, y: gy + 2.4, z: z, w: 0.16, h: 4.8, d: 0.16 });
+        }
+      } else {
+        if (k < 0.36) {
+          a.push({ x: x, y: gy + 1.45, z: z, w: 2.4, h: 2.9, d: 6.2 + rng() * 3, yaw: rng() * 3 });
+        } else if (k < 0.66) {
+          b.push({ x: x, y: gy + 5.5, z: z, w: 1.1, h: 11, d: 1.1 });
+          b.push({ x: x, y: gy + 11.2, z: z, w: 2.6, h: 0.5, d: 2.6 });
+        } else {
+          c.push({ x: x, y: gy + 0.7, z: z, w: 1.2, h: 1.4, d: 1.2 + rng() * 2.2, yaw: rng() * 3 });
+        }
+      }
+    }
+    if (kind === 'dune') {
+      instBoxes(a, 0x5c7a4a); instBoxes(b, 0xb07d4a); instBoxes(c, 0x9a6c3c);
+    } else if (kind === 'snow') {
+      instBoxes(a, 0x2f4a3a); instBoxes(b, 0x6b7784); instBoxes(c, 0xe8f1f7);
+    } else {
+      instBoxes(a, 0x8a5a3a); instBoxes(b, 0x6e6a63); instBoxes(c, 0x565c60);
+    }
+  }
+
   function buildProps() {
+    var style = (MP && MP.style) || 'trail';
+    // 各场景装饰需要一个固定种子的随机源，否则室外/城市赛道的道具布置会直接抛错
+    var rng = mulberry32(CFG.seed + 31);
+    if (style === 'trail') { buildTrailProps(); }
+    else if (style === 'indoor') { dressingIndoor(rng); }
+    else if (style === 'outdoor') { dressingOutdoor(rng); }
+    else if (style === 'stair') { dressingStair(rng); }
+    else if (style === 'urban') { dressingUrban(rng); }
+    else if (style === 'dune') { dressingBiome(rng, 'dune'); }
+    else if (style === 'snow') { dressingBiome(rng, 'snow'); }
+    else if (style === 'factory') { dressingBiome(rng, 'factory'); }
+  }
+
+  function buildTrailProps() {
     var rng = mulberry32(CFG.seed + 7);
     var trunkGeo = new THREE.CylinderGeometry(0.16, 0.24, 2.4, 5);
     var leafGeo = new THREE.ConeGeometry(1.55, 4.2, 6);
     var pp = PAL || DEF_PAL;
     var trunkMat = new THREE.MeshLambertMaterial({ color: pp.trunk, flatShading: true });
     var leafMat = new THREE.MeshLambertMaterial({ color: pp.leaf, flatShading: true });
-    var count = (MP && MP.treeCount) || 460;
+    var count = (MP && typeof MP.treeCount === 'number') ? MP.treeCount : 460;
+    if (count < 1) { return; }
     treesTrunk = new THREE.InstancedMesh(trunkGeo, trunkMat, count);
     treesLeaf = new THREE.InstancedMesh(leafGeo, leafMat, count);
     var m = new THREE.Matrix4();
@@ -396,7 +955,8 @@
 
     var rockGeo = new THREE.DodecahedronGeometry(1, 0);
     var rockMat = new THREE.MeshLambertMaterial({ color: pp.rock, flatShading: true });
-    var rc = (MP && MP.rockCount) || 170;
+    var rc = (MP && typeof MP.rockCount === 'number') ? MP.rockCount : 170;
+    if (rc < 1) { return; }
     rocksMesh = new THREE.InstancedMesh(rockGeo, rockMat, rc);
     for (var i = 0; i < rc; i++) {
       var rs = rng() * CFG.length;
@@ -463,6 +1023,215 @@
     return { root: root, spin: spin };
   }
 
+  /* ---------------- 骑手与装备（可换装：背包 / 头盔 / 眼镜） ---------------- */
+  var riderGroup = null, riderHead = null;
+  var gearHelmetG = [], gearBagG = [], gearGlassG = [];
+  var GEAR = null;
+  var curGear = { helmet: 0, bag: 1, glasses: 0 };
+
+  function ensureGear() {
+    if (GEAR) { return; }
+    GEAR = {
+      helmet: [
+        { key: 'open', nameKey: 'bike.helmetOpen', name: '\u767d\u8272\u534a\u76d4', tagKey: 'bike.gearClassic', tag: '\u7ecf\u5178', color: 0xf2f2f2, visor: 0xdfe6ec, style: 'open' },
+        { key: 'full', nameKey: 'bike.helmetFull', name: '\u5168\u76d4', tagKey: 'bike.gearSafe', tag: '\u5b89\u5168', color: 0x2b2f36, visor: 0x8fb6c9, style: 'full' },
+        { key: 'aero', nameKey: 'bike.helmetAero', name: '\u6d41\u7ebf\u7ade\u901f', tagKey: 'bike.gearRace', tag: '\u7ade\u901f', color: 0xd94f3d, visor: 0xffd9a0, style: 'aero' },
+        { key: 'vintage', nameKey: 'bike.helmetVintage', name: '\u590d\u53e4\u76ae\u76d4', tagKey: 'bike.gearRetro', tag: '\u590d\u53e4', color: 0x8a5a33, visor: 0xd8b98c, style: 'vintage' }
+      ],
+      bag: [
+        { key: 'none', nameKey: 'bike.bagNone', name: '\u4e0d\u80cc\u5305', tagKey: 'bike.gearLight', tag: '\u8f7b\u88c5', color: 0x000000, strap: 0x000000, style: 'none' },
+        { key: 'daypack', nameKey: 'bike.bagDaypack', name: '\u53cc\u80a9\u80cc\u5305', tagKey: 'bike.gearDaily', tag: '\u65e5\u5e38', color: 0x2f3a44, strap: 0x1f262c, style: 'daypack' },
+        { key: 'hydro', nameKey: 'bike.bagHydro', name: '\u8d8a\u91ce\u6c34\u888b', tagKey: 'bike.gearEnduro', tag: '\u8d8a\u91ce', color: 0x35566b, strap: 0x22323d, style: 'hydro' },
+        { key: 'messenger', nameKey: 'bike.bagMessenger', name: '\u90ae\u5dee\u5305', tagKey: 'bike.gearUrban', tag: '\u8857\u5934', color: 0x7a4b2a, strap: 0x4e2f1a, style: 'messenger' }
+      ],
+      glasses: [
+        { key: 'none', nameKey: 'bike.glassNone', name: '\u4e0d\u6234\u773c\u955c', tagKey: 'bike.gearLight', tag: '\u8f7b\u88c5', lens: 0x000000, frame: 0x000000, style: 'none' },
+        { key: 'goggle', nameKey: 'bike.glassGoggle', name: '\u62a4\u76ee\u955c', tagKey: 'bike.gearOffroad', tag: '\u8d8a\u91ce', lens: 0xffd27a, frame: 0x2a2f35, style: 'goggle' },
+        { key: 'sport', nameKey: 'bike.glassSport', name: '\u8fd0\u52a8\u58a8\u955c', tagKey: 'bike.gearDaily', tag: '\u65e5\u5e38', lens: 0x1f2a33, frame: 0xd94f3d, style: 'sport' },
+        { key: 'round', nameKey: 'bike.glassRound', name: '\u590d\u53e4\u5706\u955c', tagKey: 'bike.gearRetro', tag: '\u590d\u53e4', lens: 0x3b2d20, frame: 0xc8a96e, style: 'round' }
+      ]
+    };
+  }
+
+  function partBox(parent, w, h, d, color, x, y, z, rx, ry, rz) {
+    var mat = new THREE.MeshLambertMaterial({ color: color, flatShading: true });
+    var m = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), mat);
+    m.position.set(x, y, z);
+    if (rx) { m.rotation.x = rx; }
+    if (ry) { m.rotation.y = ry; }
+    if (rz) { m.rotation.z = rz; }
+    parent.add(m);
+    return m;
+  }
+
+  function buildHelmetModel(hd) {
+    var g = new THREE.Group();
+    if (hd.style === 'open') {
+      partBox(g, 0.26, 0.14, 0.28, hd.color, 0, 0.11, 0.00);
+      partBox(g, 0.27, 0.03, 0.10, hd.visor, 0, 0.055, 0.17);
+      partBox(g, 0.18, 0.03, 0.09, hd.color, 0, 0.185, -0.02);
+      partBox(g, 0.05, 0.04, 0.16, 0x2a2f34, 0, 0.10, 0.02);
+    } else if (hd.style === 'full') {
+      partBox(g, 0.27, 0.17, 0.30, hd.color, 0, 0.09, 0.00);
+      partBox(g, 0.24, 0.11, 0.13, hd.color, 0, -0.03, 0.11);
+      partBox(g, 0.21, 0.09, 0.02, hd.visor, 0, 0.03, 0.165);
+      partBox(g, 0.26, 0.04, 0.06, 0x1b1f24, 0, 0.17, 0.06);
+    } else if (hd.style === 'aero') {
+      partBox(g, 0.24, 0.14, 0.32, hd.color, 0, 0.10, 0.00);
+      partBox(g, 0.17, 0.09, 0.14, hd.color, 0, 0.07, -0.21);
+      partBox(g, 0.22, 0.05, 0.06, hd.visor, 0, 0.03, 0.16);
+      partBox(g, 0.04, 0.10, 0.20, 0xffffff, 0, 0.13, 0.02);
+    } else {
+      partBox(g, 0.26, 0.16, 0.27, hd.color, 0, 0.10, 0.00);
+      partBox(g, 0.275, 0.045, 0.285, 0x6b4326, 0, 0.02, 0.00);
+      partBox(g, 0.10, 0.03, 0.20, 0x4a2c17, 0, 0.19, 0.00);
+    }
+    return g;
+  }
+
+  function buildBagModel(bd) {
+    var g = new THREE.Group();
+    if (bd.style === 'none') { return g; }
+    if (bd.style === 'daypack') {
+      partBox(g, 0.30, 0.32, 0.14, bd.color, 0, 0.02, -0.20);
+      partBox(g, 0.26, 0.10, 0.07, bd.strap, 0, 0.16, -0.13);
+      partBox(g, 0.05, 0.42, 0.05, bd.strap, -0.02, -0.01, -0.13, 0, 0, 0.52);
+      partBox(g, 0.05, 0.42, 0.05, bd.strap, 0.02, -0.01, -0.13, 0, 0, -0.52);
+      partBox(g, 0.16, 0.09, 0.04, bd.strap, 0, -0.13, -0.24);
+    } else if (bd.style === 'hydro') {
+      partBox(g, 0.24, 0.34, 0.13, bd.color, 0, 0.02, -0.19);
+      partBox(g, 0.20, 0.10, 0.05, bd.strap, 0, 0.15, -0.12);
+      partBox(g, 0.20, 0.06, 0.05, bd.strap, 0, -0.13, -0.12);
+      partBox(g, 0.035, 0.035, 0.26, 0x9fb2bd, 0.13, 0.10, -0.02, 0.9);
+      partBox(g, 0.05, 0.05, 0.05, 0xd8e0e6, 0.14, 0.02, 0.08);
+    } else {
+      partBox(g, 0.26, 0.20, 0.13, bd.color, 0.16, -0.09, -0.20, 0, 0.35);
+      partBox(g, 0.06, 0.44, 0.05, bd.strap, 0.02, 0.06, -0.16, 0, 0, -0.75);
+      partBox(g, 0.14, 0.05, 0.04, bd.strap, 0.16, -0.19, -0.20);
+    }
+    return g;
+  }
+
+  function buildGlassModel(gd) {
+    var g = new THREE.Group();
+    if (gd.style === 'none') { return g; }
+    if (gd.style === 'goggle') {
+      partBox(g, 0.21, 0.10, 0.04, gd.frame, 0, 0.01, 0.095);
+      partBox(g, 0.185, 0.075, 0.02, gd.lens, 0, 0.01, 0.115);
+      partBox(g, 0.05, 0.04, 0.10, gd.frame, -0.11, 0.01, 0.05);
+      partBox(g, 0.05, 0.04, 0.10, gd.frame, 0.11, 0.01, 0.05);
+      partBox(g, 0.24, 0.03, 0.24, 0x1f2429, 0, 0.02, -0.02);
+    } else if (gd.style === 'sport') {
+      partBox(g, 0.085, 0.055, 0.03, gd.lens, -0.05, 0.01, 0.10);
+      partBox(g, 0.085, 0.055, 0.03, gd.lens, 0.05, 0.01, 0.10);
+      partBox(g, 0.04, 0.02, 0.03, gd.frame, 0, 0.02, 0.10);
+      partBox(g, 0.02, 0.02, 0.20, gd.frame, -0.095, 0.02, 0.00);
+      partBox(g, 0.02, 0.02, 0.20, gd.frame, 0.095, 0.02, 0.00);
+    } else {
+      var cyl = new THREE.Mesh(new THREE.CylinderGeometry(0.045, 0.045, 0.02, 8),
+        new THREE.MeshLambertMaterial({ color: gd.lens, flatShading: true }));
+      cyl.rotation.x = Math.PI / 2;
+      cyl.position.set(-0.05, 0.01, 0.10);
+      g.add(cyl);
+      var cyl2 = cyl.clone();
+      cyl2.position.x = 0.05;
+      g.add(cyl2);
+      partBox(g, 0.05, 0.018, 0.02, gd.frame, 0, 0.02, 0.10);
+      partBox(g, 0.02, 0.02, 0.19, gd.frame, -0.10, 0.02, 0.00);
+      partBox(g, 0.02, 0.02, 0.19, gd.frame, 0.10, 0.02, 0.00);
+    }
+    return g;
+  }
+
+  function buildRider(chassis) {
+    ensureGear();
+    var SHIRT = 0xd1622e, SHIRT_D = 0xb14f24, PANTS = 0xd8c9a8, SKIN = 0xd9a97e,
+      SHOE = 0x2b2f34, GLOVE = 0x3a4046;
+    riderGroup = new THREE.Group();
+    var k, sd, sx = [-1, 1];
+
+    partBox(riderGroup, 0.30, 0.15, 0.24, PANTS, 0, 0.29, -0.30);
+    riderTorso = partBox(riderGroup, 0.34, 0.44, 0.25, SHIRT, 0, 0.55, -0.20, 0.26);
+    partBox(riderGroup, 0.37, 0.10, 0.23, SHIRT_D, 0, 0.75, -0.11);
+    partBox(riderGroup, 0.10, 0.08, 0.10, SKIN, 0, 0.81, -0.06);
+
+    riderHead = new THREE.Group();
+    riderHead.position.set(0, 0.92, -0.03);
+    riderGroup.add(riderHead);
+    partBox(riderHead, 0.17, 0.19, 0.18, SKIN, 0, 0, 0);
+    partBox(riderHead, 0.03, 0.06, 0.06, 0x2a2f34, 0, -0.01, 0.095);
+
+    for (k = 0; k < 2; k++) {
+      sd = sx[k];
+      partBox(riderGroup, 0.10, 0.32, 0.10, SHIRT, sd * 0.19, 0.64, -0.03, 1.02);
+      partBox(riderGroup, 0.09, 0.30, 0.09, SKIN, sd * 0.22, 0.51, 0.26, 1.42);
+      partBox(riderGroup, 0.10, 0.10, 0.11, GLOVE, sd * 0.23, 0.42, 0.48, 0.20);
+      partBox(riderGroup, 0.13, 0.34, 0.14, PANTS, sd * 0.12, 0.15, -0.16, 0.78);
+      partBox(riderGroup, 0.12, 0.32, 0.12, PANTS, sd * 0.14, -0.10, 0.00, 0.12);
+      partBox(riderGroup, 0.13, 0.08, 0.25, SHOE, sd * 0.14, -0.28, 0.04, 0.05);
+    }
+
+    // 头盔 / 眼镜：装配到头部
+    var i;
+    for (i = 0; i < GEAR.helmet.length; i++) {
+      var hg = buildHelmetModel(GEAR.helmet[i]);
+      hg.visible = false;
+      riderHead.add(hg);
+      gearHelmetG.push(hg);
+    }
+    for (i = 0; i < GEAR.glasses.length; i++) {
+      var gg = buildGlassModel(GEAR.glasses[i]);
+      gg.visible = false;
+      riderHead.add(gg);
+      gearGlassG.push(gg);
+    }
+    // 背包：装配到躯干（跟随前倾）
+    for (i = 0; i < GEAR.bag.length; i++) {
+      var bg = buildBagModel(GEAR.bag[i]);
+      bg.visible = false;
+      riderTorso.add(bg);
+      gearBagG.push(bg);
+    }
+
+    chassis.add(riderGroup);
+    // 车把号码牌
+    partBox(chassis, 0.22, 0.26, 0.02, 0xf4f1e6, 0, 0.57, 0.63, 0.12);
+    partBox(chassis, 0.03, 0.13, 0.01, 0x1e2226, -0.02, 0.575, 0.645, 0.12);
+  }
+
+  function applyGearLight() {
+    ensureGear();
+    var i;
+    for (i = 0; i < gearHelmetG.length; i++) { gearHelmetG[i].visible = (i === curGear.helmet); }
+    for (i = 0; i < gearBagG.length; i++) { gearBagG[i].visible = (i === curGear.bag); }
+    for (i = 0; i < gearGlassG.length; i++) { gearGlassG[i].visible = (i === curGear.glasses); }
+  }
+
+  function gearIndexByKey(group, key, fallback) {
+    ensureGear();
+    var arr = GEAR[group], i;
+    if (key !== null && key !== undefined && key !== '') {
+      for (i = 0; i < arr.length; i++) { if (arr[i].key === key) { return i; } }
+    }
+    return fallback;
+  }
+
+  function applyGear(group, idx) {
+    ensureGear();
+    var arr = GEAR[group];
+    idx = clamp(idx, 0, arr.length - 1);
+    curGear[group] = idx;
+    save('cealin_bike_' + group, arr[idx].key);
+    applyGearLight();
+  }
+
+  function loadGear() {
+    ensureGear();
+    curGear.helmet = gearIndexByKey('helmet', store('cealin_bike_helmet'), 0);
+    curGear.bag = gearIndexByKey('bag', store('cealin_bike_bag'), 1);
+    curGear.glasses = gearIndexByKey('glasses', store('cealin_bike_glasses'), 0);
+  }
+
   function buildBikeModel() {
     bikeGroup = new THREE.Group();
     var matFrame = new THREE.MeshLambertMaterial({ color: 0x3b7fa6, flatShading: true });
@@ -514,18 +1283,8 @@
     crankSpin.add(ring);
     chassis.add(crankSpin);
 
-    // 骑手
-    riderTorso = box(0.34, 0.46, 0.24, matShirt, 0, 0.62, -0.02, 0.30);
-    var head = new THREE.Mesh(new THREE.BoxGeometry(0.19, 0.19, 0.19), matSkin);
-    head.position.set(0, 0.92, 0.08);
-    chassis.add(head);
-    var helmet = new THREE.Mesh(new THREE.BoxGeometry(0.25, 0.16, 0.27), matHelmet);
-    helmet.position.set(0, 1.02, 0.08);
-    chassis.add(helmet);
-    box(0.09, 0.09, 0.44, matSkin, -0.20, 0.62, 0.30, 0.75);
-    box(0.09, 0.09, 0.44, matSkin, 0.20, 0.62, 0.30, 0.75);
-    box(0.12, 0.34, 0.12, matDark, -0.13, 0.16, -0.04, 0.35);
-    box(0.12, 0.34, 0.12, matDark, 0.13, 0.16, -0.04, 0.35);
+    // 骑手（可换装）
+    buildRider(chassis);
 
     var rearWheel = makeWheel(matTire, matRim, matDark);
     rearWheelRoot = rearWheel.root;
@@ -954,8 +1713,13 @@
     var flips = Math.round(Math.abs(pitchAccum) / (Math.PI * 2));
     var spins = Math.round(Math.abs(yawAccum) / (Math.PI * 2));
     lastLanding = { tilt: tilt, vy: lastVy, flips: flips, spins: spins, air: airTime };
+    sfxLand(tilt > 0.7 || lastVy < -9);
+    if (airTime >= 3 && (parseFloat(store('cealin_bike_best_air')) || 0) < airTime) { save('cealin_bike_best_air', airTime.toFixed(2)); }
+    if (state === 'running') { checkAch(); }
 
-    if (tilt > 1.20 || lastVy < -13) {
+    var tiltTol = 1.20 + 0.06 * (UPG.susp || 0);
+    var vyTol = -13 - 0.9 * (UPG.susp || 0);
+    if (tilt > tiltTol || lastVy < vyTol) {
       crashNow('landing');
       return;
     }
@@ -972,6 +1736,7 @@
   function crashNow(reason) {
     if (state !== 'running') { return; }
     state = 'crash';
+    sfxCrash();
     crashes++;
     crashTimer = 0;
     lastCrashReason = reason;
@@ -1008,6 +1773,7 @@
   }
 
   function updateCamera(dt) {
+    if (camMode === 'first') { updateCameraFirst(dt); return; }
     var fwd = T6.set(0, 0, 1).applyQuaternion(body.quat);
     var flat = T7.set(fwd.x, 0, fwd.z);
     if (flat.lengthSq() < 1e-4) { flat.set(0, 0, -1); }
@@ -1028,6 +1794,29 @@
     camera.position.copy(camPos);
     camera.lookAt(camLook);
     var targetFov = 60 + clamp(speed * 0.85, 0, 22);
+    camera.fov = lerp(camera.fov, targetFov, 1 - Math.exp(-dt * 3));
+    camera.updateProjectionMatrix();
+  }
+
+  /* 第一人称：镜头贴车把后上方，视线跟随车身姿态 */
+  function updateCameraFirst(dt) {
+    var fwd = T6.set(0, 0, 1).applyQuaternion(body.quat);
+    var up = T7.set(0, 1, 0).applyQuaternion(body.quat);
+    var flat = T8.set(fwd.x, 0, fwd.z);
+    if (flat.lengthSq() < 1e-4) { flat.set(0, 0, 1); }
+    flat.normalize();
+    var eye = T9.copy(body.pos)
+      .addScaledVector(flat, 0.42)
+      .addScaledVector(CAM_UP, 1.24)
+      .addScaledVector(fwd, 0.18);
+    var gh = heightAt(eye.x, eye.z) + 0.55;
+    if (eye.y < gh) { eye.y = gh; }
+    camPos.lerp(eye, 1 - Math.exp(-dt * 18));
+    var look = body.pos.clone().addScaledVector(flat, 8.5).addScaledVector(CAM_UP, 0.72);
+    camLook.lerp(look, 1 - Math.exp(-dt * 15));
+    camera.position.copy(camPos);
+    camera.lookAt(camLook);
+    var targetFov = 70 + clamp(speed * 0.9, 0, 20);
     camera.fov = lerp(camera.fov, targetFov, 1 - Math.exp(-dt * 3));
     camera.updateProjectionMatrix();
   }
@@ -1143,6 +1932,9 @@
 
   function finishRun() {
     state = 'finish';
+    sfxFinish();
+    if (crashes === 0) { save('cealin_bike_nocrash', '1'); }
+    checkAch();
     var isNew = (bestTime <= 0 || elapsed < bestTime);
     if (isNew) {
       bestTime = elapsed;
@@ -1179,6 +1971,11 @@
       }
       if (down && code === 'KeyR') {
         if (state === 'running' || state === 'crash') { respawnAtCheckpoint(); toast(t('bike.resetDone')); }
+        return;
+      }
+      if (down && code === 'KeyV') {
+        setCamMode(camMode === 'first' ? 'third' : 'first');
+        toastMsg(camMode === 'first' ? tr('bike.camFirst', '\u7b2c\u4e00\u4eba\u79f0') : tr('bike.camThird', '\u7b2c\u4e09\u4eba\u79f0'));
         return;
       }
       if (down && code === 'Escape') { doPause(); return; }
@@ -1286,9 +2083,12 @@
       if (viewMode === 'replay') { advanceReplay(dt); }
       updateCamera(dt);
     }
+    stepPickups(dt);
+    audioTick();
+    stepDust(dt);
     syncExtras(dt);
     updateHud(dt);
-    renderer.render(scene, camera);
+    renderScene(dt);
   }
 
   function resize() {
@@ -1300,6 +2100,7 @@
     canvas.height = Math.floor(h * renderer.getPixelRatio());
     camera.aspect = w / Math.max(1, h);
     camera.updateProjectionMatrix();
+    resizePost(w, h);
   }
   global.addEventListener('resize', resize);
 
@@ -1391,13 +2192,30 @@
         offTrack: body.pos.x - cxAt(-body.pos.z),
         render: { calls: renderer.info.render.calls, triangles: renderer.info.render.triangles },
         trackLength: CFG.finishS - CFG.startS,
-        trackSeed: CFG.seed
+        trackSeed: CFG.seed,
+        oil: oilMode,
+        cam: camMode,
+        parts: PARTS,
+        pickupsGot: PICKUPS_GOT,
+        pickupsTotal: PICKUP_LIST.length,
+        upg: { engine: UPG.engine, grip: UPG.grip, susp: UPG.susp, trick: UPG.trick },
+        paint: { frame: PAINT.frame, rim: PAINT.rim, helmet: PAINT.helmet, shirt: PAINT.shirt },
+        mapKey: (MAPS[curMapIdx] || {}).key,
+        mapCount: MAPS.length,
+        custom: { length: CUSTOM_DEF.length, w1: CUSTOM_DEF.w1, w2: CUSTOM_DEF.w2, rough: CUSTOM_DEF.rough, jumpStep: CUSTOM_DEF.jumpStep, seed: CUSTOM_DEF.seed, style: CUSTOM_DEF.style }
       };
     },
     start: startRun,
     pause: doPause,
     resume: function () { if (state === 'paused') { doPause(); } },
     reset: respawnAtCheckpoint,
+    setOil: setOilMode,
+    setCam: setCamMode,
+    addParts: function (n) { PARTS = Math.max(0, PARTS + (parseInt(n, 10) || 0)); save('cealin_bike_parts', String(PARTS)); return PARTS; },
+    setPaint: function (slot, color) { setPaint(slot, color); return PAINT[slot] || ''; },
+    upgrade: function (k) { buyUpg(k); return UPG[k]; },
+    custom: function (o) { if (o) { for (var k in o) { if (CUSTOM_DEF.hasOwnProperty(k)) { CUSTOM_DEF[k] = o[k]; } } } return applyCustom(); },
+    maps: function () { return MAPS.map(function (m) { return { key: m.key, name: m.name, style: m.style || 'trail', len: m.finishS - m.startS }; }); },
     teleport: function (s) { placeAt(clamp(s, 1, CFG.length - 2), 0); },
     setInput: function (name, v) {
       if (name === 'jump') { ext.jump = !!v; return; }
@@ -1505,7 +2323,166 @@
           grass: [0.40, 0.42, 0.26], edgeA: [0.47, 0.42, 0.33], edgeB: [0.45, 0.41, 0.35],
           far: [0.58, 0.54, 0.51], trunk: 0x4a3c2c, leaf: 0x3d4a2c, rock: 0x7d766a
         }
+      },
+      {
+        key: 'indoor', nameKey: 'bike.mapIndoor', name: '\u5ba4\u5185 BMX \u573a',
+        descKey: 'bike.mapIndoorDesc', tint: 0x8f6a3e, diff: 1, style: 'indoor',
+        seed: 20261120, length: 480, startS: 10, cpEvery: 150, finishS: 460, trackHalf: 7.0,
+        cw1: 5.0, cf1: 0.0060, cw2: 2.4, cf2: 0.0130, slope: 0.004,
+        und1: 0.0, uf1: 0.0042, und2: 0.0, uf2: 0.0158, rough: 0.05, hill: 0.0,
+        surf: [0.42, 0.62, 0.80], grips: [0.90, 0.86, 0.92, 0.74],
+        treeCount: 0, rockCount: 0,
+        jumpStep: 42, jumpStepVar: 14, jumpLenMin: 4.5, jumpLenVar: 2.0,
+        jumpHMin: 0.55, jumpHVar: 0.35, jumpGapMin: 3.0, jumpGapVar: 1.5,
+        jumpDropMin: 0.30, jumpDropVar: 0.20, jumpStart: 60, runMin: 16, runVar: 22,
+        sky: 0x1b1c22, fog: 0x22232b, fogNear: 55, fogFar: 250,
+        sunColor: 0xfff0d8, sunI: 0.42, hemiI: 1.18, ambI: 0.55,
+        pal: {
+          dirt: [0.44, 0.32, 0.20], gravel: [0.42, 0.42, 0.45], root: [0.30, 0.22, 0.14],
+          grass: [0.22, 0.30, 0.42], edgeA: [0.34, 0.30, 0.26], edgeB: [0.26, 0.27, 0.30],
+          far: [0.17, 0.18, 0.21], trunk: 0x3a2a1c, leaf: 0x2a3a2c, rock: 0x54565c
+        }
+      },
+      {
+        key: 'bmxtrack', nameKey: 'bike.mapBmxOut', name: '\u5ba4\u5916\u571f\u5730\u573a',
+        descKey: 'bike.mapBmxOutDesc', tint: 0xb08c5a, diff: 1, style: 'outdoor',
+        seed: 20261121, length: 560, startS: 10, cpEvery: 170, finishS: 540, trackHalf: 7.6,
+        cw1: 11, cf1: 0.0080, cw2: 4.2, cf2: 0.0160, slope: 0.020,
+        und1: 0.0, uf1: 0.0042, und2: 0.0, uf2: 0.0158, rough: 0.15, hill: 0.0,
+        surf: [0.34, 0.60, 0.80], grips: [0.56, 0.68, 0.74, 0.62],
+        treeCount: 0, rockCount: 24,
+        jumpStep: 58, jumpStepVar: 26, jumpLenMin: 5, jumpLenVar: 3,
+        jumpHMin: 0.95, jumpHVar: 0.55, jumpGapMin: 4, jumpGapVar: 2.4,
+        jumpDropMin: 0.50, jumpDropVar: 0.35, jumpStart: 70, runMin: 20, runVar: 26,
+        sky: 0x9ec6e6, fog: 0xbfd8e8, fogNear: 95, fogFar: 440,
+        sunColor: 0xfff4dc, sunI: 1.30, hemiI: 0.95, ambI: 0.30,
+        pal: {
+          dirt: [0.50, 0.38, 0.24], gravel: [0.46, 0.40, 0.30], root: [0.38, 0.28, 0.18],
+          grass: [0.36, 0.45, 0.24], edgeA: [0.46, 0.36, 0.23], edgeB: [0.40, 0.38, 0.28],
+          far: [0.52, 0.50, 0.34], trunk: 0x53402a, leaf: 0x3d5a2f, rock: 0x7b7568
+        }
+      },
+      {
+        key: 'stairs', nameKey: 'bike.mapStairs', name: '\u697c\u68af\u63a5\u843d',
+        descKey: 'bike.mapStairsDesc', tint: 0x9a9490, diff: 3, style: 'stair',
+        stepped: true,
+        seed: 20261122, length: 520, startS: 10, cpEvery: 170, finishS: 500, trackHalf: 6.0,
+        cw1: 7, cf1: 0.0055, cw2: 3.0, cf2: 0.0120, slope: 0.030,
+        und1: 0.0, uf1: 0.0042, und2: 0.0, uf2: 0.0158, rough: 0.12, hill: 0.0,
+        surf: [0.40, 0.66, 0.82], grips: [0.84, 0.82, 0.88, 0.64],
+        treeCount: 0, rockCount: 0,
+        jumpStep: 200, jumpStepVar: 30, jumpLenMin: 7, jumpLenVar: 3,
+        jumpHMin: 1.40, jumpHVar: 0.60, jumpGapMin: 7, jumpGapVar: 3,
+        jumpDropMin: 0.90, jumpDropVar: 0.40, jumpStart: 70, runMin: 20, runVar: 20,
+        stairs: [
+          { s0: 186, step: 2.2, count: 26, rise: 0.24 },
+          { s0: 302, step: 2.0, count: 30, rise: 0.22 },
+          { s0: 424, step: 2.0, count: 26, rise: 0.20 }
+        ],
+        sky: 0xb9b3aa, fog: 0xc2bcb2, fogNear: 75, fogFar: 340,
+        sunColor: 0xfff0d4, sunI: 1.05, hemiI: 0.88, ambI: 0.34,
+        pal: {
+          dirt: [0.54, 0.52, 0.49], gravel: [0.46, 0.45, 0.44], root: [0.38, 0.37, 0.36],
+          grass: [0.42, 0.44, 0.40], edgeA: [0.50, 0.49, 0.47], edgeB: [0.38, 0.38, 0.39],
+          far: [0.56, 0.56, 0.57], trunk: 0x5a4a3a, leaf: 0x4a5a44, rock: 0x8a8880
+        }
+      },
+      {
+        key: 'citydh', nameKey: 'bike.mapCity', name: '\u57ce\u5e02\u901f\u964d',
+        descKey: 'bike.mapCityDesc', tint: 0x4b5a70, diff: 3, style: 'urban',
+        seed: 20261123, length: 1120, startS: 10, cpEvery: 220, finishS: 1100, trackHalf: 8.0,
+        cw1: 14, cf1: 0.0044, cw2: 5, cf2: 0.0170, slope: 0.118,
+        und1: 2.4, uf1: 0.0038, und2: 0.8, uf2: 0.0150, rough: 0.10, hill: 0.0,
+        surf: [0.44, 0.64, 0.82], grips: [0.86, 0.82, 0.90, 0.66],
+        treeCount: 0, rockCount: 0,
+        jumpStep: 132, jumpStepVar: 48, jumpLenMin: 8, jumpLenVar: 4,
+        jumpHMin: 1.10, jumpHVar: 0.65, jumpGapMin: 11, jumpGapVar: 5,
+        jumpDropMin: 0.60, jumpDropVar: 0.40, jumpStart: 120, runMin: 24, runVar: 26,
+        sky: 0x2b3550, fog: 0x3a4762, fogNear: 60, fogFar: 340,
+        sunColor: 0xbfd0ff, sunI: 0.55, hemiI: 0.80, ambI: 0.46,
+        pal: {
+          dirt: [0.27, 0.29, 0.33], gravel: [0.31, 0.32, 0.35], root: [0.22, 0.23, 0.26],
+          grass: [0.22, 0.28, 0.26], edgeA: [0.28, 0.29, 0.32], edgeB: [0.24, 0.25, 0.28],
+          far: [0.18, 0.20, 0.26], trunk: 0x3a3e44, leaf: 0x2b3434, rock: 0x5a5e66
+        }
+      },
+      {
+        key: 'night', nameKey: 'bike.mapNight', name: '\u6697\u591c\u5c71\u810a',
+        descKey: 'bike.mapNightDesc', tint: 0x2a3550, diff: 3,
+        seed: 20261124, length: 1140, startS: 8, cpEvery: 200, finishS: 1120, trackHalf: 6.0,
+        cw1: 17, cf1: 0.0054, cw2: 6.4, cf2: 0.0166, slope: 0.132,
+        und1: 4.2, uf1: 0.0044, und2: 1.6, uf2: 0.0164, rough: 1.15, hill: 12.0,
+        surf: [0.26, 0.54, 0.74], grips: [0.46, 0.64, 0.80, 0.60],
+        treeCount: 520, rockCount: 210,
+        jumpStep: 80, jumpStepVar: 70, jumpLenMin: 6, jumpLenVar: 7,
+        jumpHMin: 1.0, jumpHVar: 0.9, jumpGapMin: 4, jumpGapVar: 5,
+        jumpDropMin: 0.9, jumpDropVar: 0.8, runMin: 20, runVar: 36,
+        sky: 0x121a2c, fog: 0x16203a, fogNear: 34, fogFar: 220,
+        sunColor: 0x9ab4e0, sunI: 0.42, hemiI: 0.30, ambI: 0.16,
+        pal: {
+          dirt: [0.20, 0.22, 0.26], gravel: [0.24, 0.26, 0.30], root: [0.16, 0.17, 0.20],
+          grass: [0.16, 0.22, 0.20], edgeA: [0.20, 0.22, 0.26], edgeB: [0.17, 0.19, 0.23],
+          far: [0.13, 0.16, 0.23], trunk: 0x24272e, leaf: 0x1d2b26, rock: 0x424855
+        }
+      },
+      {
+        key: 'desert', nameKey: 'bike.mapDesert', name: '\u6c99\u6f20\u8680\u8c37',
+        descKey: 'bike.mapDesertDesc', tint: 0xd9a24e, diff: 2,
+        seed: 20261125, length: 1180, startS: 8, cpEvery: 210, finishS: 1160, trackHalf: 8.2,
+        cw1: 20, cf1: 0.0042, cw2: 8.0, cf2: 0.0158, slope: 0.118,
+        und1: 6.4, uf1: 0.0034, und2: 2.6, uf2: 0.0136, rough: 1.25, hill: 9.0,
+        surf: [0.22, 0.40, 0.62], grips: [0.42, 0.54, 0.70, 0.52],
+        treeCount: 90, rockCount: 260,
+        jumpStep: 74, jumpStepVar: 64, jumpLenMin: 7, jumpLenVar: 8,
+        jumpHMin: 1.1, jumpHVar: 1.0, jumpGapMin: 5, jumpGapVar: 6,
+        jumpDropMin: 0.9, jumpDropVar: 0.9, runMin: 26, runVar: 44,
+        sky: 0xf3d7a4, fog: 0xe6c793, fogNear: 110, fogFar: 520,
+        sunColor: 0xffe0a8, sunI: 1.35, hemiI: 0.66, ambI: 0.30,
+        pal: {
+          dirt: [0.62, 0.48, 0.30], gravel: [0.66, 0.55, 0.38], root: [0.48, 0.36, 0.22],
+          grass: [0.55, 0.50, 0.32], edgeA: [0.66, 0.52, 0.33], edgeB: [0.60, 0.47, 0.29],
+          far: [0.76, 0.64, 0.46], trunk: 0x7a5c3a, leaf: 0x5c7a4a, rock: 0xb07d4a
+        }
+      },
+      {
+        key: 'snow', nameKey: 'bike.mapSnow', name: '\u96ea\u7ebf\u901f\u964d',
+        descKey: 'bike.mapSnowDesc', tint: 0xcfe0ec, diff: 3,
+        seed: 20261126, length: 1080, startS: 8, cpEvery: 190, finishS: 1060, trackHalf: 7.0,
+        cw1: 21, cf1: 0.0040, cw2: 8.4, cf2: 0.0170, slope: 0.122,
+        und1: 5.2, uf1: 0.0038, und2: 2.0, uf2: 0.0150, rough: 0.85, hill: 10.5,
+        surf: [0.20, 0.46, 0.72], grips: [0.34, 0.50, 0.66, 0.44],
+        treeCount: 340, rockCount: 120,
+        jumpStep: 92, jumpStepVar: 86, jumpLenMin: 8, jumpLenVar: 9,
+        jumpHMin: 1.0, jumpHVar: 0.85, jumpGapMin: 6, jumpGapVar: 6,
+        jumpDropMin: 0.8, jumpDropVar: 0.7, runMin: 28, runVar: 46,
+        sky: 0xdfeaf4, fog: 0xd2e2ee, fogNear: 46, fogFar: 300,
+        sunColor: 0xeaf4ff, sunI: 1.05, hemiI: 0.92, ambI: 0.34,
+        pal: {
+          dirt: [0.72, 0.78, 0.84], gravel: [0.68, 0.74, 0.80], root: [0.40, 0.40, 0.44],
+          grass: [0.62, 0.70, 0.72], edgeA: [0.78, 0.84, 0.90], edgeB: [0.70, 0.78, 0.85],
+          far: [0.86, 0.91, 0.96], trunk: 0x3a4a44, leaf: 0x2f4a3a, rock: 0x8a97a4
+        }
+      },
+      {
+        key: 'factory', nameKey: 'bike.mapFactory', name: '\u5e9f\u5f03\u5de5\u5382',
+        descKey: 'bike.mapFactoryDesc', tint: 0x7a7166, diff: 2,
+        seed: 20261127, length: 980, startS: 8, cpEvery: 180, finishS: 960, trackHalf: 6.8,
+        cw1: 16, cf1: 0.0050, cw2: 6.0, cf2: 0.0160, slope: 0.108,
+        und1: 3.0, uf1: 0.0040, und2: 1.2, uf2: 0.0140, rough: 0.45, hill: 6.0,
+        surf: [0.36, 0.62, 0.80], grips: [0.58, 0.74, 0.86, 0.62],
+        treeCount: 40, rockCount: 60,
+        jumpStep: 62, jumpStepVar: 52, jumpLenMin: 5, jumpLenVar: 6,
+        jumpHMin: 0.9, jumpHVar: 0.8, jumpGapMin: 4, jumpGapVar: 4,
+        jumpDropMin: 1.1, jumpDropVar: 0.9, runMin: 18, runVar: 30,
+        sky: 0x9aa3a8, fog: 0x9099a0, fogNear: 60, fogFar: 340,
+        sunColor: 0xd8d2c4, sunI: 0.95, hemiI: 0.72, ambI: 0.30,
+        pal: {
+          dirt: [0.42, 0.41, 0.39], gravel: [0.52, 0.51, 0.48], root: [0.30, 0.29, 0.28],
+          grass: [0.38, 0.42, 0.34], edgeA: [0.46, 0.44, 0.41], edgeB: [0.40, 0.39, 0.37],
+          far: [0.58, 0.58, 0.56], trunk: 0x4a4640, leaf: 0x3c4a3c, rock: 0x6e6a63
+        }
       }
+
     ];
     BIKES = [
       {
@@ -1572,11 +2549,23 @@
     }
   }
   function clearWorld() {
+    if (propsGroup) {
+      scene.remove(propsGroup);
+      propsGroup.traverse(function (o) {
+        if (o.geometry) { o.geometry.dispose(); }
+        if (o.material) {
+          if (o.material.map) { o.material.map.dispose(); }
+          o.material.dispose();
+        }
+      });
+      propsGroup = null;
+    }
     dropMesh(terrainMesh); terrainMesh = null;
     dropMesh(treesTrunk); treesTrunk = null;
     dropMesh(treesLeaf); treesLeaf = null;
     dropMesh(rocksMesh); rocksMesh = null;
     dropMesh(gateGroup); gateGroup = null;
+    clearPickups();
   }
 
   function applyMap(idx, keepBike) {
@@ -1614,6 +2603,7 @@
     buildGates();
     if (!keepBike) { placeAt(CFG.startS, 0); }
     camLook.copy(body.pos);
+    buildPickups();
     loadBest();
     updateHud(1);
   }
@@ -1626,11 +2616,11 @@
     ENGINE = b.engine;
     GRIP_MUL = b.grip;
     JUMP_MUL = b.jump;
+    applyUpgrades();
     if (BIKE_MATS) {
       BIKE_MATS.frame.color.setHex(b.frame);
       BIKE_MATS.rim.color.setHex(b.rim);
       BIKE_MATS.helmet.color.setHex(b.helmet);
-      BIKE_MATS.shirt.color.setHex(b.shirt);
     }
     var sr = b.rad / 0.34;
     if (rearWheelRoot) { rearWheelRoot.scale.set(sr, sr, sr); }
@@ -1640,10 +2630,19 @@
       WHEELS[0].minLen = b.rad; WHEELS[1].minLen = b.rad;
       WHEELS[0].maxLen = b.rad + 0.26; WHEELS[1].maxLen = b.rad + 0.26;
     }
+    applyPaint();
+    applyGearLight();
   }
 
   function initWorld() {
     ensureDefs();
+    loadPaint();
+    loadUpg();
+    loadCustom();
+    SND_ON = store('cealin_bike_sound') !== '0';
+    oilMode = (store('cealin_bike_oil') === 'real') ? 'real' : 'oil';
+    camMode = (store('cealin_bike_cam') === 'first') ? 'first' : 'third';
+    if (store('cealin_bike_custom')) { syncCustomMap(); }
     var bi = -1, mi = -1, i;
     var bk = store('cealin_bike_ride');
     var mk = store('cealin_bike_map');
@@ -1655,6 +2654,7 @@
     curBikeIdx = bi;
     applyMap(mi, true);
     buildBikeModel();
+    loadGear();
     applyBike(bi);
     placeAt(CFG.startS, 0);
     camLook.copy(body.pos);
@@ -1745,8 +2745,10 @@
   function renderGarage() {
     if (!panelBodyEl) { return; }
     if (panelTitleEl) { panelTitleEl.textContent = tr('bike.menuGarage', '\u6211\u7684\u8f66\u5e93'); }
+    ensureGear();
     var html = '<p class="panel-note">' + tr('bike.garageNote',
-      '\u6bcf\u8f86\u8f66\u7684\u91cd\u91cf\u3001\u6293\u5730\u3001\u52a0\u901f\u4e0e\u5f39\u8df3\u90fd\u4e0d\u540c\uff0c\u9009\u5b9a\u540e\u7acb\u5373\u751f\u6548\u3002') + '</p>';
+      '\u8f66\u578b\u5f71\u54cd\u91cd\u91cf\u4e0e\u624b\u611f\uff1b\u80cc\u5305\u3001\u5934\u76d4\u3001\u773c\u955c\u4e3a\u5916\u89c2\u88c5\u5907\uff0c\u968f\u65f6\u53ef\u6362\u3002') + '</p>';
+    html += '<h3 class="gear-title">' + tr('bike.gearBike', '\u81ea\u884c\u8f66') + '</h3>';
     html += '<div class="skin-grid">';
     for (var i = 0; i < BIKES.length; i++) {
       var b = BIKES[i];
@@ -1761,7 +2763,276 @@
         '<i class="tag">' + tr(b.tagKey, b.tag) + '</i></button>';
     }
     html += '</div>';
+
+    var groups = [
+      { g: 'bag', titleKey: 'bike.gearBag', title: '\u80cc\u5305', dot: 'color', noteKey: 'bike.gearBagNote', note: '\u80cc\u5305\u4e0d\u5f71\u54cd\u624b\u611f\uff0c\u53ea\u6539\u53d8\u8eab\u540e\u8f6e\u5ed3\u3002' },
+      { g: 'helmet', titleKey: 'bike.gearHelmet', title: '\u5934\u76d4', dot: 'color', noteKey: 'bike.gearHelmetNote', note: '\u5934\u76d4\u4e3a\u5916\u89c2\u4ef6\uff0c\u4e0d\u5f71\u54cd\u6454\u8f66\u5224\u5b9a\u3002' },
+      { g: 'glasses', titleKey: 'bike.gearGlass', title: '\u773c\u955c', dot: 'lens', noteKey: 'bike.gearGlassNote', note: '\u773c\u955c\u4e3a\u5916\u89c2\u4ef6\uff0c\u53ef\u914d\u5408\u4efb\u610f\u5934\u76d4\u3002' }
+    ];
+    for (var gi = 0; gi < groups.length; gi++) {
+      var gp = groups[gi], arr = GEAR[gp.g];
+      html += '<h3 class="gear-title">' + tr(gp.titleKey, gp.title) + '</h3>';
+      html += '<p class="panel-note">' + tr(gp.noteKey, gp.note) + '</p>';
+      html += '<div class="skin-grid">';
+      for (var si = 0; si < arr.length; si++) {
+        var it = arr[si];
+        var dotColor = (gp.dot === 'lens') ? it.lens : it.color;
+        html += '<button type="button" class="skin-card' + (si === curGear[gp.g] ? ' on' : '') +
+          '" data-gear="' + gp.g + ':' + si + '">' +
+          '<i class="skin-dot" style="background:#' + hex6(dotColor) + '"></i>' +
+          '<span class="sc-body"><b>' + tr(it.nameKey, it.name) + '</b>' +
+          '<em>' + tr('bike.gearLook', '\u5916\u89c2') + ' \u00b7 ' + tr(it.tagKey, it.tag) + '</em></span>' +
+          (si === curGear[gp.g] ? '<i class="tag">' + tr('bike.gearOn', '\u5df2\u9009') + '</i>' : '') +
+          '</button>';
+      }
+      html += '</div>';
+    }
+    /* 涂装自定义 */
+    html += '<h3 class="gear-title">' + tr('bike.paintTitle', '\u6d82\u88c5') + '</h3>';
+    html += '<p class="panel-note">' + tr('bike.paintNote', '\u81ea\u5b9a\u4e49\u8f66\u67b6\u3001\u8f6e\u5708\u3001\u5934\u76d4\u4e0e\u9a91\u884c\u670d\u989c\u8272\uff0c\u65e0\u9700\u96f6\u4ef6\u3002') + '</p>';
+    for (var pi = 0; pi < PAINT_SLOT.length; pi++) {
+      var ps = PAINT_SLOT[pi];
+      var cur = PAINT[ps.k];
+      html += '<div class="paint-row"><span class="paint-label">' + tr(ps.nameKey, ps.name) +
+        (cur ? '<i class="paint-cur" style="background:' + cur + '"></i>' : '') + '</span><div class="paint-swatches">';
+      for (var si2 = 0; si2 < PAINT_SWATCH.length; si2++) {
+        var sc = PAINT_SWATCH[si2];
+        html += '<button type="button" class="paint-dot' + (cur === sc ? ' on' : '') + '" style="background:' + sc +
+          '" data-paint="' + ps.k + ':' + sc + '"></button>';
+      }
+      html += '<button type="button" class="paint-dot reset" data-paint="' + ps.k + ':" title="' +
+        tr('bike.paintReset', '\u6062\u590d\u539f\u8272') + '">x</button>';
+      html += '</div></div>';
+    }
+
+    /* 性能改装 */
+    html += '<h3 class="gear-title">' + tr('bike.upgTitle', '\u6539\u88c5') + '</h3>';
+    html += '<p class="panel-note">' + tr('bike.upgParts', '\u96f6\u4ef6\u5e93\u5b58') + '\uff1a<b>' + PARTS +
+      '</b>\uff08' + tr('bike.upgCostNote', '\u6bcf\u7ea7\u6d88\u8017') + ' ' + UPG_COST + '\uff09</p>';
+    html += '<div class="skin-grid">';
+    for (var ui = 0; ui < UPG_DEF.length; ui++) {
+      var ud = UPG_DEF[ui], lv = UPG[ud.k] || 0;
+      html += '<button type="button" class="skin-card upg-card' + (lv >= UPG_MAX ? ' on' : '') +
+        '" data-upg="' + ud.k + '">' +
+        '<span class="sc-body"><b>' + tr(ud.nameKey, ud.name) + '</b>' +
+        '<em>' + stars(lv, UPG_MAX) + '</em>' +
+        '<em>' + tr(ud.noteKey, ud.note) + '</em></span>' +
+        '<i class="tag">' + (lv >= UPG_MAX ? tr('bike.upgFull', '\u5df2\u6ee1\u7ea7') : '+' + UPG_COST) + '</i></button>';
+    }
+    html += '</div>';
     panelBodyEl.innerHTML = html;
+  }
+
+  /* =========================================================
+   * 13. 成就与收集进度
+   * ========================================================= */
+  function achState() {
+    var raw = store('cealin_bike_ach'), arr = [];
+    if (raw) { try { arr = JSON.parse(raw) || []; } catch (e) { arr = []; } }
+    return arr;
+  }
+  function achHas(k) {
+    var a = achState();
+    for (var i = 0; i < a.length; i++) { if (a[i] === k) { return true; } }
+    return false;
+  }
+  function achGive(k, label) {
+    if (achHas(k)) { return false; }
+    var a = achState();
+    a.push(k);
+    save('cealin_bike_ach', JSON.stringify(a));
+    toastMsg(tr('bike.achGot', '\u6210\u5c31\u8fbe\u6210') + '  ' + label);
+    blip(1180, 0.13, 'triangle', 0.06);
+    return true;
+  }
+  function clearedCount() {
+    var n = 0;
+    for (var i = 0; i < MAPS.length; i++) {
+      if ((parseFloat(store('cealin_bike_best_' + MAPS[i].key)) || 0) > 0) { n += 1; }
+    }
+    return n;
+  }
+  function partsProgress() {
+    var got = 0, all = 0;
+    for (var i = 0; i < MAPS.length; i++) {
+      got += parseInt(store('cealin_bike_picks_' + MAPS[i].key), 10) || 0;
+      all += parseInt(store('cealin_bike_picktotal_' + MAPS[i].key), 10) || 0;
+    }
+    return { got: got, all: all };
+  }
+  function collectAnyDone() {
+    for (var i = 0; i < MAPS.length; i++) {
+      var a = parseInt(store('cealin_bike_picks_' + MAPS[i].key), 10) || 0;
+      var b = parseInt(store('cealin_bike_picktotal_' + MAPS[i].key), 10) || 0;
+      if (b > 0 && a >= b) { return true; }
+    }
+    return false;
+  }
+  function achDefs() {
+    var out = [];
+    var cl = clearedCount();
+    out.push({ key: 'clear1', name: tr('bike.achClear1', '\u9996\u6b21\u901a\u5173'), done: cl >= 1 });
+    out.push({ key: 'clear5', name: tr('bike.achClear5', '\u901a\u5173 5 \u6761\u8d5b\u9053'), done: cl >= 5 });
+    out.push({ key: 'clearAll', name: tr('bike.achClearAll', '\u901a\u5173\u5168\u90e8\u8d5b\u9053'), done: MAPS && cl >= MAPS.length });
+    out.push({ key: 'parts10', name: tr('bike.achParts10', '\u6536\u96c6 10 \u4e2a\u96f6\u4ef6'), done: (PARTS || 0) >= 10 });
+    out.push({ key: 'parts50', name: tr('bike.achParts50', '\u6536\u96c6 50 \u4e2a\u96f6\u4ef6'), done: (PARTS || 0) >= 50 });
+    out.push({ key: 'air3', name: tr('bike.achAir3', '\u6ede\u7a7a 3 \u79d2\u4ee5\u4e0a'), done: (parseFloat(store('cealin_bike_best_air')) || 0) >= 3 });
+    out.push({ key: 'trick1000', name: tr('bike.achTrick', '\u6280\u5de7\u5206\u7834\u5343'), done: (bestTrick || 0) >= 1000 });
+    out.push({ key: 'collectMap', name: tr('bike.achCollect', '\u5355\u8d5b\u9053\u96f6\u4ef6\u5168\u6536'), done: collectAnyDone() });
+    out.push({ key: 'nocrash', name: tr('bike.achNoCrash', '\u96f6\u5931\u8bef\u901a\u5173'), done: store('cealin_bike_nocrash') === '1' });
+    out.push({ key: 'upgFull', name: tr('bike.achUpg', '\u6539\u88c5\u5168\u6ee1'),
+      done: (UPG.engine >= UPG_MAX && UPG.grip >= UPG_MAX && UPG.susp >= UPG_MAX && UPG.trick >= UPG_MAX) });
+    return out;
+  }
+  function achCount() {
+    var d = achDefs(), n = 0;
+    for (var i = 0; i < d.length; i++) { if (achHas(d[i].key)) { n += 1; } }
+    return { got: n, all: d.length };
+  }
+  function checkAch() {
+    var d = achDefs();
+    for (var i = 0; i < d.length; i++) {
+      if (d[i].done) { achGive(d[i].key, d[i].name); }
+    }
+  }
+
+  /* =========================================================
+   * 12. 音效 / 粒子（全部程序化生成，无外部资源）
+   * ========================================================= */
+  function later(fn, ms) {
+    if (typeof global.setTimeout === 'function') { global.setTimeout(fn, ms); }
+  }
+  function ensureAudio() {
+    if (AC) { return AC; }
+    var C = global.AudioContext || global.webkitAudioContext;
+    if (!C) { return null; }
+    try { AC = new C(); } catch (e) { AC = null; return null; }
+    try {
+      var osc = AC.createOscillator(), filt = AC.createBiquadFilter(), gain = AC.createGain();
+      osc.type = 'sawtooth';
+      osc.frequency.value = 46;
+      filt.type = 'lowpass';
+      filt.frequency.value = 620;
+      filt.Q.value = 0.7;
+      gain.gain.value = 0;
+      osc.connect(filt);
+      filt.connect(gain);
+      gain.connect(AC.destination);
+      osc.start();
+      sndEngine = { osc: osc, filt: filt, gain: gain };
+    } catch (e2) { sndEngine = null; }
+    return AC;
+  }
+  function setSound(on) {
+    SND_ON = !!on;
+    save('cealin_bike_sound', SND_ON ? '1' : '0');
+    if (!SND_ON && sndEngine) { try { sndEngine.gain.gain.value = 0; } catch (e) {} }
+    return SND_ON;
+  }
+  function audioTick() {
+    if (!SND_ON) {
+      if (sndEngine) { try { sndEngine.gain.gain.value = 0; } catch (e0) {} }
+      return;
+    }
+    var ac = ensureAudio();
+    if (!ac || !sndEngine) { return; }
+    if (ac.state === 'suspended' && state === 'running') { try { ac.resume(); } catch (e1) {} }
+    var sp = (state === 'running' || state === 'finish' || state === 'crash') ? Math.min(speed || 0, 28) : 0;
+    var drive = (state === 'running' && input && input.throttle) ? 1 : 0;
+    try {
+      sndEngine.osc.frequency.value += (40 + sp * 8.6 + drive * 14 - sndEngine.osc.frequency.value) * 0.22;
+      sndEngine.filt.frequency.value = 420 + sp * 95;
+      var g = (state === 'running') ? (0.010 + 0.026 * clamp(sp / 22, 0, 1) + 0.008 * drive) : 0;
+      sndEngine.gain.gain.value += (g - sndEngine.gain.gain.value) * 0.16;
+    } catch (e2) {}
+  }
+  function blip(freq, dur, type, vol) {
+    if (!SND_ON) { return; }
+    var ac = ensureAudio();
+    if (!ac) { return; }
+    try {
+      var o = ac.createOscillator(), g = ac.createGain();
+      o.type = type || 'sine';
+      o.frequency.value = freq;
+      g.gain.value = vol || 0.07;
+      g.gain.exponentialRampToValueAtTime(0.0001, ac.currentTime + dur);
+      o.connect(g);
+      g.connect(ac.destination);
+      o.start();
+      o.stop(ac.currentTime + dur + 0.03);
+    } catch (e) {}
+  }
+  function sfxPick() { blip(920, 0.09, 'square', 0.05); later(function () { blip(1360, 0.10, 'square', 0.045); }, 70); }
+  function sfxLand(hard) { blip(hard ? 92 : 132, 0.17, 'sine', hard ? 0.15 : 0.08); }
+  function sfxCrash() { blip(62, 0.42, 'sawtooth', 0.18); }
+  function sfxFinish() { blip(660, 0.12, 'square', 0.06); later(function () { blip(990, 0.18, 'square', 0.05); }, 130); }
+
+  var _dustFwd = null, _dustUp = null;
+  function ensureDust() {
+    if (DUST) { return DUST; }
+    if (typeof THREE === 'undefined' || !scene) { return null; }
+    var pos = new Float32Array(DUST_N * 3);
+    var i;
+    for (i = 0; i < DUST_N; i++) { pos[i * 3 + 1] = -999; }
+    var geo = new THREE.BufferGeometry();
+    geo.setAttribute('position', new THREE.BufferAttribute(pos, 3));
+    var mat = new THREE.PointsMaterial({
+      size: 0.5, sizeAttenuation: true, transparent: true, opacity: 0.55, depthWrite: false, color: 0x9a8b74
+    });
+    var pts = new THREE.Points(geo, mat);
+    pts.frustumCulled = false;
+    scene.add(pts);
+    DUST = { pts: pts, geo: geo, mat: mat, pos: pos, dirt: -1, idx: 0 };
+    DUST_LIST.length = 0;
+    for (i = 0; i < DUST_N; i++) {
+      DUST_LIST.push({ life: 0, x: 0, y: -999, z: 0, vx: 0, vy: 0, vz: 0 });
+    }
+    return DUST;
+  }
+  function emitDust(x, y, z, vx, vy, vz, spread) {
+    var D = ensureDust();
+    if (!D) { return; }
+    var p = DUST_LIST[D.idx];
+    D.idx = (D.idx + 1) % DUST_N;
+    p.life = 0.55 + Math.random() * 0.35;
+    p.x = x; p.y = y; p.z = z;
+    p.vx = vx + (Math.random() - 0.5) * spread;
+    p.vy = vy + Math.random() * 1.1;
+    p.vz = vz + (Math.random() - 0.5) * spread;
+  }
+  function stepDust(dt) {
+    var D = ensureDust();
+    if (!D) { return; }
+    var want = (PAL && PAL.dirt !== undefined) ? PAL.dirt : 0x9a8b74;
+    if (D.dirt !== want) { D.dirt = want; try { D.mat.color.setHex(want); } catch (e) {} }
+    if (state === 'running' && grounded && speed > 4 && body) {
+      if (!_dustFwd) { _dustFwd = new THREE.Vector3(); _dustUp = new THREE.Vector3(); }
+      _dustFwd.set(0, 0, -1).applyQuaternion(body.quat);
+      _dustUp.set(0, 1, 0).applyQuaternion(body.quat);
+      var px = body.pos.x - _dustFwd.x * 0.95 - _dustUp.x * 0.32;
+      var py = body.pos.y - _dustUp.y * 0.32;
+      var pz = body.pos.z - _dustFwd.z * 0.95 - _dustUp.z * 0.32;
+      var kick = 1.1 + speed * 0.06;
+      emitDust(px, py, pz, -_dustFwd.x * kick, 0.85, -_dustFwd.z * kick, 1.5);
+      if (speed > 13) { emitDust(px, py, pz, -_dustFwd.x * kick * 0.7, 1.15, -_dustFwd.z * kick * 0.7, 1.9); }
+    }
+    var pos = D.pos, moved = false, i, p;
+    for (i = 0; i < DUST_N; i++) {
+      p = DUST_LIST[i];
+      if (p.life > 0) {
+        p.life -= dt;
+        p.vy -= 5.2 * dt;
+        p.x += p.vx * dt; p.y += p.vy * dt; p.z += p.vz * dt;
+        p.vx *= 0.97; p.vz *= 0.97;
+        pos[i * 3] = p.x;
+        pos[i * 3 + 1] = p.life > 0 ? p.y : -999;
+        pos[i * 3 + 2] = p.z;
+        moved = true;
+      }
+    }
+    if (moved && D.geo.attributes && D.geo.attributes.position) {
+      D.geo.attributes.position.needsUpdate = true;
+    }
   }
 
   function renderTrack() {
@@ -1769,9 +3040,20 @@
     if (panelTitleEl) { panelTitleEl.textContent = tr('bike.menuTrack', '\u9009\u62e9\u8d5b\u9053'); }
     var html = '<p class="panel-note">' + tr('bike.trackNote',
       '\u6bcf\u6761\u8d5b\u9053\u7684\u5730\u5f62\u3001\u8def\u9762\u4e0e\u96be\u5ea6\u90fd\u4e0d\u540c\uff0c\u6210\u7ee9\u6309\u8d5b\u9053\u5206\u522b\u8bb0\u5f55\u3002') + '</p>';
+    var pp = partsProgress(), achN = achCount();
+    html += '<p class="panel-note"><b>' + tr('bike.progTitle', '进度') + '</b>  ' +
+      tr('bike.progCleared', '通关') + ' ' + clearedCount() + '/' + MAPS.length + '  \u00b7  ' +
+      tr('bike.trackParts', '零件') + ' ' + pp.got + (pp.all ? ('/' + pp.all) : '') + '  \u00b7  ' +
+      tr('bike.achTitle', '成就') + ' ' + achN.got + '/' + achN.all + '</p>';
     html += '<div class="skin-grid">';
     for (var i = 0; i < MAPS.length; i++) {
       var m = MAPS[i];
+      var mBest = parseFloat(store('cealin_bike_best_' + m.key)) || 0;
+      var mPk = parseInt(store('cealin_bike_picks_' + m.key), 10) || 0;
+      var mPt = parseInt(store('cealin_bike_picktotal_' + m.key), 10) || 0;
+      var mStat = (mBest > 0 ? tr('bike.trackDone', '\u901a\u5173') + ' ' + fmtTime(mBest)
+        : tr('bike.trackTodo', '\u672a\u901a\u5173')) +
+        (mPt > 0 ? ' \u00b7 ' + tr('bike.trackParts', '\u96f6\u4ef6') + ' ' + mPk + '/' + mPt : '');
       var diff = m.diff === 1 ? tr('bike.diffEasy', '\u8f7b\u677e')
         : (m.diff === 2 ? tr('bike.diffNormal', '\u4e2d\u7b49') : tr('bike.diffHard', '\u56f0\u96be'));
       html += '<button type="button" class="skin-card' + (i === curMapIdx ? ' on' : '') +
@@ -1779,7 +3061,54 @@
         '<i class="skin-dot" style="background:#' + hex6(m.tint) + '"></i>' +
         '<span class="sc-body"><b>' + tr(m.nameKey, m.name) + '</b>' +
         '<em>' + (m.finishS - m.startS) + 'm\u00b7' + diff + ' ' + stars(m.diff, 3) + '</em>' +
-        '<em>' + tr(m.descKey, '') + '</em></span></button>';
+        '<em>' + tr(m.descKey, '') + '</em>' +
+        '<em class="sc-stat">' + mStat + '</em></span></button>';
+    }
+    html += '</div>';
+
+    /* 自定义赛道 */
+    html += '<h3 class="gear-title">' + tr('bike.customTitle', '\u81ea\u5b9a\u4e49\u8d5b\u9053') + '</h3>';
+    html += '<p class="panel-note">' + tr('bike.customNote', '\u8c03\u53c2\u6570\u751f\u6210\u4e00\u6761\u4e13\u5c5e\u8d5b\u9053\uff0c\u751f\u6210\u540e\u4f1a\u51fa\u73b0\u5728\u4e0a\u65b9\u5217\u8868\u672b\u5c3e\u3002') + '</p>';
+    html += '<div class="custom-row"><label>' + tr('bike.customLength', '\u8d5b\u9053\u957f\u5ea6') + ' <b>' +
+      (parseInt(CUSTOM_DEF.length, 10) || 900) + 'm</b></label>' +
+      '<input type="range" class="custom-range" data-cus="length" min="320" max="2400" step="20" value="' +
+      (parseInt(CUSTOM_DEF.length, 10) || 900) + '"></div>';
+    html += '<div class="custom-row"><label>' + tr('bike.customTurn', '\u5f2f\u9053\u5bc6\u5ea6') + ' <b>' +
+      (parseInt(CUSTOM_DEF.w1, 10) || 18) + '</b></label>' +
+      '<input type="range" class="custom-range" data-cus="w1" min="6" max="34" step="1" value="' +
+      (parseInt(CUSTOM_DEF.w1, 10) || 18) + '"></div>';
+    html += '<div class="custom-row"><label>' + tr('bike.customWidth', '\u8def\u5bbd') + ' <b>' +
+      (parseFloat(CUSTOM_DEF.w2) || 7) + '</b></label>' +
+      '<input type="range" class="custom-range" data-cus="w2" min="2" max="16" step="0.5" value="' +
+      (parseFloat(CUSTOM_DEF.w2) || 7) + '"></div>';
+    html += '<div class="custom-row"><label>' + tr('bike.customRough', '\u98a0\u7c38\u7a0b\u5ea6') + ' <b>' +
+      (parseFloat(CUSTOM_DEF.rough) || 1) + '</b></label>' +
+      '<input type="range" class="custom-range" data-cus="rough" min="0.2" max="2.2" step="0.1" value="' +
+      (parseFloat(CUSTOM_DEF.rough) || 1) + '"></div>';
+    html += '<div class="custom-row"><label>' + tr('bike.customJump', '\u8df3\u53f0\u5bc6\u5ea6') + ' <b>' +
+      (parseFloat(CUSTOM_DEF.jumpStep) || 88) + '</b></label>' +
+      '<input type="range" class="custom-range" data-cus="jumpStep" min="40" max="200" step="4" value="' +
+      (parseFloat(CUSTOM_DEF.jumpStep) || 88) + '"></div>';
+    html += '<div class="custom-row"><label>' + tr('bike.customSeed', '\u968f\u673a\u79cd\u5b50') + ' <b>' +
+      (parseInt(CUSTOM_DEF.seed, 10) || 20261130) + '</b></label>' +
+      '<button type="button" class="opt-btn" data-cus-dice="1">' + tr('bike.customDice', '\u6362\u4e00\u4e2a') + '</button></div>';
+    html += '<div class="opt-row">';
+    for (var ci = 0; ci < CUSTOM_STYLES.length; ci++) {
+      var cs = CUSTOM_STYLES[ci];
+      html += '<button type="button" class="opt-btn' + (CUSTOM_DEF.style === cs.k ? ' on' : '') +
+        '" data-cus-style="' + cs.k + '">' + tr('bike.customStyle' + cs.k.charAt(0).toUpperCase() + cs.k.slice(1), cs.name) + '</button>';
+    }
+    html += '</div>';
+    html += '<div class="opt-row"><button type="button" class="opt-btn on" data-cus-build="1">' +
+      tr('bike.customBuild', '\u751f\u6210\u5e76\u5f00\u8dd1') + '</button></div>';
+    html += '<h3 class="gear-title">' + tr('bike.achTitle', '\u6210\u5c31') + '</h3>';
+    html += '<div class="skin-grid">';
+    var achAll = achDefs();
+    for (var aj = 0; aj < achAll.length; aj++) {
+      var aon = achHas(achAll[aj].key);
+      html += '<div class="skin-card' + (aon ? ' on' : '') + ' ach-card"><span class="sc-body"><b>' +
+        achAll[aj].name + '</b><em>' + (aon ? tr('bike.achDone', '\u5df2\u8fbe\u6210') : tr('bike.achUndone', '\u672a\u8fbe\u6210')) +
+        '</em></span></div>';
     }
     html += '</div>';
     panelBodyEl.innerHTML = html;
@@ -1821,7 +3150,9 @@
       ['\u2190 \u2192', tr('bike.helpSteer', '\u8f6c\u5411 / \u7a7a\u4e2d\u65cb\u8f6c')],
       ['Space', tr('bike.helpJump', '\u5154\u8df3')],
       ['R', tr('bike.helpReset', '\u56de\u5230\u68c0\u67e5\u70b9')],
-      ['Esc', tr('bike.helpPause', '\u6682\u505c')]
+      ['Esc', tr('bike.helpPause', '\u6682\u505c')],
+      ['V', tr('bike.helpCam', '\u5207\u6362\u89c6\u89d2')],
+      ['M', tr('bike.helpSound', '\u97f3\u6548\u5f00\u5173')]
     ];
     var html = '<p class="panel-note">' + tr('bike.helpWheelie',
       '\u540e\u4ef0 + \u6cb9\u95e8\u53ef\u62ac\u8d77\u524d\u8f6e\u505a wheelie\uff0c\u89d2\u5ea6\u8d8a\u9ad8\u3001\u6301\u7eed\u8d8a\u4e45\u5206\u8d8a\u9ad8\uff1b\u540e\u4ef0\u8fc7\u5934\u4f1a\u540e\u7ffb\u6454\u5012\u3002') + '</p>';
@@ -1831,6 +3162,272 @@
     }
     html += '</div>';
     panelBodyEl.innerHTML = html;
+  }
+
+  /* =========================================================
+   * 11. 涂装 / 性能改装 / 零件收集 / 自定义赛道
+   * ========================================================= */
+
+  function loadPaint() {
+    var raw = store('cealin_bike_paint');
+    if (!raw) { return; }
+    try {
+      var o = JSON.parse(raw);
+      if (o && typeof o === 'object') {
+        for (var i = 0; i < PAINT_SLOT.length; i++) {
+          var k = PAINT_SLOT[i].k;
+          if (typeof o[k] === 'string') { PAINT[k] = o[k]; }
+        }
+      }
+    } catch (e) { /* 忽略损坏数据 */ }
+  }
+  function savePaint() { save('cealin_bike_paint', JSON.stringify(PAINT)); }
+
+  function applyPaint() {
+    if (!BIKE_MATS) { return; }
+    var b = BIKES[curBikeIdx] || BIKES[0] || {};
+    var map = { frame: b.frame, rim: b.rim, helmet: b.helmet, shirt: b.shirt };
+    for (var i = 0; i < PAINT_SLOT.length; i++) {
+      var k = PAINT_SLOT[i].k;
+      var mat = BIKE_MATS[k];
+      if (!mat || !mat.color) { continue; }
+      var v = PAINT[k];
+      if (v) { mat.color.setStyle(v); }
+      else if (map[k] !== undefined) { mat.color.setHex(map[k]); }
+    }
+  }
+
+  function setPaint(slot, color) {
+    if (!PAINT.hasOwnProperty(slot)) { return; }
+    PAINT[slot] = color || '';
+    savePaint();
+    applyPaint();
+  }
+
+  function loadUpg() {
+    var raw = store('cealin_bike_upg');
+    if (raw) {
+      try {
+        var o = JSON.parse(raw);
+        if (o && typeof o === 'object') {
+          for (var i = 0; i < UPG_DEF.length; i++) {
+            var k = UPG_DEF[i].k;
+            var v = parseInt(o[k], 10);
+            UPG[k] = isFinite(v) ? clamp(v, 0, UPG_MAX) : 0;
+          }
+        }
+      } catch (e) { /* 忽略 */ }
+    }
+    var pv = parseInt(store('cealin_bike_parts'), 10);
+    PARTS = isFinite(pv) ? Math.max(0, pv) : 0;
+  }
+  function saveUpg() {
+    save('cealin_bike_upg', JSON.stringify(UPG));
+    save('cealin_bike_parts', String(PARTS));
+  }
+
+  /* 改装叠加到车型基础性能之上（applyBike 之后调用） */
+  function applyUpgrades() {
+    ENGINE *= 1 + 0.085 * UPG.engine;
+    GRIP_MUL *= 1 + 0.055 * UPG.grip;
+    JUMP_MUL *= 1 + 0.05 * UPG.trick;
+  }
+
+  function buyUpg(k) {
+    var def = null;
+    for (var i = 0; i < UPG_DEF.length; i++) { if (UPG_DEF[i].k === k) { def = UPG_DEF[i]; } }
+    if (!def) { return; }
+    if (UPG[k] >= UPG_MAX) { toastMsg(tr('bike.upgFull', '\u5df2\u6ee1\u7ea7')); return; }
+    if (PARTS < UPG_COST) {
+      toastMsg(tr('bike.upgNoParts', '\u96f6\u4ef6\u4e0d\u8db3\uff0c\u8dd1\u8d5b\u9053\u6536\u96c6\u96f6\u4ef6'));
+      return;
+    }
+    PARTS -= UPG_COST;
+    UPG[k] += 1;
+    save('cealin_bike_parts', String(PARTS));
+    saveUpg();
+    applyBike(curBikeIdx);
+    renderGarage();
+    toastMsg(tr(def.nameKey, def.name) + ' +1');
+  }
+
+  /* ---- 零件拾取 ---- */
+  function clearPickups() {
+    PICKUP_LIST = [];
+    PICKUPS_GOT = 0;
+    if (PICKUPS) {
+      scene.remove(PICKUPS);
+      PICKUPS = null;
+    }
+  }
+
+  function buildPickups() {
+    clearPickups();
+    if (!CFG || !CFG.finishS) { return; }
+    var g = new THREE.Group();
+    var geo = new THREE.TorusGeometry(0.36, 0.12, 5, 9);
+    var mat = new THREE.MeshLambertMaterial({ color: 0xffc84a, emissive: 0x5a3c00, flatShading: true });
+    var s, u, x, z, y, mesh;
+    for (s = CFG.startS + 46; s < CFG.finishS - 40; s += 72) {
+      u = Math.sin(s * 0.037 + 1.3) * CFG.trackHalf * 0.55;
+      x = cxAt(s) + u;
+      z = -s;
+      y = heightAt(x, z) + 1.05;
+      mesh = new THREE.Mesh(geo, mat);
+      mesh.position.set(x, y, z);
+      g.add(mesh);
+      PICKUP_LIST.push({ mesh: mesh, s: s, baseY: y, got: false });
+    }
+    PICKUPS = g;
+  if (MP && MP.key) { save('cealin_bike_picktotal_' + MP.key, String(PICKUP_LIST.length)); }
+    scene.add(g);
+  }
+
+  var PICKUP_T = 0;
+  function stepPickups(dt) {
+    if (!PICKUPS || !PICKUP_LIST.length) { return; }
+    PICKUP_T += dt;
+    var live = state === 'running';
+    var bx = body ? body.pos.x : 0, by = body ? body.pos.y : 0, bz = body ? body.pos.z : 0;
+    for (var i = 0; i < PICKUP_LIST.length; i++) {
+      var it = PICKUP_LIST[i];
+      if (it.got) { continue; }
+      it.mesh.rotation.y += dt * 2.6;
+      it.mesh.rotation.x = Math.sin(PICKUP_T * 1.6 + i) * 0.35;
+      it.mesh.position.y = it.baseY + Math.sin(PICKUP_T * 2.2 + i * 0.8) * 0.12;
+      if (!live) { continue; }
+      var dx = it.mesh.position.x - bx, dy = it.mesh.position.y - by, dz = it.mesh.position.z - bz;
+      if (dx * dx + dy * dy + dz * dz < 6.0) {
+        it.got = true;
+        it.mesh.visible = false;
+        PARTS += 1;
+        PICKUPS_GOT += 1;
+        save('cealin_bike_parts', String(PARTS));
+        sfxPick();
+        var pkKey = 'cealin_bike_picks_' + ((MP && MP.key) ? MP.key : 'x');
+        if (PICKUPS_GOT > (parseInt(store(pkKey), 10) || 0)) { save(pkKey, String(PICKUPS_GOT)); }
+        checkAch();
+        toastMsg(tr('bike.pickupPart', '\u62ff\u5230\u96f6\u4ef6 +1') + '  (' + PICKUPS_GOT + ')');
+      }
+    }
+  }
+
+  /* ---- 自定义赛道 ---- */
+
+  function loadCustom() {
+    var raw = store('cealin_bike_custom');
+    if (!raw) { return; }
+    try {
+      var o = JSON.parse(raw);
+      if (o && typeof o === 'object') {
+        for (var k in CUSTOM_DEF) {
+          if (o[k] !== undefined && o[k] !== null) { CUSTOM_DEF[k] = o[k]; }
+        }
+      }
+    } catch (e) { /* 忽略 */ }
+  }
+
+  function customMapIndex() {
+    if (!MAPS) { return -1; }
+    for (var i = 0; i < MAPS.length; i++) { if (MAPS[i].key === 'custom') { return i; } }
+    return -1;
+  }
+
+  function makeCustomMap() {
+    var base = MAPS[0];
+    var m = {}, k;
+    for (k in base) { m[k] = base[k]; }
+    var len = clamp(parseInt(CUSTOM_DEF.length, 10) || 900, 320, 2400);
+    var w1 = clamp(parseFloat(CUSTOM_DEF.w1) || 18, 6, 34);
+    var w2 = clamp(parseFloat(CUSTOM_DEF.w2) || 7, 2, 16);
+    var rg = clamp(parseFloat(CUSTOM_DEF.rough) || 1, 0.2, 2.2);
+    var jp = clamp(parseFloat(CUSTOM_DEF.jumpStep) || 88, 40, 200);
+    var sd = parseInt(CUSTOM_DEF.seed, 10) || 20261130;
+    m.key = 'custom';
+    m.nameKey = 'bike.mapCustom';
+    m.name = '\u81ea\u5b9a\u4e49\u8d5b\u9053';
+    m.descKey = 'bike.mapCustomDesc';
+    m.tint = 0x59c6a8;
+    m.diff = 2;
+    m.seed = sd;
+    m.length = len;
+    m.finishS = len - 20;
+    m.startS = 8;
+    m.cpEvery = Math.max(120, Math.round(len / 5));
+    m.trackHalf = clamp(4.6 + w2 * 0.35, 5.0, 9.5);
+    m.cw1 = w1;
+    m.cw2 = w2;
+    m.rough = rg;
+    m.jumpStep = jp;
+    m.jumpStepVar = Math.round(jp * 0.9);
+    m.jumpLenMin = 5 + rg * 2;
+    m.jumpLenVar = 5 + rg * 3;
+    m.jumpHMin = 0.7 + rg * 0.4;
+    m.jumpHVar = 0.6 + rg * 0.5;
+    m.und1 = 3.6 + rg * 1.2;
+    m.und2 = 1.4 + rg * 0.6;
+    var st = String(CUSTOM_DEF.style || 'trail');
+    m.style = (st === 'trail') ? 'trail' : st;
+    if (st === 'snow') { m.grips = [0.34, 0.50, 0.66, 0.44]; }
+    else if (st === 'dune') { m.grips = [0.42, 0.54, 0.70, 0.52]; }
+    else if (st === 'factory') { m.grips = [0.58, 0.74, 0.86, 0.62]; }
+    else { m.grips = [0.50, 0.68, 0.82, 0.64]; }
+    if (st === 'snow') {
+      m.sky = 0xdfeaf4; m.fog = 0xd2e2ee; m.fogNear = 46; m.fogFar = 300;
+      m.sunColor = 0xeaf4ff; m.sunI = 1.05; m.hemiI = 0.92; m.ambI = 0.34;
+    } else if (st === 'dune') {
+      m.sky = 0xf3d7a4; m.fog = 0xe6c793; m.fogNear = 110; m.fogFar = 520;
+      m.sunColor = 0xffe0a8; m.sunI = 1.35; m.hemiI = 0.66; m.ambI = 0.30;
+    } else if (st === 'factory') {
+      m.sky = 0x9aa3a8; m.fog = 0x9099a0; m.fogNear = 60; m.fogFar = 340;
+      m.sunColor = 0xd8d2c4; m.sunI = 0.95; m.hemiI = 0.72; m.ambI = 0.30;
+    } else if (st === 'urban') {
+      m.sky = 0x6f7d8c; m.fog = 0x76838f; m.fogNear = 55; m.fogFar = 320;
+    }
+    return m;
+  }
+
+  function syncCustomMap() {
+    ensureDefs();
+    var idx = customMapIndex();
+    var m = makeCustomMap();
+    if (idx >= 0) { MAPS[idx] = m; return idx; }
+    MAPS.push(m);
+    return MAPS.length - 1;
+  }
+
+  function applyCustom() {
+    save('cealin_bike_custom', JSON.stringify(CUSTOM_DEF));
+    var idx = syncCustomMap();
+    renderTrack();
+    toastMsg(tr('bike.customSaved', '\u81ea\u5b9a\u4e49\u8d5b\u9053\u5df2\u751f\u6210'));
+    return idx;
+  }
+
+  function readCustomInputs() {
+    if (!panelBodyEl) { return; }
+    var list = panelBodyEl.querySelectorAll('[data-cus]');
+    for (var i = 0; i < list.length; i++) {
+      var k = list[i].getAttribute('data-cus');
+      var v = parseFloat(list[i].value);
+      if (isFinite(v)) { CUSTOM_DEF[k] = v; }
+    }
+    save('cealin_bike_custom', JSON.stringify(CUSTOM_DEF));
+  }
+
+  function onPanelInput(ev) {
+    var el = ev && ev.target;
+    if (!el || !el.getAttribute) { return; }
+    if (!el.getAttribute('data-cus')) { return; }
+    var row = el.parentNode;
+    var b = row && row.querySelector ? row.querySelector('b') : null;
+    if (b) { b.textContent = el.value; }
+  }
+
+  function setCamMode(mode) {
+    camMode = (mode === 'first') ? 'first' : 'third';
+    save('cealin_bike_cam', camMode);
+    if (global.__bike && global.__bike.snapshot) { /* 保持快照接口可用 */ }
   }
 
   function renderSettings() {
@@ -1843,6 +3440,13 @@
       '" data-set="fs">' + tr('bike.settingsFullscreen', '\u5168\u5c4f') + '</button>';
     html += '<button type="button" class="opt-btn' + (hi ? ' on' : '') +
       '" data-set="quality">' + (hi ? tr('bike.qualityHigh', '\u9ad8\u753b\u8d28') : tr('bike.qualityLow', '\u6d41\u7545')) + '</button></div>';
+    html += '<div class="opt-row">';
+    html += '<button type="button" class="opt-btn' + (oilMode === 'oil' ? ' on' : '') +
+      '" data-set="style">' + (oilMode === 'oil' ? tr('bike.styleOil', '\u6cb9\u753b') : tr('bike.styleReal', '\u5199\u5b9e')) + '</button>';
+    html += '<button type="button" class="opt-btn' + (camMode === 'first' ? ' on' : '') +
+      '" data-set="cam">' + (camMode === 'first' ? tr('bike.camFirst', '\u7b2c\u4e00\u4eba\u79f0') : tr('bike.camThird', '\u7b2c\u4e09\u4eba\u79f0')) + '</button></div>';
+    html += '<button type="button" class="opt-btn' + (SND_ON ? ' on' : '') +
+      '" data-set="sound">' + (SND_ON ? tr('bike.soundOn', '音效开') : tr('bike.soundOff', '音效关')) + '</button>';
     html += '<div class="panel-sep"></div><div class="opt-row">';
     html += '<button type="button" class="opt-btn" data-set="reset">' + tr('bike.settingsReset',
       '\u6e05\u7a7a\u672c\u8d5b\u9053\u6210\u7ee9') + '</button>';
@@ -1988,12 +3592,56 @@
       });
     }
     if (panelBodyEl) {
+      panelBodyEl.addEventListener('input', onPanelInput);
       panelBodyEl.addEventListener('click', function (ev) {
         var b = closestAttr(ev.target, 'data-bike');
         if (b) {
           applyBike(parseInt(b.getAttribute('data-bike'), 10));
           renderGarage();
           refreshShellText();
+          return;
+        }
+        var gEl = closestAttr(ev.target, 'data-gear');
+        if (gEl) {
+          var spec = String(gEl.getAttribute('data-gear')).split(':');
+          applyGear(spec[0], parseInt(spec[1], 10));
+          renderGarage();
+          return;
+        }
+        var ptEl = closestAttr(ev.target, 'data-paint');
+        if (ptEl) {
+          var pSpec = String(ptEl.getAttribute('data-paint')).split(':');
+          setPaint(pSpec[0], pSpec[1] || '');
+          renderGarage();
+          return;
+        }
+        var ugEl = closestAttr(ev.target, 'data-upg');
+        if (ugEl) {
+          buyUpg(ugEl.getAttribute('data-upg'));
+          return;
+        }
+        var diceEl = closestAttr(ev.target, 'data-cus-dice');
+        if (diceEl) {
+          CUSTOM_DEF.seed = Math.floor(Math.random() * 999999) + 1;
+          save('cealin_bike_custom', JSON.stringify(CUSTOM_DEF));
+          renderTrack();
+          return;
+        }
+        var stEl = closestAttr(ev.target, 'data-cus-style');
+        if (stEl) {
+          CUSTOM_DEF.style = stEl.getAttribute('data-cus-style');
+          save('cealin_bike_custom', JSON.stringify(CUSTOM_DEF));
+          renderTrack();
+          return;
+        }
+        var bdEl = closestAttr(ev.target, 'data-cus-build');
+        if (bdEl) {
+          readCustomInputs();
+          var cIdx = applyCustom();
+          applyMap(cIdx, false);
+          save('cealin_bike_map', String(cIdx));
+          refreshShellText();
+          renderTrack();
           return;
         }
         var m = closestAttr(ev.target, 'data-map');
@@ -2015,6 +3663,16 @@
             renderer.setPixelRatio(hi ? Math.min(global.devicePixelRatio || 1, 2) : 1);
             resize();
             renderSettings();
+          } else if (set === 'style') {
+            setOilMode(oilMode === 'oil' ? 'real' : 'oil');
+            renderSettings();
+          } else if (set === 'cam') {
+            setCamMode(camMode === 'first' ? 'third' : 'first');
+            renderSettings();
+          } else if (set === 'sound') {
+            setSound(!SND_ON);
+            renderSettings();
+            toastMsg(SND_ON ? tr('bike.soundOn', '音效开') : tr('bike.soundOff', '音效关'));
           } else if (set === 'reset') {
             save(mapScoreKey(curMapIdx, 'best'), '');
             save(mapScoreKey(curMapIdx, 'trick'), '');
@@ -2043,7 +3701,8 @@
     doc.addEventListener('keydown', function (ev) {
       var k = ev.key;
       if (k === 'Escape' && panelOpen) { closePanel(); return; }
-      if (viewMode === 'replay' && (k === 'Escape' || k === 'Enter' || k === ' ')) {
+      if ((k === 'm' || k === 'M') && !panelOpen) { setSound(!SND_ON); renderSettings(); toastMsg(SND_ON ? tr('bike.soundOn', '\u97f3\u6548\u5f00') : tr('bike.soundOff', '\u97f3\u6548\u5173')); return; }
+  if (viewMode === 'replay' && (k === 'Escape' || k === 'Enter' || k === ' ')) {
         backToMenu();
       }
     });
