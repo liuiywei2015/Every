@@ -6,6 +6,18 @@
 <script src="client-detect.js"></script><meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 
+<!-- 未登录直接进入账号登录页，首页不再弹登录分流卡片 -->
+<script>
+  (function () {
+    if (window.CEALIN_IS_CLIENT) return;
+    var id = '';
+    try { id = String(sessionStorage.getItem('cealin_account_id') || '').replace(/^\s+|\s+$/g, ''); } catch (e) { id = ''; }
+    if (id) return;
+    try { location.replace('account.html'); } catch (e) { location.href = 'account.html'; }
+  })();
+</script>
+
+
 <!-- 主题引导 + 全站共享主题样式（明亮模式在 <head> 最早应用，避免闪烁） -->
 <script src="theme.js"></script>
 <link rel="stylesheet" href="theme.css">
@@ -353,18 +365,6 @@
   <div class="glow"></div>
   <div class="grain"></div>
 
-  <!-- 登录选择遮罩（打开页面第一时间显示） -->
-  <div id="loginGate" class="login-gate">
-    <div class="login-gate-card">
-      <h2 class="login-gate-title" id="loginGateTitle" data-i18n="idx.gate.title">欢迎来到Cealin生态系统</h2>
-      <p class="login-gate-sub" data-i18n="idx.gate.sub">请选择登录身份</p>
-      <div class="login-gate-actions">
-        <button type="button" class="login-btn login-gate-btn" onclick="loginAsGuest()" data-i18n="idx.gate.guest">游客登录</button>
-      </div>
-      <p class="login-gate-err" id="loginGateErr"></p>
-    </div>
-  </div>
-
   <!-- 顶部导航 -->
   <header class="topbar">
     <a class="logo" href="index.html">Cealin</a>
@@ -456,18 +456,6 @@
         /* 云端拉取失败，保持本地数据 */
       });
 
-      // ===== 登录分流：游客（管理员身份只在 Cealin-admin 客户端内注入，网页不再提供管理员登录）=====
-      window.loginAsGuest = function () {
-        // 游客登录前清除管理员会话标记，防止残留身份让游客进入公告编辑区
-        try { sessionStorage.removeItem('cealin_admin'); } catch (e) {}
-        try { sessionStorage.removeItem('cealin_admin_pwd'); } catch (e) {}
-        var t = document.getElementById('loginGateTitle');
-        if (t) { t.textContent = cealinT('idx.gate.title'); }
-        // 已登录账号：直接进入游客界面；未登录：必须先到账号登录页，不再跳过登录
-        var loggedId = '';
-        try { loggedId = String(sessionStorage.getItem('cealin_account_id') || '').replace(/^\s+|\s+$/g, ''); } catch (e) { loggedId = ''; }
-        window.location.href = loggedId ? 'guest.html' : 'account.html';
-      };
 
     })();
   </script>
