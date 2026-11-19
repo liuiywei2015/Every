@@ -834,8 +834,6 @@
     'art.next': { zh: '下一页', en: 'Next', ja: '次へ', ko: '다음', es: 'Siguiente' },
     'art.page': { zh: '第 {p} / {t} 页', en: 'Page {p} of {t}', ja: '{p} / {t} ページ', ko: '{p} / {t} 페이지', es: 'Página {p} de {t}' },
     'art.prev': { zh: '上一页', en: 'Previous', ja: '前へ', ko: '이전', es: 'Anterior' },
-    'art.searchBtn': { zh: '搜索', en: 'Search', ja: '検索', ko: '검색', es: 'Buscar' },
-    'art.searchPh': { zh: '搜索标题、正文或标签', en: 'Search title, body or tags', ja: 'タイトル・本文・タグを検索', ko: '제목, 본문, 태그 검색', es: 'Busca en el título, el texto o las etiquetas' },
     'art.sortHot': { zh: '最热', en: 'Most viewed', ja: '人気', ko: '인기', es: 'Más vistos' },
     'art.sortNew': { zh: '最新', en: 'Newest', ja: '新着', ko: '최신', es: 'Recientes' },
     'art.sub': { zh: '技术、生活与思考的记录', en: 'Notes on tech, life and ideas', ja: '技術・暮らし・思考の記録', ko: '기술, 일상, 생각의 기록', es: 'Notas sobre tecnología, vida e ideas' },

@@ -187,27 +187,6 @@
     animation: fadeIn 0.85s cubic-bezier(0.22, 1, 0.36, 1) 0.5s forwards;
   }
 
-  .search-row {
-    display: flex;
-    gap: 10px;
-    flex-wrap: wrap;
-  }
-  .search-input {
-    flex: 1;
-    min-width: 180px;
-    padding: 11px 15px;
-    border-radius: 999px;
-    border: 1px solid rgba(var(--line-rgb), 0.14);
-    background: rgba(var(--line-rgb), 0.05);
-    color: var(--fg);
-    font-size: 14px;
-    font-family: inherit;
-    outline: none;
-    transition: border-color 0.3s ease;
-  }
-  .search-input:focus { border-color: var(--gold); }
-  .search-input::placeholder { color: var(--muted); }
-
   .btn {
     padding: 10px 22px;
     border-radius: 999px;
@@ -453,11 +432,6 @@
 
     <!-- 筛选条 -->
     <section class="filter-bar">
-      <div class="search-row">
-        <input id="qInput" class="search-input" type="text" maxlength="60" autocomplete="off" spellcheck="false" placeholder="搜索标题、正文或标签" data-i18n-ph="art.searchPh">
-        <button type="button" class="btn" id="searchBtn" onclick="applySearch()" data-i18n="art.searchBtn">搜索</button>
-      </div>
-
       <div class="sort-row">
         <button type="button" class="chip" id="sortNew" onclick="setSort('new')" data-i18n="art.sortNew">最新</button>
         <button type="button" class="chip" id="sortHot" onclick="setSort('hot')" data-i18n="art.sortHot">最热</button>
@@ -491,7 +465,7 @@
     (function () {
       var PAGE_SIZE = 12;
 
-      var state = { q: '', tags: [], sort: 'new', page: 1 };
+      var state = { tags: [], sort: 'new', page: 1 };
       var allTags = [];
       var lastTotal = 0;
       var lastTotalPages = 1;
@@ -506,7 +480,6 @@
       var totalLine = document.getElementById('totalLine');
       var tagRow = document.getElementById('tagRow');
       var clearBtn = document.getElementById('clearBtn');
-      var qInput = document.getElementById('qInput');
 
       function esc(s) {
         return String(s === null || s === undefined ? '' : s)
@@ -525,18 +498,15 @@
       // ---------- URL 同步：筛选条件写进查询参数，刷新后状态不丢 ----------
       function readUrl() {
         var sp = new URLSearchParams(window.location.search);
-        state.q = sp.get('q') || '';
         var tagStr = sp.get('tag') || '';
         state.tags = tagStr ? tagStr.split(',').filter(function (t) { return !!t; }) : [];
         state.sort = sp.get('sort') === 'hot' ? 'hot' : 'new';
         var p = parseInt(sp.get('page'), 10);
         state.page = (p && p > 0) ? p : 1;
-        qInput.value = state.q;
       }
 
       function writeUrl() {
         var parts = [];
-        if (state.q) parts.push('q=' + encodeURIComponent(state.q));
         if (state.tags.length) parts.push('tag=' + encodeURIComponent(state.tags.join(',')));
         if (state.sort !== 'new') parts.push('sort=' + state.sort);
         if (state.page > 1) parts.push('page=' + state.page);
@@ -612,7 +582,7 @@
         lastTotal = total;
         lastTotalPages = totalPages;
         totalLine.textContent = total ? cealinT('art.total', { n: total }) : '';
-        var hasFilter = !!state.q || state.tags.length > 0;
+        var hasFilter = state.tags.length > 0;
         clearBtn.style.display = hasFilter ? 'inline-block' : 'none';
 
         if (totalPages <= 1) {
@@ -626,7 +596,7 @@
       }
 
       function showEmpty(total) {
-        var hasFilter = !!state.q || state.tags.length > 0;
+        var hasFilter = state.tags.length > 0;
         emptyEl.style.display = 'block';
         emptyEl.textContent = (total === 0 && !hasFilter) ? cealinT('art.empty') : cealinT('art.emptyMatch');
       }
@@ -644,7 +614,6 @@
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             action: 'list',
-            q: state.q,
             tags: state.tags,
             sort: state.sort,
             page: state.page,
@@ -686,13 +655,6 @@
       }
 
       // ---------- 交互 ----------
-      window.applySearch = function () {
-        state.q = (qInput.value || '').replace(/^\s+|\s+$/g, '');
-        state.page = 1;
-        writeUrl();
-        load();
-      };
-
       window.setSort = function (sort) {
         state.sort = sort === 'hot' ? 'hot' : 'new';
         state.page = 1;
@@ -712,10 +674,8 @@
       };
 
       window.clearFilters = function () {
-        state.q = '';
         state.tags = [];
         state.page = 1;
-        qInput.value = '';
         writeUrl();
         load();
       };
@@ -723,13 +683,6 @@
       window.goWrite = function () {
         window.location.href = 'write.html';
       };
-
-      qInput.addEventListener('keydown', function (ev) {
-        if (ev.key === 'Enter' || ev.keyCode === 13) {
-          ev.preventDefault();
-          window.applySearch();
-        }
-      });
 
       // ---------- 初始化 ----------
       readUrl();
