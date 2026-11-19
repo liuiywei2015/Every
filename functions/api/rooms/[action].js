@@ -51,8 +51,32 @@ const readPresence = async (env, code) => {
 const writePresence = (env, code, presence) =>
   env.GUESTBOOK.put(PREFIX + code + ':presence', JSON.stringify(presence));
 
+// 就地更新在线状态，返回 true 表示这次需要真正写回 KV。
+// 规则：同一成员在 PRESENCE_WRITE_GAP 内重复上报不再写；顺带剔除长期未活跃的成员。
+function touchPresence(presence, name) {
+  const now = Date.now();
+  let pruned = false;
+  for (const key of Object.keys(presence)) {
+    const ts = presence[key];
+    if (typeof ts !== 'number' || now - ts > PRESENCE_STALE_MS) {
+      delete presence[key];
+      pruned = true;
+    }
+  }
+  const last = presence[name];
+  if (typeof last === 'number' && now - last < PRESENCE_WRITE_GAP && !pruned) return false;
+  presence[name] = now;
+  return true;
+}
+
 // 30 秒内活跃视为在线
 const ONLINE_TTL = 30000;
+// 在线状态的 KV 写入节流窗口：前端每 3 秒轮询一次，若每次轮询都写 KV，
+// 单个用户每天就会产生上万次写入（远超 KV 免费额度）。15 秒窗口远小于 30 秒在线判定，
+// 不影响在线状态准确性，同时把聊天室的在线写入量压到原来的约 1/5。
+const PRESENCE_WRITE_GAP = 15000;
+// 在线状态表里超过 10 分钟未活跃的成员直接剔除，避免单个房间的 presence 键无限膨胀
+const PRESENCE_STALE_MS = 600000;
 
 // 账号编号：新编号 8 位（0-9 / A-Z / a-z / @），历史账号 6 位大写；规则与 /api/accounts 一致
 const ACC_ID_RE = /^[A-Za-z0-9@]{6,8}$/;
@@ -276,12 +300,13 @@ async function handleMessagesGet(env, url) {
   if (await cleanupExpiredBan(env, code)) {
     return json({ ok: false, error: '房间不存在' });
   }
-  // 心跳：轮询拉消息时更新该成员在线状态（前端每 3 秒轮询自动续期）
+  // 心跳：轮询拉消息时更新该成员在线状态（前端每 3 秒轮询，写入按 PRESENCE_WRITE_GAP 节流）
   const name = String(url.searchParams.get('name') || '').trim().slice(0, 20);
   if (name) {
     const presence = await readPresence(env, code);
-    presence[name] = Date.now();
-    await writePresence(env, code, presence);
+    if (touchPresence(presence, name)) {
+      await writePresence(env, code, presence);
+    }
   }
   // 返回 meta：前端轮询时同步官方授权状态与房间显示名称
   const meta = await readMeta(env, code);
@@ -342,10 +367,11 @@ async function handleMessagesPost(env, body) {
 
   await writeRoom(env, code, room);
 
-  // 发送成功即视为在线
+  // 发送成功即视为在线（同样按窗口节流，避免与轮询心跳重复写 KV）
   const presence = await readPresence(env, code);
-  presence[name] = Date.now();
-  await writePresence(env, code, presence);
+  if (touchPresence(presence, name)) {
+    await writePresence(env, code, presence);
+  }
   // 返回 meta：前端可据此同步官方授权状态与房间显示名称
   const meta = await readMeta(env, code);
   return json({

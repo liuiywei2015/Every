@@ -410,16 +410,20 @@ async function handleDetail(env, body) {
       article.viewsAt = now;
       try {
         await env.GUESTBOOK.put(PREFIX_ARTICLE + article.id, JSON.stringify(article));
-        // 顺带同步索引里的浏览量，保证「最热」排序不过期（单篇 5 分钟内只写一次）
-        const index = await readIndex(env);
-        let changed = false;
-        for (const it of index) {
-          if (it && it.id === article.id) {
-            it.views = article.views;
-            changed = true;
+        // 索引同步降频：KEY_INDEX 是全站唯一的文章索引键，每次浏览都重写会把它变成写入热点，
+        // 并且并发时容易互相覆盖。改为浏览量每增长 5 次才同步一次，热度排序最多滞后 4 次浏览，
+        // 索引写入量降到约 1/5，单篇文章的 views 仍然精确。
+        if (article.views % 5 === 0) {
+          const index = await readIndex(env);
+          let changed = false;
+          for (const it of index) {
+            if (it && it.id === article.id) {
+              it.views = article.views;
+              changed = true;
+            }
           }
+          if (changed) await env.GUESTBOOK.put(KEY_INDEX, JSON.stringify(index));
         }
-        if (changed) await env.GUESTBOOK.put(KEY_INDEX, JSON.stringify(index));
       } catch (err) {
         /* 计数失败不影响阅读 */
       }

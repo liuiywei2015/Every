@@ -3,6 +3,9 @@
 // KV 绑定方式见项目根目录 wrangler.toml 中的注释。
 
 const KEY = 'messages';
+// 留言最多保留 300 条：单个 KV 值上限 25MB，且这个键是「读写都全量」的，
+// 无上限增长会让每一次留言的读写成本线性上升。超过上限时保留最新的 300 条。
+const MAX_MESSAGES = 300;
 
 async function readMessages(env) {
   const raw = await env.GUESTBOOK.get(KEY, 'json');
@@ -47,7 +50,8 @@ export async function onRequest(context) {
     try {
       const messages = await readMessages(env);
       messages.push({ name, text, time });
-      await env.GUESTBOOK.put(KEY, JSON.stringify(messages));
+      const capped = messages.length > MAX_MESSAGES ? messages.slice(-MAX_MESSAGES) : messages;
+      await env.GUESTBOOK.put(KEY, JSON.stringify(capped));
       return json({ ok: true, message: { name, text, time } });
     } catch (err) {
       return json({ ok: false, error: '写入留言失败' }, 500);
