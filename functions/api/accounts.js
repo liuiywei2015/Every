@@ -1064,6 +1064,62 @@ export async function onRequest(context) {
     });
   }
 
+  /* ---------------- 验证码直登：邮箱 + 邮箱验证码，无需密码 ----------------
+   * 放行条件：邮件通道可用，且验证码发往该账号绑定邮箱（未绑定时用本次填写的邮箱完成首次绑定）。
+   * 与 login 的二级验证共用 vcode:login:{id} 记录；验证码的尝试次数与一次性失效由 verifyCode 负责。
+   * 密码通道不受影响：login 仍按原逻辑校验密码。 */
+  if (action === 'loginByCode') {
+    let loginIdValue = id;
+    const loginEmailInput = normEmail(body.email);
+    if (!loginIdValue) {
+      if (!loginEmailInput) return fail(400, '请填写邮箱', 'email_required');
+      if (!emailOk(loginEmailInput)) return fail(400, '邮箱格式不正确', 'email_bad');
+      try {
+        loginIdValue = await idByEmail(kv, loginEmailInput);
+      } catch (err) {
+        return fail(500, '服务异常，请稍后重试', 'server');
+      }
+      if (!loginIdValue) return fail(401, '邮箱或验证码错误', 'bad_cred');
+    } else if (!ID_RE.test(loginIdValue)) {
+      return fail(400, '请输入正确的账号编号', 'id_bad');
+    }
+
+    if (!mailReady(env)) return fail(503, '邮件服务未配置，暂时无法使用验证码登录', 'mail_not_configured');
+
+    let found = null;
+    try {
+      found = await readAccount(kv, loginIdValue);
+    } catch (err) {
+      return fail(500, '服务异常，请稍后重试', 'server');
+    }
+    if (!found) return fail(401, '邮箱或验证码错误', 'bad_cred');
+
+    const acc = found.acc;
+    const boundEmail = normEmail(acc.email);
+    // 免密码通道只对已绑定邮箱的账号开放：未绑定时邮箱归属无法确认，
+    // 必须先走密码登录完成首次绑定，避免「知道编号即可改绑并登录」。
+    if (!boundEmail) {
+      return fail(401, '该账号尚未绑定邮箱，请先用密码登录完成绑定，之后即可用验证码登录', 'email_not_bound');
+    }
+
+    const code = typeof body.code === 'string' ? body.code.trim() : '';
+    if (!CODE_RE.test(code)) return fail(401, '请输入邮箱验证码', 'code_required');
+    const codeCheck = await verifyCode(kv, VCODE_LOGIN_PREFIX + loginIdValue, code);
+    if (!codeCheck.ok) {
+      if (codeCheck.code === 'server') return fail(500, '服务异常，请稍后重试', 'server');
+      return fail(401, '验证码不正确或已失效，请重新获取', 'code_bad');
+    }
+
+    return json({
+      ok: true,
+      id: acc.id || loginIdValue,
+      name: acc.name || '',
+      official: !!acc.official,
+      createdAt: acc.createdAt || 0,
+      email: acc.email ? maskEmail(normEmail(acc.email)) : ''
+    });
+  }
+
   /* ---------------- 安全信息：个人设置里读取二级验证开关状态 ----------------
    * 只返回开关与脱敏邮箱，绝不返回哈希 / 盐 / 明文邮箱。 */
   if (action === 'secInfo') {

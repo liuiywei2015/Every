@@ -747,6 +747,8 @@
                 </div>
               </div>
               <button type="button" class="primary-btn" id="btnLogin" data-i18n="acc.loginBtn">登录</button>
+              <!-- 免密码登录：点击后展开验证码区并发送验证码，再次点击校验验证码直接登录 -->
+              <button type="button" class="ghost-btn" id="btnCodeLogin" data-i18n="acc.codeLoginBtn">用邮箱验证码登录（免密码）</button>
               <p class="msg" id="loginMsg"></p>
       
               <!-- 忘记密码：邮箱验证码 → 直接设置新密码（不再经管理员生成临时密码） -->
@@ -1177,6 +1179,7 @@
 
       /* ---------------- 登录：邮箱 + 密码（开启二级验证时再补邮箱验证码） ---------------- */
       var btnLogin = d.getElementById('btnLogin');
+      var btnCodeLogin = d.getElementById('btnCodeLogin');
       var loginAcct = d.getElementById('loginAcct');
       var loginPwd = d.getElementById('loginPwd');
       var loginCodeBox = d.getElementById('loginCodeBox');
@@ -1228,6 +1231,68 @@
         requestCode({ btn: btnLoginCode, msg: loginMsg, scene: 'login', id: a.id, email: a.email, key: 'acc.sendCode' });
       };
 
+      // 登录成功后的统一收尾：写入会话身份并跳转「我的」
+      function afterLoginOk(data, a) {
+        try {
+          sessionStorage.setItem(SID_KEY, data.id || a.id);
+          sessionStorage.setItem(SNAME_KEY, data.name || '');
+          // 供「我的」页展示：注册时间与官方认证状态（无则不展示对应行）
+          if (data.createdAt) sessionStorage.setItem('cealin_account_created', String(data.createdAt));
+          sessionStorage.setItem('cealin_account_official', data.official ? '1' : '');
+          // 邮箱只在当前会话内保存，供「我的」页展示与文章署名提示
+          sessionStorage.setItem('cealin_account_email', a.isMail ? a.email : (data.masked || ''));
+        } catch (e) {}
+        try {
+          if (w.cealinPresence && w.cealinPresence.start) w.cealinPresence.start();
+        } catch (e) {}
+        setBtnLabel(btnLogin, 'acc.loginBtn');
+        setMsg(loginMsg, 'acc.loginOk', 'ok');
+        setTimeout(function () { w.location.href = 'mine.html'; }, 800);
+        setTimeout(function () { btnLogin.disabled = false; }, 3000);
+      }
+
+      // 免密码登录：邮箱（或编号）+ 邮箱验证码，不经密码与哈希
+      function submitCodeLogin(a, code) {
+        btnLogin.disabled = true;
+        if (btnCodeLogin) btnCodeLogin.disabled = true;
+        setBtnLabel(btnLogin, 'acc.loggingIn');
+        post({ action: 'loginByCode', id: a.id, email: a.email, code: code }).then(function (data) {
+          btnLogin.disabled = false;
+          if (btnCodeLogin) btnCodeLogin.disabled = false;
+          setBtnLabel(btnLogin, 'acc.loginBtn');
+          if (data && data.ok) { afterLoginOk(data, a); return; }
+          if (data && data.code === 'email_required') loginAcct.focus();
+          if (data && (data.code === 'code_required' || data.code === 'code_bad')) {
+            showCodeBox(true);
+            loginCode.focus();
+          }
+          showErr(loginMsg, data);
+        }).catch(function () {
+          btnLogin.disabled = false;
+          if (btnCodeLogin) btnCodeLogin.disabled = false;
+          setBtnLabel(btnLogin, 'acc.loginBtn');
+          setMsg(loginMsg, 'acc.err.net');
+        });
+      }
+
+      if (btnCodeLogin) btnCodeLogin.onclick = function () {
+        if (btnCodeLogin.disabled) return;
+        var a = acct();
+        var code = (loginCode.value || '').replace(/[^0-9]/g, '');
+        setMsg(loginMsg, '');
+        if (acctBad(a)) { setMsg(loginMsg, acctErr(a)); loginAcct.focus(); return; }
+        // 第一次点击：展开验证码区并发码；验证码区已展开时：提交验证码登录
+        if (loginCodeBox.style.display === 'none') {
+          showCodeBox(true);
+          loginCodeSent = true;
+          requestCode({ btn: btnLoginCode, msg: loginMsg, scene: 'login', id: a.id, email: a.email, key: 'acc.sendCode' });
+          loginCode.focus();
+          return;
+        }
+        if (code.length !== 6) { setMsg(loginMsg, 'acc.err.code_required'); loginCode.focus(); return; }
+        submitCodeLogin(a, code);
+      };
+
       btnLogin.onclick = function () {
         if (btnLogin.disabled) return;
         var a = acct();
@@ -1237,7 +1302,12 @@
 
         setMsg(loginMsg, '');
         if (acctBad(a)) { setMsg(loginMsg, acctErr(a)); loginAcct.focus(); return; }
-        if (!pwd) { setMsg(loginMsg, 'acc.err.pwd_required'); loginPwd.focus(); return; }
+        // 免密码直登：验证码区已展开且填满 6 位时，不要求密码，直接走验证码登录
+        if (!pwd) {
+          if (codeShown && code.length === 6) { submitCodeLogin(a, code); return; }
+          if (codeShown) { setMsg(loginMsg, 'acc.err.code_required'); loginCode.focus(); return; }
+          setMsg(loginMsg, 'acc.err.pwd_required'); loginPwd.focus(); return;
+        }
         // 已展开验证码区且码没填满：只提示补齐，不重复请求验证码
         if (codeShown && code.length > 0 && code.length !== 6) { setMsg(loginMsg, 'acc.err.code_required'); loginCode.focus(); return; }
         if (!cryptoReady()) { setMsg(loginMsg, 'acc.err.no_crypto'); return; }
@@ -1272,25 +1342,7 @@
             loginCode.focus();
             return;
           }
-          if (data && data.ok) {
-            try {
-              sessionStorage.setItem(SID_KEY, data.id || a.id);
-              sessionStorage.setItem(SNAME_KEY, data.name || '');
-              // 供「我的」页展示：注册时间与官方认证状态（无则不展示对应行）
-              if (data.createdAt) sessionStorage.setItem('cealin_account_created', String(data.createdAt));
-              sessionStorage.setItem('cealin_account_official', data.official ? '1' : '');
-              // 邮箱只在当前会话内保存，供「我的」页展示与文章署名提示
-              sessionStorage.setItem('cealin_account_email', a.isMail ? a.email : (data.masked || ''));
-            } catch (e) {}
-            try {
-              if (w.cealinPresence && w.cealinPresence.start) w.cealinPresence.start();
-            } catch (e) {}
-            setBtnLabel(btnLogin, 'acc.loginBtn');
-            setMsg(loginMsg, 'acc.loginOk', 'ok');
-            setTimeout(function () { w.location.href = 'mine.html'; }, 800);
-            setTimeout(function () { btnLogin.disabled = false; }, 3000);
-            return;
-          }
+          if (data && data.ok) { afterLoginOk(data, a); return; }
           btnLogin.disabled = false;
           setBtnLabel(btnLogin, 'acc.loginBtn');
           if (data && data.code === 'email_required') { loginAcct.focus(); }

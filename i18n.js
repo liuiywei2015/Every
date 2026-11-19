@@ -670,6 +670,7 @@
     'acc.idHint': { zh: '登录只认编号，不认名称', en: 'Only the ID works for signing in—names are not accepted', ja: 'ログインに使えるのはIDのみで、名前ではログインできません', ko: '로그인은 ID로만 가능하며 이름으로는 로그인할 수 없습니다', es: 'Solo el ID sirve para entrar, el nombre no' },
     'acc.loginBtn': { zh: '登录', en: 'Log in', ja: 'ログイン', ko: '로그인', es: 'Entrar' },
     'acc.loggingIn': { zh: '正在登录…', en: 'Logging in…', ja: 'ログインしています…', ko: '로그인 중…', es: 'Entrando…' },
+    'acc.codeLoginBtn': { zh: '用邮箱验证码登录（免密码）', en: 'Sign in with an email code (no password)', ja: 'メール確認コードでログイン（パスワード不要）', ko: '이메일 인증 코드로 로그인(비밀번호 불필요)', es: 'Entrar con código de correo (sin contraseña)' },
     'acc.regEmail': { zh: '邮箱', en: 'Email', ja: 'メールアドレス', ko: '이메일', es: 'Correo electrónico' },
     'acc.regEmailPh': { zh: '用于接收验证码与找回密码', en: 'Used for verification codes and password recovery', ja: '確認コードの受信とパスワード再設定に使用します', ko: '인증 코드 수신과 비밀번호 찾기에 사용됩니다', es: 'Se usa para códigos de verificación y recuperar la contraseña' },
     'acc.regEmailBad': { zh: '邮箱格式不正确', en: 'That email address is not valid', ja: 'メールアドレスの形式が正しくありません', ko: '이메일 형식이 올바르지 않습니다', es: 'El correo no es válido' },
