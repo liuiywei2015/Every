@@ -651,6 +651,9 @@
 
     /* ---------- 账号（注册 / 编号登录） ---------- */
     'acc.title': { zh: '账号', en: 'Account', ja: 'アカウント', ko: '계정', es: 'Cuenta' },
+  'acc.heroTitle': { zh: 'Cealin，常联系。', en: 'Cealin, stay in touch.', ja: 'Cealin、いつでもつながる。', ko: 'Cealin, 언제나 연결.', es: 'Cealin, siempre en contacto.' },
+  'acc.heroPoint1': { zh: '邮箱验证码注册，密码经加盐哈希存储', en: 'Sign up with an email code; passwords are salted and hashed', ja: 'メール確認コードで登録、パスワードはソルト付きハッシュで保存', ko: '이메일 인증 코드로 가입, 비밀번호는 솔트 해시로 저장', es: 'Alta con código de correo; contraseñas con hash y sal' },
+  'acc.heroPoint2': { zh: '一个账号，可用聊天室、文章、留言与下载', en: 'One account for chat, articles, guestbook and downloads', ja: '1つのアカウントでチャット・記事・掲示板・ダウンロード', ko: '하나의 계정으로 채팅, 글, 방명록, 다운로드', es: 'Una cuenta para chat, artículos, mensajes y descargas' },
     'acc.sub': { zh: '用邮箱验证码注册，每次登录也都需要邮箱验证码', en: 'Sign up with an email code—every login also requires one', ja: 'メール確認コードで登録します。ログインのたびに確認コードも必要です', ko: '이메일 인증 코드로 가입하며, 로그인할 때마다 인증 코드도 필요합니다', es: 'Regístrate con un código de correo: cada inicio de sesión también lo pide' },
     'acc.needLogin': { zh: '未登录无法使用站内功能，请先注册或登录', en: 'You cannot use any feature of this site without signing in—please sign up or log in first', ja: 'ログインしないとサイト内の機能はご利用いただけません。先に登録またはログインしてください', ko: '로그인하지 않으면 사이트 기능을 사용할 수 없습니다. 먼저 가입하거나 로그인해 주세요', es: 'No puedes usar ninguna función del sitio sin iniciar sesión: regístrate o inicia sesión primero' },
     'acc.tabRegister': { zh: '注册', en: 'Sign up', ja: '新規登録', ko: '회원가입', es: 'Registrarse' },
