@@ -528,36 +528,99 @@
     text-align: left !important;
   }
 
-  /* 标签页：文字标签 + 下划线，替代胶囊按钮 */
+  /* 三段切换：密码登录 / 验证码登录 / 注册 —— 滑动指示器 + 图标 */
   .login-right .tabs {
+    position: relative;
     display: flex !important;
-    justify-content: flex-start !important;
-    gap: 22px !important;
-    margin: 0 0 20px !important;
-    padding: 0 !important;
-    background: transparent !important;
-    border: 0 !important;
-    border-bottom: 1px solid var(--ui-border) !important;
-    border-radius: 0 !important;
-    box-shadow: none !important;
+    justify-content: stretch !important;
+    gap: 2px !important;
+    margin: 0 0 22px !important;
+    padding: 4px !important;
+    background: rgba(0, 0, 0, 0.2) !important;
+    border: 1px solid var(--ui-border) !important;
+    border-radius: 14px !important;
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.045), inset 0 2px 8px rgba(0, 0, 0, 0.16) !important;
+  }
+
+  .login-right .seg-thumb {
+    position: absolute;
+    top: 4px;
+    left: 0;
+    width: 0;
+    height: calc(100% - 8px);
+    border-radius: 11px;
+    background: linear-gradient(180deg, rgba(200, 169, 110, 0.34), rgba(200, 169, 110, 0.17));
+    border: 1px solid rgba(200, 169, 110, 0.5);
+    box-shadow: 0 8px 20px rgba(0, 0, 0, 0.28), inset 0 1px 0 rgba(255, 255, 255, 0.16);
+    transition: transform 0.42s cubic-bezier(0.22, 1, 0.36, 1), width 0.42s cubic-bezier(0.22, 1, 0.36, 1);
+    pointer-events: none;
+    z-index: 0;
   }
 
   .login-right .tab {
-    flex: 0 0 auto !important;
-    padding: 6px 0 10px !important;
+    position: relative;
+    z-index: 1;
+    flex: 1 1 0 !important;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    padding: 9px 0 !important;
     background: transparent !important;
     border: 0 !important;
-    border-bottom: 2px solid transparent !important;
-    border-radius: 0 !important;
+    border-radius: 11px !important;
     color: var(--ui-text-dim) !important;
-    font-size: 14px !important;
+    font-size: 13px !important;
     font-weight: 500 !important;
+    letter-spacing: 0.02em;
+    box-shadow: none !important;
+    transition: color 0.28s ease !important;
+  }
+
+  .login-right .tab svg {
+    width: 14px;
+    height: 14px;
+    flex: 0 0 auto;
+    opacity: 0.92;
   }
 
   .login-right .tab.on {
     color: var(--ui-accent) !important;
-    border-bottom-color: var(--ui-accent) !important;
+    background: transparent !important;
+    border-bottom: 0 !important;
+    box-shadow: none !important;
     font-weight: 600 !important;
+  }
+
+  /* 面板切换：高度平滑过渡 + 淡入上浮，避免卡片跳动 */
+  .login-right .pane-stack {
+    position: relative;
+    transition: height 0.4s cubic-bezier(0.22, 1, 0.36, 1);
+  }
+
+  .login-right .pane-stack > .pane {
+    display: none;
+  }
+
+  .login-right .pane-stack > .pane.on {
+    display: block;
+    animation: paneIn 0.42s cubic-bezier(0.22, 1, 0.36, 1);
+  }
+
+  @keyframes paneIn {
+    from { opacity: 0; transform: translateY(9px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+  @media (max-width: 430px) {
+    .login-right .tab {
+      font-size: 12px !important;
+      gap: 4px;
+      padding: 8px 0 !important;
+    }
+    .login-right .tab svg {
+      width: 12px;
+      height: 12px;
+    }
   }
 
   .login-right .field {
@@ -665,12 +728,24 @@
     <div class="login-right">
       <section class="card">
             <div class="tabs" role="tablist" id="tabs">
-              <button type="button" class="tab on" id="tabRegister" role="tab" data-tab="register" data-i18n="acc.tabRegister">注册</button>
-              <button type="button" class="tab" id="tabLogin" role="tab" data-tab="login" data-i18n="acc.tabLogin">登录</button>
+              <span class="seg-thumb" id="segThumb" aria-hidden="true"></span>
+              <button type="button" class="tab on" id="tabLogin" role="tab" data-tab="login">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="4.2" y="10.4" width="15.6" height="9.8" rx="2.6"/><path d="M8.2 10.4V7.9a3.8 3.8 0 0 1 7.6 0v2.5"/><circle cx="12" cy="15.4" r="1.15"/></svg>
+                <span data-i18n="acc.tabPwdLogin">密码登录</span>
+              </button>
+              <button type="button" class="tab" id="tabCode" role="tab" data-tab="codelogin">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3.4" y="6.6" width="17.2" height="11.2" rx="2.4"/><path d="m4.9 8 7.1 5.1L19.1 8"/></svg>
+                <span data-i18n="acc.tabCodeLogin">验证码登录</span>
+              </button>
+              <button type="button" class="tab" id="tabRegister" role="tab" data-tab="register">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="9.6" cy="8.6" r="3.4"/><path d="M3.8 19.2a5.9 5.9 0 0 1 11.6 0"/><path d="M18.4 9.5v4.4"/><path d="M16.2 11.7h4.4"/></svg>
+                <span data-i18n="acc.tabRegister">注册</span>
+              </button>
             </div>
       
+            <div class="pane-stack" id="paneStack">
             <!-- 注册第 1 步：邮箱验证 -->
-            <div class="pane on" id="paneRegister" role="tabpanel">
+            <div class="pane" id="paneRegister" role="tabpanel">
               <p class="hint" data-i18n="acc.regStep1Tip">先验证邮箱，验证码正确后才能设定密码</p>
               <div class="field">
                 <label for="regEmail" data-i18n="acc.regEmail">邮箱</label>
@@ -728,7 +803,7 @@
             </div>
       
             <!-- 登录 -->
-            <div class="pane" id="paneLogin" role="tabpanel">
+            <div class="pane on" id="paneLogin" role="tabpanel">
               <div class="field">
                 <label for="loginAcct" data-i18n="acc.loginAccount">邮箱</label>
                 <input id="loginAcct" type="text" maxlength="254" autocomplete="username" spellcheck="false" data-i18n-ph="acc.loginAccountPh" placeholder="你的邮箱（老账号也可输入编号）">
@@ -747,8 +822,6 @@
                 </div>
               </div>
               <button type="button" class="primary-btn" id="btnLogin" data-i18n="acc.loginBtn">登录</button>
-              <!-- 免密码登录：点击后展开验证码区并发送验证码，再次点击校验验证码直接登录 -->
-              <button type="button" class="ghost-btn" id="btnCodeLogin" data-i18n="acc.codeLoginBtn">用邮箱验证码登录（免密码）</button>
               <p class="msg" id="loginMsg"></p>
       
               <!-- 忘记密码：邮箱验证码 → 直接设置新密码（不再经管理员生成临时密码） -->
@@ -779,6 +852,26 @@
                 <p class="hint" data-i18n="acc.resetNoEmailTip">账号未绑定邮箱？无法自助重置，请联系管理员处理。</p>
               </div>
             </div>
+
+            <!-- 验证码登录：邮箱 + 6 位邮箱验证码，全程不需要密码 -->
+            <div class="pane" id="paneCodeLogin" role="tabpanel">
+              <p class="hint" data-i18n="acc.codeLoginTip">输入账号绑定的邮箱，收到 6 位验证码即可登录，全程不需要密码</p>
+              <div class="field">
+                <label for="codeAcct" data-i18n="acc.loginAccount">邮箱</label>
+                <input id="codeAcct" type="text" maxlength="254" autocomplete="username" spellcheck="false" data-i18n-ph="acc.loginAccountPh" placeholder="你的邮箱（老账号也可输入编号）">
+              </div>
+              <div class="field">
+                <label for="codeLoginInput" data-i18n="acc.codeLabel">邮箱验证码</label>
+                <div class="code-row">
+                  <input id="codeLoginInput" type="text" maxlength="6" inputmode="numeric" autocomplete="one-time-code" spellcheck="false" data-i18n-ph="acc.codePh" placeholder="6 位数字">
+                  <button type="button" class="ghost-btn code-btn" id="btnCodeSend" data-i18n="acc.sendCode">获取验证码</button>
+                </div>
+              </div>
+              <button type="button" class="primary-btn" id="btnCodeSubmit" data-i18n="acc.codeLoginSubmit">验证码登录</button>
+              <p class="msg" id="codeLoginMsg"></p>
+              <p class="hint" data-i18n="acc.codeLoginNote">还没有账号？切到「注册」，用邮箱验证码开通，同样不需要密码。</p>
+            </div>
+          </div>
           </section>
 
       <p class="mine-guide" id="mineGuide">
@@ -826,29 +919,69 @@
       }
       if (w.cealinOnLangChange) w.cealinOnLangChange(repaint);
 
-      /* ---------------- Tab 切换 ---------------- */
-      var tabRegister = d.getElementById('tabRegister');
+      /* ---------------- 面板与三段切换 ---------------- */
+      var tabsEl = d.getElementById('tabs');
+      var segThumb = d.getElementById('segThumb');
+      var paneStack = d.getElementById('paneStack');
       var tabLogin = d.getElementById('tabLogin');
+      var tabCode = d.getElementById('tabCode');
+      var tabRegister = d.getElementById('tabRegister');
       var paneRegister = d.getElementById('paneRegister');
       var paneLogin = d.getElementById('paneLogin');
+      var paneCodeLogin = d.getElementById('paneCodeLogin');
       var paneDone = d.getElementById('paneDone');
 
       var paneSetPwd = d.getElementById('paneSetPwd');
       var paneSetName = d.getElementById('paneSetName');
 
-      // 统一面板切换：register / setpwd / setname / done / login
-      function showPane(name) {
-        var panes = { register: paneRegister, setpwd: paneSetPwd, setname: paneSetName, done: paneDone, login: paneLogin };
+      // 三个标签页 ↔ 面板的对应关系（其余面板属于注册流程内部步骤，不显示标签页）
+      var TAB_MAP = { login: 'tabLogin', codelogin: 'tabCode', register: 'tabRegister' };
+
+      // 滑动指示器：宽度与位移跟随当前选中的标签
+      function moveThumb() {
+        if (!segThumb || !tabsEl) return;
+        var on = tabsEl.querySelector('.tab.on');
+        if (!on || !on.offsetWidth) { segThumb.style.width = '0px'; return; }
+        segThumb.style.width = on.offsetWidth + 'px';
+        segThumb.style.transform = 'translateX(' + on.offsetLeft + 'px)';
+      }
+
+      // 统一面板切换：login / codelogin / register / setpwd / setname / done
+      function showPane(name, noFocus) {
+        var panes = { login: paneLogin, codelogin: paneCodeLogin, register: paneRegister, setpwd: paneSetPwd, setname: paneSetName, done: paneDone };
+        if (!panes[name]) return;
+        var h0 = paneStack ? paneStack.offsetHeight : 0;
+
         for (var k in panes) {
-          if (!panes.hasOwnProperty(k)) continue;
+          if (!panes.hasOwnProperty(k) || !panes[k]) continue;
           panes[k].className = 'pane' + (k === name ? ' on' : '');
         }
-        var isTab = name === 'register' || name === 'login';
-        d.getElementById('tabs').style.display = isTab ? '' : 'none';
-        tabRegister.className = 'tab' + (name === 'register' ? ' on' : '');
-        tabLogin.className = 'tab' + (name === 'login' ? ' on' : '');
-        if (isTab) {
-          var focusEl = d.getElementById(name === 'register' ? 'regEmail' : 'loginAcct');
+
+        var isTab = TAB_MAP.hasOwnProperty(name);
+        if (tabsEl) tabsEl.style.display = isTab ? '' : 'none';
+        for (var t in TAB_MAP) {
+          if (!TAB_MAP.hasOwnProperty(t)) continue;
+          var el = d.getElementById(TAB_MAP[t]);
+          if (el) el.className = 'tab' + (t === name ? ' on' : '');
+        }
+        moveThumb();
+
+        // 高度过渡：先把容器锁在切换前的高度，再过渡到新高度，卡片不会突然跳一下
+        if (paneStack) {
+          var h1 = paneStack.offsetHeight;
+          if (h0 > 0 && Math.abs(h1 - h0) > 1) {
+            paneStack.style.height = h0 + 'px';
+            void paneStack.offsetHeight;
+            w.requestAnimationFrame(function () { paneStack.style.height = h1 + 'px'; });
+            w.setTimeout(function () { paneStack.style.height = ''; }, 460);
+          } else {
+            paneStack.style.height = '';
+          }
+        }
+
+        if (isTab && !noFocus) {
+          var focusId = name === 'register' ? 'regEmail' : (name === 'login' ? 'loginAcct' : 'codeAcct');
+          var focusEl = d.getElementById(focusId);
           if (focusEl) focusEl.focus();
         }
       }
@@ -857,8 +990,10 @@
         showPane(which);
       }
 
-      tabRegister.onclick = function () { showTab('register'); };
-      tabLogin.onclick = function () { showTab('login'); };
+      if (tabLogin) tabLogin.onclick = function () { showTab('login'); };
+      if (tabCode) tabCode.onclick = function () { showTab('codelogin'); };
+      if (tabRegister) tabRegister.onclick = function () { showTab('register'); };
+      w.addEventListener('resize', moveThumb);
 
       /* ---------------- 哈希工具（Web Crypto：SHA-256 + 盐） ---------------- */
       function bytesToHex(bytes) {
@@ -1232,7 +1367,7 @@
       };
 
       // 登录成功后的统一收尾：写入会话身份并跳转「我的」
-      function afterLoginOk(data, a) {
+      function afterLoginOk(data, a, msgEl) {
         try {
           sessionStorage.setItem(SID_KEY, data.id || a.id);
           sessionStorage.setItem(SNAME_KEY, data.name || '');
@@ -1246,7 +1381,7 @@
           if (w.cealinPresence && w.cealinPresence.start) w.cealinPresence.start();
         } catch (e) {}
         setBtnLabel(btnLogin, 'acc.loginBtn');
-        setMsg(loginMsg, 'acc.loginOk', 'ok');
+        setMsg(msgEl || loginMsg, 'acc.loginOk', 'ok');
         setTimeout(function () { w.location.href = 'mine.html'; }, 800);
         setTimeout(function () { btnLogin.disabled = false; }, 3000);
       }
@@ -1292,6 +1427,62 @@
         if (code.length !== 6) { setMsg(loginMsg, 'acc.err.code_required'); loginCode.focus(); return; }
         submitCodeLogin(a, code);
       };
+
+      /* ---------------- 验证码登录面板（免密码） ---------------- */
+      var codeAcct = d.getElementById('codeAcct');
+      var codeLoginInput = d.getElementById('codeLoginInput');
+      var btnCodeSend = d.getElementById('btnCodeSend');
+      var btnCodeSubmit = d.getElementById('btnCodeSubmit');
+      var codeLoginMsg = d.getElementById('codeLoginMsg');
+
+      // 该面板自带输入框，独立解析邮箱 / 旧编号
+      function codeAcctVal() {
+        var raw = (codeAcct.value || '').replace(/^\s+|\s+$/g, '');
+        if (raw.indexOf('@') > 0) return { isMail: true, email: normEmail(raw), id: '' };
+        return { isMail: false, email: '', id: raw.replace(/[^A-Za-z0-9]/g, '') };
+      }
+
+      codeLoginInput.oninput = function () {
+        var v = (codeLoginInput.value || '').replace(/[^0-9]/g, '').substr(0, 6);
+        if (v !== codeLoginInput.value) codeLoginInput.value = v;
+      };
+
+      btnCodeSend.onclick = function () {
+        if (btnCodeSend.disabled) return;
+        var a = codeAcctVal();
+        setMsg(codeLoginMsg, '');
+        if (acctBad(a)) { setMsg(codeLoginMsg, acctErr(a)); codeAcct.focus(); return; }
+        requestCode({ btn: btnCodeSend, msg: codeLoginMsg, scene: 'login', id: a.id, email: a.email, key: 'acc.sendCode' });
+      };
+
+      function submitCodePane() {
+        if (btnCodeSubmit.disabled) return;
+        var a = codeAcctVal();
+        var code = (codeLoginInput.value || '').replace(/[^0-9]/g, '');
+        setMsg(codeLoginMsg, '');
+        if (acctBad(a)) { setMsg(codeLoginMsg, acctErr(a)); codeAcct.focus(); return; }
+        if (code.length !== 6) { setMsg(codeLoginMsg, 'acc.err.code_required'); codeLoginInput.focus(); return; }
+        btnCodeSubmit.disabled = true;
+        setBtnLabel(btnCodeSubmit, 'acc.loggingIn');
+        post({ action: 'loginByCode', id: a.id, email: a.email, code: code }).then(function (data) {
+          btnCodeSubmit.disabled = false;
+          setBtnLabel(btnCodeSubmit, 'acc.codeLoginSubmit');
+          if (data && data.ok) { afterLoginOk(data, a, codeLoginMsg); return; }
+          if (data && data.code === 'email_required') codeAcct.focus();
+          showErr(codeLoginMsg, data);
+        }).catch(function () {
+          btnCodeSubmit.disabled = false;
+          setBtnLabel(btnCodeSubmit, 'acc.codeLoginSubmit');
+          setMsg(codeLoginMsg, 'acc.err.net');
+        });
+      }
+
+      btnCodeSubmit.onclick = submitCodePane;
+      codeLoginInput.onkeydown = function (e) {
+        var key = e.keyCode || e.which;
+        if (key === 13) { e.preventDefault(); submitCodePane(); }
+      };
+
 
       btnLogin.onclick = function () {
         if (btnLogin.disabled) return;
@@ -1479,6 +1670,13 @@
         var tipEl = d.getElementById('loginTip');
         if (tipEl) { tipEl.style.display = 'none'; }
       }
+      // 无会话时默认停在「密码登录」；首屏先禁用滑块过渡，渲染后再开启
+      if (segThumb) segThumb.style.transition = 'none';
+      if (!savedId) showPane('login', true);
+      moveThumb();
+      w.requestAnimationFrame(function () { if (segThumb) segThumb.style.transition = ''; });
+      w.addEventListener('load', moveThumb);
+
     })(window, document);
   </script>
 
