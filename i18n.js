@@ -701,6 +701,7 @@
     'acc.resetDone': { zh: '密码已重置，请用新密码登录', en: 'Password reset—sign in with your new password', ja: 'パスワードを再設定しました。新しいパスワードでログインしてください', ko: '비밀번호가 재설정되었습니다. 새 비밀번호로 로그인해 주세요', es: 'Contraseña restablecida: inicia sesión con la nueva' },
     'acc.resetBack': { zh: '返回登录', en: 'Back to sign in', ja: 'ログインに戻る', ko: '로그인으로 돌아가기', es: 'Volver al acceso' },
     'acc.resetNoEmailTip': { zh: '账号没有绑定邮箱？无法自助重置，请联系管理员处理', en: 'No email linked? Self-service reset is unavailable—please contact the admin', ja: 'メールアドレス未登録の場合、自己再設定はできません。管理者にお問い合わせください', ko: '이메일이 등록되어 있지 않으면 직접 재설정할 수 없습니다. 관리자에게 문의해 주세요', es: '¿Sin correo vinculado? No puedes restablecerla por tu cuenta: contacta con el administrador' },
+    'acc.adminContact': { zh: '联系管理员邮箱：', en: 'Admin email:', ja: '管理者メール：', ko: '관리자 이메일:', es: 'Correo del administrador:' },
     'acc.mailFail': { zh: '验证码发送失败，请稍后重试', en: 'Could not send the code—please try again', ja: '確認コードを送信できませんでした。しばらくしてからお試しください', ko: '인증 코드를 보내지 못했습니다. 잠시 후 다시 시도해 주세요', es: 'No se pudo enviar el código: inténtalo de nuevo' },
     'acc.loginOk': { zh: '登录成功，正在进入游客界面…', en: 'Logged in—taking you to the guest area…', ja: 'ログインしました。ゲストページへ移動します…', ko: '로그인했습니다. 게스트 페이지로 이동합니다…', es: 'Sesión iniciada: te llevamos al área de invitado…' },
     'acc.created': { zh: '注册成功，以后用这个邮箱登录', en: 'All set—use this email to log in from now on', ja: '登録が完了しました。以後このメールアドレスでログインします', ko: '가입이 완료되었습니다. 앞으로 이 이메일로 로그인합니다', es: 'Registro completado: usa este correo para entrar de ahora en adelante' },
